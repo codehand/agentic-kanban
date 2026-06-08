@@ -5,6 +5,7 @@ Tài liệu của **Agentic Kanban (Task Hub)**.
 | Tài liệu | Mô tả |
 |----------|-------|
 | [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | Kế hoạch triển khai theo phase (P0 → P9), kiến trúc, quyết định công nghệ, AC từng phase. |
+| [phases/](./phases/) | Spec chi tiết từng phase (`P0.md … P9.md`) — drill-down của `IMPLEMENTATION_PLAN.md` §5, bám sát `TASK_HUB_DESIGN.md`. |
 
 ## Tài liệu nguồn (nằm ngoài `docs/`, là nguồn sự thật)
 
