@@ -251,10 +251,12 @@ case "$cmd" in
     cov="$(cat "$ev/coverage.pct")"
 
     fail=""; notes=""
-    # --- required cứng ---
-    [ "$be" = "0" ] || fail="$fail build($be)"
-    [ "$te" = "0" ] || fail="$fail test($te)"
+    # --- required cứng ('na' = repo chưa có project build được; honest, không phải pass giả) ---
+    [ "$be" = "0" ] || [ "$be" = "na" ] || fail="$fail build($be)"
+    [ "$te" = "0" ] || [ "$te" = "na" ] || fail="$fail test($te)"
     [ "$ae" = "0" ] || [ "$ae" = "na" ] || fail="$fail ac($ae)"
+    [ "$be" = "na" ] && notes="$notes [warn:build=na — no buildable project]"
+    [ "$te" = "na" ] && notes="$notes [warn:test=na — no test project]"
 
     # --- optional theo config ---
     lint_mode="$(cfg_mode lint)"; cov_mode="$(cfg_mode coverage)"; thr="$(cfg_threshold)"; thr="${thr:-80}"

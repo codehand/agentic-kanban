@@ -19,7 +19,7 @@ This workflow isolates every task on its own branch + git worktree, one per repo
 This prints the shared branch name (`fix/<TASK>-<slug>`) and one `repo -> <abs worktree path>` line per repo. **`cd` into those worktree paths to do every edit, build, and test.** If any task change leaks into a repo's main checkout (dirty working tree, or a new commit on its main branch), the gate will **REJECT** the move to IMPLEMENTED.
 
 ## Hard rules
-- You may modify source code and tests — **only inside the task's worktree(s)**. Run `go build`/`go test` from inside the worktree while iterating.
+- You may modify source code and tests — **only inside the task's worktree(s)**. Run the project's build/test (default `pnpm build`/`pnpm test`, see `.ai/config.yml`) from inside the worktree while iterating.
 - You MUST NOT edit any repo's main checkout (the gate enforces it stays clean at `base`).
 - You MUST NOT write to `.ai/evidence/` or `.ai/state/` — the hook will block you. That is intentional.
 - You MUST NOT claim tests/build passed in prose as if final. Official evidence is produced later by `.ai/scripts/run-evidence.sh`, not by you.
@@ -34,7 +34,7 @@ This prints the shared branch name (`fix/<TASK>-<slug>`) and one `repo -> <abs w
    ```
 2. Implement the change **inside the worktree(s)** to satisfy every Acceptance Criterion. Add/extend real tests where the task requires.
 3. **Commit** your changes onto the task branch in each worktree (`git -C <wt> add -A && git -C <wt> commit -m "<TASK>: ..."`). This lets the Self-Check build the right code and lets the Judge diff `base..branch`.
-4. Sanity-run locally inside the worktree: `go build ./...` and `go test ./...`. Fix until green. (For your confidence; NOT the official evidence.)
+4. Sanity-run locally inside the worktree: `pnpm build` and `pnpm test` (or the commands in `.ai/config.yml`). Fix until green. (For your confidence; NOT the official evidence.)
 5. Write your narrative to `.ai/reports/<TASK>/implementer.md` (this path IS allowed) covering:
    - Files modified (with why)
    - Summary of implementation

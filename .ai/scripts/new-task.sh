@@ -50,9 +50,9 @@ Branch: $BRANCH
 
 ## Acceptance Criteria
 
-### Machine-verifiable (chấm bởi $ID.ac.sh + gate; build/test/ac luôn hard-required)
-- [ ] AC1: \`go build ./...\` succeeds (build.exit == 0).
-- [ ] AC2: \`go test ./...\` passes (test.exit == 0).
+### Machine-verifiable (chấm bởi $ID.ac.sh + gate; build/test/ac hard-required, 'na' nếu repo chưa có project)
+- [ ] AC1: project builds (build.exit == 0) — lệnh từ .ai/config.yml (mặc định \`pnpm build\`).
+- [ ] AC2: tests pass (test.exit == 0) — mặc định \`pnpm test\` (vitest).
 - [ ] AC3: <điều kiện đo được — viết vào $ID.ac.sh để gate tự chấm>
 
 ### Human / semantic (Judge + Human)

@@ -12,11 +12,12 @@ models:
   self_check:  inherit       # = model của session chạy /selfcheck
   judge:       inherit       # = model của session chạy /judge (đặt khác tier để decorrelate)
 
-# Lệnh runner tái dùng từ skill test-report. {cov} sẽ được thay bằng đường dẫn coverage.out.
+# Lệnh runner đọc & chạy (per-repo, trong worktree). Project Node/TypeScript: pnpm + vitest.
+# coverage lấy từ vitest reporter 'json-summary' (coverage/coverage-summary.json -> .total.lines.pct).
 commands:
-  build: "go build ./..."
-  test:  "go test ./... -count=1 -timeout 120s -coverprofile={cov} -v"
-  lint:  "golangci-lint run"
+  build: "pnpm build"
+  test:  "pnpm test"
+  lint:  "pnpm lint"
 
 # required = fail/dưới ngưỡng thì CHẶN transition. optional = chỉ ghi cảnh báo, vẫn cho qua.
 # build/test/ac luôn cứng (required) bất kể cấu hình ở đây.

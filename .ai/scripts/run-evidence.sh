@@ -2,55 +2,69 @@
 # run-evidence.sh TASK-ID
 # Sinh evidence TẤT ĐỊNH cho một task. Đây là thực thể DUY NHẤT (cùng gate.sh)
 # được phép ghi vào .ai/evidence/. Agent không bao giờ tự "kể" kết quả test/build.
-# Tái dùng đúng lệnh của skill test-report (go test -coverprofile / go tool cover).
+#
+# ADAPTED FOR NODE (TypeScript): chạy lệnh build/test/lint đọc từ .ai/config.yml
+# (mặc định pnpm + vitest), per-repo BÊN TRONG worktree mỗi repo.
+# KHÁC bản Go cũ: repo KHÔNG có project (không package.json) -> build/test = "na"
+# (KHÔNG còn skip->0 "xanh giả"). gate selfcheck chấp nhận "na" cho repo chưa có code.
 set -uo pipefail
 
 TASK="${1:?usage: run-evidence.sh TASK-ID}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"   # .ai/scripts -> repo root
+CONFIG="$ROOT/.ai/config.yml"
 EV="$ROOT/.ai/evidence/$TASK"
 AC="$ROOT/.ai/tasks/$TASK/$TASK.ac.sh"
+SF="$ROOT/.ai/state/$TASK.json"
 NOW="$(date -u +%FT%TZ)"
 
 cd "$ROOT"
 
-# Mở khoá để tái ghi (file evidence được set 0444 ở cuối mỗi lần chạy).
+# đọc lệnh từ config.yml (format inline: '  build: "pnpm build"')
+cfg_cmd() { grep -E "^[[:space:]]*$1:[[:space:]]*\"" "$CONFIG" 2>/dev/null | head -1 | sed -E 's/^[^"]*"//; s/"[[:space:]]*$//'; }
+BUILD_CMD="$(cfg_cmd build)"; BUILD_CMD="${BUILD_CMD:-pnpm build}"
+TEST_CMD="$(cfg_cmd test)";   TEST_CMD="${TEST_CMD:-pnpm test}"
+LINT_CMD="$(cfg_cmd lint)";   LINT_CMD="${LINT_CMD:-pnpm lint}"
+
+# Mở khoá để tái ghi (evidence set 0444 ở cuối mỗi lần chạy).
 mkdir -p "$EV"
 chmod -R u+w "$EV" 2>/dev/null || true
 
-echo "[run-evidence] $TASK @ $NOW"
+echo "[run-evidence] $TASK @ $NOW  (build='$BUILD_CMD' test='$TEST_CMD')"
 
 # --- build + test + coverage theo TỪNG repo, BÊN TRONG worktree ---
-# gate ghi repos{wt,base_sha} vào state lúc IN_PROGRESS. Build/test mỗi repo trong worktree
-# của nó (code task nằm ở đây, không phải checkout chính). exit = tổng hợp (fail nếu BẤT KỲ
-# repo nào fail); coverage.pct = MIN các repo. Mỗi repo được export AI_WT_<REPO>=<worktree>
-# để ac.sh tự trỏ vào worktree (fallback checkout chính khi chạy tay).
-SF="$ROOT/.ai/state/$TASK.json"
-build_exit=0; test_exit=0; cov_min=""
-: > "$EV/build.log"; : > "$EV/test.log"; : > "$EV/coverage.func.txt"
-rm -f "$EV"/coverage-*.out 2>/dev/null || true
+# build.exit/test.exit = tổng hợp (MAX qua các repo); coverage.pct = MIN qua các repo.
+# ran_any=0 nghĩa là KHÔNG repo nào có project Node -> build/test = "na".
+build_exit=0; test_exit=0; cov_min=""; ran_any=0; LINT_BDIR=""
+: > "$EV/build.log"; : > "$EV/test.log"
+rm -f "$EV"/coverage-*.json 2>/dev/null || true
 
 run_in_repo() { # REPO WT(relative|empty)
-  local repo="$1" wt="$2" bdir envname rc cov pct
+  local repo="$1" wt="$2" bdir envname rc pct cs
   if [ -n "$wt" ] && [ -d "$ROOT/$wt" ]; then bdir="$ROOT/$wt"; else bdir="$(cd "$ROOT/$repo" 2>/dev/null && pwd || echo "$ROOT")"; fi
   if [ "$repo" = "." ]; then envname="AI_WT_ROOT"; else
     envname="AI_WT_$(printf '%s' "$repo" | tr '[:lower:]./-' '[:upper:]___')"; fi
   export "$envname=$bdir"
-  if [ ! -f "$bdir/go.mod" ]; then
-    { echo "== [$repo] skip (no go.mod) @ $bdir =="; } | tee -a "$EV/build.log" >> "$EV/test.log"
+
+  if [ ! -f "$bdir/package.json" ]; then
+    { echo "== [$repo] no package.json @ $bdir -> build/test skipped (na) =="; } | tee -a "$EV/build.log" >> "$EV/test.log"
     return 0
   fi
-  echo "== [$repo] go build ./...  @ $bdir ==" >> "$EV/build.log"
-  ( cd "$bdir" && go build ./... ) >> "$EV/build.log" 2>&1; rc=$?
+  ran_any=1
+  [ -z "$LINT_BDIR" ] && LINT_BDIR="$bdir"
+
+  echo "== [$repo] $BUILD_CMD  @ $bdir ==" >> "$EV/build.log"
+  ( cd "$bdir" && bash -c "$BUILD_CMD" ) >> "$EV/build.log" 2>&1; rc=$?
   [ "$rc" -gt "$build_exit" ] && build_exit=$rc
-  echo "== [$repo] go test ./...  @ $bdir ==" >> "$EV/test.log"
-  cov="$EV/coverage-$(printf '%s' "$repo" | tr './' '__').out"
-  ( cd "$bdir" && go test ./... -count=1 -timeout 120s -coverprofile="$cov" -v ) >> "$EV/test.log" 2>&1; rc=$?
+
+  echo "== [$repo] $TEST_CMD  @ $bdir ==" >> "$EV/test.log"
+  ( cd "$bdir" && bash -c "$TEST_CMD" ) >> "$EV/test.log" 2>&1; rc=$?
   [ "$rc" -gt "$test_exit" ] && test_exit=$rc
-  if [ -f "$cov" ]; then
-    # cover phải chạy TRONG worktree để resolve được path nguồn (file chỉ tồn tại ở branch task)
-    echo "== [$repo] ==" >> "$EV/coverage.func.txt"
-    ( cd "$bdir" && go tool cover -func="$cov" ) >> "$EV/coverage.func.txt" 2>&1 || true
-    pct="$( ( cd "$bdir" && go tool cover -func="$cov" ) 2>/dev/null | awk '/^total:/{gsub(/%/,"",$NF); print $NF}' | tail -1)"
+
+  # coverage: vitest reporter 'json-summary' -> coverage/coverage-summary.json (.total.lines.pct)
+  cs="$bdir/coverage/coverage-summary.json"
+  if [ -f "$cs" ]; then
+    cp "$cs" "$EV/coverage-$(printf '%s' "$repo" | tr './' '__').json" 2>/dev/null || true
+    pct="$(jq -r '.total.lines.pct // empty' "$cs" 2>/dev/null)"
     if [ -n "$pct" ]; then
       if [ -z "$cov_min" ]; then cov_min="$pct"
       else cov_min="$(awk -v a="$cov_min" -v b="$pct" 'BEGIN{print (b+0<a+0)?b:a}')"; fi
@@ -64,23 +78,29 @@ while IFS=$'\t' read -r repo wt; do
   found_repo=1
   run_in_repo "$repo" "$wt"
 done < <(jq -r '.repos // {} | to_entries[] | "\(.key)\t\(.value.wt)"' "$SF" 2>/dev/null)
-# fallback: chưa có worktree trong state (repo đơn chưa qua IN_PROGRESS) -> build tại ROOT
+# fallback: chưa có worktree trong state (repo đơn chưa qua IN_PROGRESS) -> chạy tại ROOT
 [ "$found_repo" -eq 0 ] && run_in_repo "." ""
 
-echo "$build_exit" > "$EV/build.exit"
-echo "$test_exit" > "$EV/test.exit"
-echo "${cov_min:-0.0}" > "$EV/coverage.pct"
+if [ "$ran_any" -eq 0 ]; then
+  # không repo nào có project Node -> build/test KHÔNG áp dụng (na), KHÔNG phải pass giả
+  echo "na" > "$EV/build.exit"; echo "na" > "$EV/test.exit"; echo "0.0" > "$EV/coverage.pct"
+  echo "  (no package.json in any repo -> build/test = na)"
+else
+  echo "$build_exit" > "$EV/build.exit"
+  echo "$test_exit" > "$EV/test.exit"
+  echo "${cov_min:-0.0}" > "$EV/coverage.pct"
+fi
 
-# --- lint (optional; công cụ có thể chưa cài) ---
-if command -v golangci-lint >/dev/null 2>&1; then
-  golangci-lint run > "$EV/lint.log" 2>&1
+# --- lint (optional; chỉ chạy nếu repo có script "lint") ---
+if [ -n "$LINT_BDIR" ] && grep -q '"lint"' "$LINT_BDIR/package.json" 2>/dev/null; then
+  ( cd "$LINT_BDIR" && bash -c "$LINT_CMD" ) > "$EV/lint.log" 2>&1
   echo $? > "$EV/lint.exit"
 else
-  echo "golangci-lint not installed — skipped" > "$EV/lint.log"
+  echo "no lint script — skipped" > "$EV/lint.log"
   echo "skipped" > "$EV/lint.exit"
 fi
 
-# --- AC machine-verify (nếu task có .ac.sh) ---
+# --- AC machine-verify (nếu task có .ac.sh; ac.sh tự cd vào worktree qua AI_WT_<REPO>) ---
 if [ -f "$AC" ]; then
   bash "$AC" > "$EV/ac.log" 2>&1
   echo $? > "$EV/ac.exit"
@@ -90,6 +110,7 @@ else
 fi
 
 # --- manifest: sha256 từng file + exit codes + coverage% (qua jq cho an toàn) ---
+# build/test/lint/ac là string (có thể "na"/"skipped"); coverage là số.
 FILES_JSON="$(cd "$EV" && for f in *; do
     [ "$f" = "manifest.json" ] && continue
     [ -f "$f" ] || continue
@@ -99,8 +120,8 @@ FILES_JSON="$(cd "$EV" && for f in *; do
 jq -n \
   --arg task "$TASK" \
   --arg generated_at "$NOW" \
-  --argjson build_exit "$(cat "$EV/build.exit")" \
-  --argjson test_exit "$(cat "$EV/test.exit")" \
+  --arg build_exit "$(cat "$EV/build.exit")" \
+  --arg test_exit "$(cat "$EV/test.exit")" \
   --arg lint_exit "$(cat "$EV/lint.exit")" \
   --arg ac_exit "$(cat "$EV/ac.exit")" \
   --argjson coverage_pct "$(cat "$EV/coverage.pct")" \
