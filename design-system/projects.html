@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agentic Kanban - Projects</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+<script src="theme.js"></script>
+<link rel="stylesheet" href="theme.css" />
+</head>
+
+<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="projects" data-project="opf-hub" data-awaiting="2">
+<div class="flex h-full">
+  <aside id="rail"></aside>
+
+  <main class="flex-1 min-w-0 flex flex-col">
+    <!-- top bar -->
+    <header class="h-14 shrink-0 border-b border-border bg-panel/80 backdrop-blur flex items-center gap-3 px-4">
+      <span class="text-[14px] font-semibold tracking-tight">Projects</span>
+      <div class="ml-auto flex items-center gap-2">
+        <div class="hidden md:flex items-center gap-2 rounded-md border border-border bg-panel2 px-2.5 h-9 w-56 text-muted focus-within:border-accent/60">
+          <i class="ph ph-magnifying-glass text-[15px]"></i>
+          <input placeholder="Search projects" class="bg-transparent text-[12.5px] text-text placeholder:text-muted outline-none w-full" />
+        </div>
+        <a href="new-task.html" class="flex items-center gap-1.5 rounded-md bg-accent px-3 h-9 text-[12.5px] font-medium text-white hover:bg-accent/90 active:translate-y-px">
+          <i class="ph ph-plus text-[14px]"></i> New Task
+        </a>
+      </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto console-grid">
+      <div class="max-w-[1100px] mx-auto px-6 py-6">
+
+        <!-- across-all hero strip -->
+        <a href="index.html#col-human" class="block rounded-xl border border-st_human/40 bg-st_human/10 glow-human-soft px-5 py-4 hover:bg-st_human/15">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-[17px] font-semibold text-st_human flex items-center gap-2"><i class="ph-fill ph-hand-tap"></i> 2 tasks awaiting you</p>
+              <p class="mt-0.5 text-[12px] text-muted">Across all projects. These are cleared by the gate and only you can mark them Done.</p>
+            </div>
+            <span class="hidden sm:flex items-center gap-1 text-[12.5px] text-st_human">Review now <i class="ph ph-arrow-right"></i></span>
+          </div>
+        </a>
+
+        <h2 class="mt-7 mb-3 text-[12px] uppercase tracking-wider text-muted">3 projects</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          <!-- project: opf-hub -->
+          <a href="index.html" class="group rounded-xl border border-st_human/40 bg-panel glow-human-soft p-4 hover:border-st_human/60">
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="grid place-items-center w-8 h-8 rounded-md bg-accent/15 text-accent shrink-0"><i class="ph-fill ph-folder text-[16px]"></i></span>
+                <div class="min-w-0">
+                  <h3 class="text-[14px] font-semibold truncate">opf-hub</h3>
+                  <p class="mono text-[11px] text-muted">14 tasks &middot; 1 repo</p>
+                </div>
+              </div>
+              <span class="inline-flex items-center gap-1 mono text-[11px] px-2 py-1 rounded-md bg-st_human/15 text-st_human"><i class="ph-fill ph-hand-tap text-[11px]"></i> 2 awaiting</span>
+            </div>
+
+            <!-- state distribution mini-bar -->
+            <div class="mt-4 flex h-2 w-full overflow-hidden rounded-full bg-panel2">
+              <span class="bg-st_todo" style="width:21%"></span>
+              <span class="bg-st_prog" style="width:14%"></span>
+              <span class="bg-st_selffail" style="width:7%"></span>
+              <span class="bg-st_reject" style="width:14%"></span>
+              <span class="bg-st_human" style="width:15%"></span>
+              <span class="bg-st_done" style="width:29%"></span>
+            </div>
+            <div class="mt-3 grid grid-cols-3 gap-y-2 mono text-[11px]">
+              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_todo"></span>Backlog 3</span>
+              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_prog"></span>Progress 2</span>
+              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_selffail"></span>Self-Check 1</span>
+              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_reject"></span>Judge 2</span>
+              <span class="flex items-center gap-1.5 text-st_human"><span class="w-1.5 h-1.5 rounded-sm bg-st_human"></span>Awaiting 2</span>
+              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_done"></span>Done 4</span>
+            </div>
+          </a>
+
+          <!-- project: api-marketplace -->
+          <a href="index.html" class="group rounded-xl border border-border bg-panel p-4 hover:border-borderlt">
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="grid place-items-center w-8 h-8 rounded-md bg-panel2 text-muted shrink-0"><i class="ph-fill ph-folder text-[16px]"></i></span>
+                <div class="min-w-0">
+                  <h3 class="text-[14px] font-semibold truncate">api-marketplace</h3>
+                  <p class="mono text-[11px] text-muted">6 tasks &middot; 1 repo</p>
+                </div>
+              </div>
+              <span class="inline-flex items-center gap-1 mono text-[11px] px-2 py-1 rounded-md bg-white/5 text-muted">0 awaiting</span>
+            </div>
+            <div class="mt-4 flex h-2 w-full overflow-hidden rounded-full bg-panel2">
+              <span class="bg-st_todo" style="width:17%"></span>
+              <span class="bg-st_prog" style="width:17%"></span>
+              <span class="bg-st_self" style="width:16%"></span>
+              <span class="bg-st_done" style="width:50%"></span>
+            </div>
+            <div class="mt-3 grid grid-cols-3 gap-y-2 mono text-[11px]">
+              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_todo"></span>Backlog 1</span>
+              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_prog"></span>Progress 1</span>
+              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_self"></span>Judge 1</span>
+              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_done"></span>Done 3</span>
+            </div>
+          </a>
+
+          <!-- project: opf-auto-e2e -->
+          <a href="index.html" class="group rounded-xl border border-border bg-panel p-4 hover:border-borderlt">
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="grid place-items-center w-8 h-8 rounded-md bg-panel2 text-muted shrink-0"><i class="ph-fill ph-folder text-[16px]"></i></span>
+                <div class="min-w-0">
+                  <h3 class="text-[14px] font-semibold truncate">opf-auto-e2e</h3>
+                  <p class="mono text-[11px] text-muted">4 tasks &middot; 1 repo</p>
+                </div>
+              </div>
+              <span class="inline-flex items-center gap-1 mono text-[11px] px-2 py-1 rounded-md bg-white/5 text-muted">0 awaiting</span>
+            </div>
+            <div class="mt-4 flex h-2 w-full overflow-hidden rounded-full bg-panel2">
+              <span class="bg-st_prog" style="width:25%"></span>
+              <span class="bg-st_done" style="width:75%"></span>
+            </div>
+            <div class="mt-3 grid grid-cols-3 gap-y-2 mono text-[11px]">
+              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_prog"></span>Progress 1</span>
+              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_done"></span>Done 3</span>
+            </div>
+          </a>
+
+          <!-- add project -->
+          <button class="rounded-xl border border-dashed border-border bg-transparent p-4 text-muted hover:text-text hover:border-borderlt flex items-center justify-center gap-2 min-h-[148px]">
+            <i class="ph ph-plus-circle text-[18px]"></i> <span class="text-[13px]">Add project</span>
+          </button>
+
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<script src="shell.js"></script>
+</body>
+</html>

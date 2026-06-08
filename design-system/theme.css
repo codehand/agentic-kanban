@@ -1,0 +1,50 @@
+/* Agentic Kanban - shared styles. Fonts + custom layers + motion (reduced-motion safe). */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root { color-scheme: dark; }
+html, body { background: #0E0F13; }
+body { font-feature-settings: "cv11", "ss01"; }
+.mono { font-variant-numeric: tabular-nums; }
+
+/* faint console grid on empty surfaces */
+.console-grid {
+  background-image:
+    linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+/* hero "Awaiting Human" violet glow */
+.glow-human { box-shadow: 0 0 0 1px rgba(168,119,245,.35), 0 0 28px -6px rgba(168,119,245,.45); }
+.glow-human-soft { box-shadow: inset 0 0 0 1px rgba(168,119,245,.22), 0 0 22px -10px rgba(168,119,245,.5); }
+
+/* live lease / heartbeat pulse */
+@keyframes pulseDot { 0%,100% { opacity: 1; transform: scale(1);} 50% { opacity:.45; transform: scale(.82);} }
+.heartbeat { animation: pulseDot 1.9s ease-in-out infinite; }
+
+@keyframes updFlash { 0% { background-color: rgba(91,124,250,.18);} 100% { background-color: transparent;} }
+.updated { animation: updFlash 1.2s ease-out 1; }
+
+/* skeleton shimmer */
+@keyframes shimmer { 100% { transform: translateX(100%);} }
+.skel { position: relative; overflow: hidden; background:#1B1E26; }
+.skel::after { content:""; position:absolute; inset:0; transform:translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.05), transparent); animation: shimmer 1.5s infinite; }
+
+.drawer { transition: transform .26s cubic-bezier(.16,1,.3,1); }
+.scrim  { transition: opacity .26s ease; }
+
+/* details disclosure caret */
+.det-caret { transition: transform .15s ease; }
+details[open] > summary .det-caret { transform: rotate(90deg); }
+
+/* thin scrollbars */
+::-webkit-scrollbar { height: 10px; width: 10px; }
+::-webkit-scrollbar-thumb { background:#262932; border-radius:8px; border:2px solid #0E0F13; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  .heartbeat, .updated, .skel::after { animation: none !important; }
+  .drawer, .scrim { transition: none !important; }
+  .glow-human, .glow-human-soft { box-shadow: 0 0 0 1px rgba(168,119,245,.35); }
+}

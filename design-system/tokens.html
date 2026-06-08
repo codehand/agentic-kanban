@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agentic Kanban - Tokens</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+<script src="theme.js"></script>
+<link rel="stylesheet" href="theme.css" />
+</head>
+
+<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="tokens" data-project="opf-hub" data-awaiting="2">
+<div class="flex h-full">
+  <aside id="rail"></aside>
+
+  <main class="flex-1 min-w-0 flex flex-col">
+    <header class="h-14 shrink-0 border-b border-border bg-panel/80 backdrop-blur flex items-center gap-3 px-4">
+      <span class="text-[14px] font-semibold tracking-tight">Tokens</span>
+      <span class="hidden sm:inline text-[12px] text-muted">role-scoped bearer tokens, server-enforced</span>
+      <button onclick="document.getElementById('mint').classList.toggle('hidden')" class="ml-auto flex items-center gap-1.5 rounded-md bg-accent px-3 h-9 text-[12.5px] font-medium text-white hover:bg-accent/90 active:translate-y-px">
+        <i class="ph ph-plus text-[14px]"></i> Mint token
+      </button>
+    </header>
+
+    <div class="flex-1 overflow-y-auto">
+      <div class="max-w-[920px] mx-auto px-6 py-6 space-y-5">
+
+        <!-- secret-shown-once banner (just minted) -->
+        <div class="rounded-xl border border-accent/40 bg-accent/8 p-4">
+          <div class="flex items-center gap-2 text-[12.5px] font-medium text-accent"><i class="ph-fill ph-check-circle"></i> Minted <span class="mono">judge</span> token "opus-judge". Copy it now.</div>
+          <p class="mt-1 text-[11.5px] text-muted">The secret is shown <span class="text-text font-medium">once</span>. It is stored only as a hash. If you lose it, revoke and mint a new one.</p>
+          <div class="mt-3 flex items-center gap-2 rounded-md border border-border bg-bg px-3 h-10">
+            <i class="ph ph-key text-muted text-[14px]"></i>
+            <code class="flex-1 mono text-[12.5px] text-text overflow-x-auto whitespace-nowrap">akb_live_judge_3d9f7b1a8c64e02f</code>
+            <button class="flex items-center gap-1 mono text-[11px] text-accent hover:underline shrink-0"><i class="ph ph-copy text-[13px]"></i> copy</button>
+          </div>
+        </div>
+
+        <!-- mint panel (hidden by default) -->
+        <div id="mint" class="hidden rounded-xl border border-border bg-panel p-4">
+          <h2 class="text-[13px] font-semibold mb-3">Mint a new token</h2>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="grid gap-1.5">
+              <label class="text-[12px] font-medium">Role</label>
+              <div class="relative">
+                <select class="appearance-none w-full rounded-md border border-border bg-panel2 px-3 h-10 text-[13px] outline-none focus:border-accent/60">
+                  <option>implementer</option><option>self-check</option><option>judge</option><option>runner</option><option>human</option>
+                </select>
+                <i class="ph ph-caret-down text-muted text-[13px] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+              </div>
+            </div>
+            <div class="grid gap-1.5">
+              <label class="text-[12px] font-medium">Project scope <span class="text-muted font-normal text-[11px]">optional</span></label>
+              <div class="relative">
+                <select class="appearance-none w-full rounded-md border border-border bg-panel2 px-3 h-10 text-[13px] outline-none focus:border-accent/60">
+                  <option>opf-hub</option><option>api-marketplace</option><option>all projects</option>
+                </select>
+                <i class="ph ph-caret-down text-muted text-[13px] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+              </div>
+            </div>
+            <div class="grid gap-1.5">
+              <label class="text-[12px] font-medium">Label</label>
+              <input placeholder="e.g. sonnet-impl-02" class="rounded-md border border-border bg-panel2 px-3 h-10 text-[13px] outline-none focus:border-accent/60" />
+            </div>
+          </div>
+          <div class="mt-3 flex justify-end">
+            <button class="flex items-center gap-1.5 rounded-md bg-accent px-3.5 h-9 text-[12.5px] font-semibold text-white hover:bg-accent/90"><i class="ph ph-key text-[14px]"></i> Mint &amp; reveal once</button>
+          </div>
+        </div>
+
+        <!-- tokens table -->
+        <section>
+          <h2 class="text-[11px] uppercase tracking-wider text-muted mb-2">Active &amp; revoked tokens</h2>
+          <div class="rounded-xl border border-border bg-panel overflow-hidden">
+            <table class="w-full text-[12.5px]">
+              <thead class="text-[11px] text-muted">
+                <tr class="border-b border-border">
+                  <th class="text-left font-medium px-4 py-2.5">Role</th>
+                  <th class="text-left font-medium px-4 py-2.5">Label</th>
+                  <th class="text-left font-medium px-4 py-2.5 hidden md:table-cell">Scope</th>
+                  <th class="text-left font-medium px-4 py-2.5 hidden sm:table-cell">Last used</th>
+                  <th class="text-right font-medium px-4 py-2.5">Action</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-border">
+                <tr>
+                  <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[11px] px-2 py-0.5 rounded bg-accent/12 text-accent"><i class="ph-fill ph-user-circle text-[11px]"></i>human</span></td>
+                  <td class="px-4 py-3">operator <span class="text-muted text-[11px]">(you)</span></td>
+                  <td class="px-4 py-3 mono text-[11px] text-muted hidden md:table-cell">all projects</td>
+                  <td class="px-4 py-3 mono text-[11px] text-muted hidden sm:table-cell">just now</td>
+                  <td class="px-4 py-3 text-right"><span class="mono text-[11px] text-muted">current</span></td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[11px] px-2 py-0.5 rounded bg-st_prog/12 text-st_prog"><i class="ph ph-robot text-[11px]"></i>implementer</span></td>
+                  <td class="px-4 py-3">sonnet-impl-01</td>
+                  <td class="px-4 py-3 mono text-[11px] text-muted hidden md:table-cell">opf-hub</td>
+                  <td class="px-4 py-3 mono text-[11px] text-muted hidden sm:table-cell">5m ago</td>
+                  <td class="px-4 py-3 text-right"><button class="mono text-[11px] text-muted hover:text-ev_fail">Revoke</button></td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[11px] px-2 py-0.5 rounded bg-st_self/12 text-st_self"><i class="ph ph-shield-check text-[11px]"></i>self-check</span></td>
+                  <td class="px-4 py-3">selfcheck-01</td>
+                  <td class="px-4 py-3 mono text-[11px] text-muted hidden md:table-cell">opf-hub</td>
+                  <td class="px-4 py-3 mono text-[11px] text-muted hidden sm:table-cell">4m ago</td>
+                  <td class="px-4 py-3 text-right"><button class="mono text-[11px] text-muted hover:text-ev_fail">Revoke</button></td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[11px] px-2 py-0.5 rounded bg-st_human/12 text-st_human"><i class="ph-fill ph-gavel text-[11px]"></i>judge</span></td>
+                  <td class="px-4 py-3">opus-judge</td>
+                  <td class="px-4 py-3 mono text-[11px] text-muted hidden md:table-cell">opf-hub</td>
+                  <td class="px-4 py-3 mono text-[11px] text-muted hidden sm:table-cell">3m ago</td>
+                  <td class="px-4 py-3 text-right"><button class="mono text-[11px] text-muted hover:text-ev_fail">Revoke</button></td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[11px] px-2 py-0.5 rounded bg-white/5 text-muted"><i class="ph ph-cpu text-[11px]"></i>runner</span></td>
+                  <td class="px-4 py-3">ci-runner</td>
+                  <td class="px-4 py-3 mono text-[11px] text-muted hidden md:table-cell">opf-hub</td>
+                  <td class="px-4 py-3 mono text-[11px] text-muted hidden sm:table-cell">3m ago</td>
+                  <td class="px-4 py-3 text-right"><button class="mono text-[11px] text-muted hover:text-ev_fail">Revoke</button></td>
+                </tr>
+                <tr class="opacity-50">
+                  <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[11px] px-2 py-0.5 rounded bg-st_prog/12 text-st_prog"><i class="ph ph-robot text-[11px]"></i>implementer</span></td>
+                  <td class="px-4 py-3 line-through">old-laptop</td>
+                  <td class="px-4 py-3 mono text-[11px] text-muted hidden md:table-cell">opf-hub</td>
+                  <td class="px-4 py-3 mono text-[11px] text-muted hidden sm:table-cell">2d ago</td>
+                  <td class="px-4 py-3 text-right"><span class="mono text-[11px] text-ev_fail">revoked</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="mt-2 text-[11px] text-muted leading-relaxed">Roles are enforced server-side: a <span class="mono text-text">runner</span> token can only submit evidence, an <span class="mono text-text">implementer</span> token cannot set JUDGE_PASSED or DONE. Keeping the runner credential separate from the implementer is the core anti-self-certify guard.</p>
+        </section>
+
+      </div>
+    </div>
+  </main>
+</div>
+<script src="shell.js"></script>
+</body>
+</html>

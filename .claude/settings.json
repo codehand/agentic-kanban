@@ -1,0 +1,18 @@
+{
+  "enabledPlugins": {
+    "ralph-loop@claude-plugins-official": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.ai/scripts/guard-protected-paths.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

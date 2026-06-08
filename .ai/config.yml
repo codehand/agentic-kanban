@@ -1,0 +1,28 @@
+# .ai/config.yml — nguồn sự thật cho gate & runner.
+# LƯU Ý: gate.sh/run-evidence.sh đọc các giá trị bằng grep theo dạng inline dưới đây.
+# Giữ nguyên format "key: { mode: ..., threshold: ... }" trên MỘT dòng.
+
+# Model resolution is handled by Claude Code, NOT by these scripts. The subagents in
+# .ai/claude/agents/*.md declare NO model -> they inherit the model of the session that
+# invokes them. To get model independence, run each role in its own terminal (paranoid
+# mode): /impl + /selfcheck in a "work" session, /judge in a separate session set to a
+# DIFFERENT model. See README "Running with model independence (multi-terminal)".
+models:
+  implementer: inherit       # = model của session chạy /impl
+  self_check:  inherit       # = model của session chạy /selfcheck
+  judge:       inherit       # = model của session chạy /judge (đặt khác tier để decorrelate)
+
+# Lệnh runner tái dùng từ skill test-report. {cov} sẽ được thay bằng đường dẫn coverage.out.
+commands:
+  build: "go build ./..."
+  test:  "go test ./... -count=1 -timeout 120s -coverprofile={cov} -v"
+  lint:  "golangci-lint run"
+
+# required = fail/dưới ngưỡng thì CHẶN transition. optional = chỉ ghi cảnh báo, vẫn cho qua.
+# build/test/ac luôn cứng (required) bất kể cấu hình ở đây.
+checks:
+  lint:     { mode: optional }
+  coverage: { mode: optional, threshold: 80 }
+
+pipeline:
+  fast_path: false           # KHÓA — mọi task qua đủ 4 chặng, không bỏ Judge.
