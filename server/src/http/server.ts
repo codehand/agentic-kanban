@@ -1,6 +1,9 @@
 import { createServer, IncomingMessage, ServerResponse } from 'node:http'
+import { resolve } from 'node:path'
 import type { Db } from '../db/connection.js'
 import { mountMcpRoute } from '../mcp/server.js'
+import { mountApiRoutes } from '../api/routes.js'
+import { mountStatic } from './static.js'
 import { logger } from '../logger.js'
 
 function handleHealthz(_req: IncomingMessage, res: ServerResponse): void {
@@ -26,8 +29,18 @@ function baseRouter(req: IncomingMessage, res: ServerResponse): void {
 }
 
 export function createHttpServer(db?: Db) {
-  // If a db is provided, mount the MCP route at /mcp on top of the base router.
-  const router = db ? mountMcpRoute(baseRouter, db) : baseRouter
+  let router: (req: IncomingMessage, res: ServerResponse) => void = baseRouter
+  if (db) {
+    // Mount order (outermost = highest priority):
+    //   1. /api/* routes (JSON API + SSE)
+    //   2. /mcp (MCP transport)
+    //   3. static files (design-system/)
+    //   4. base router (healthz + 404)
+    const withApi = mountApiRoutes(baseRouter, db)
+    const withMcp = mountMcpRoute(withApi, db)
+    const staticDir = resolve(process.cwd(), 'design-system')
+    router = mountStatic(withMcp, staticDir)
+  }
   return createServer(router)
 }
 

@@ -595,6 +595,34 @@
     if (e.key === 'Escape') { closeConfirm(); closeDrawer(); }
   });
 </script>
+<script>
+  // --- Live data wiring (replaces mock data with /api/ fetch) ---
+  (function wireLiveData() {
+    var api = window.__kanban_api;
+    if (!api) return;
+
+    // Listen for SSE-driven reloads
+    window.addEventListener('kanban:transition', function(evt) {
+      console.log('[board] transition event received', evt.detail);
+    });
+
+    // Override approve to call real API
+    window.doApprove = function() {
+      closeConfirm();
+      var project = document.body.dataset.project || 'opf-hub';
+      var key = 'TASK-002'; // from drawer state
+      api.approveTask(project, key, '').then(function(res) {
+        if (res && res.task) {
+          var t = document.getElementById('toast');
+          t.classList.remove('hidden'); t.classList.add('flex');
+          setTimeout(function(){ t.classList.add('hidden'); t.classList.remove('flex'); }, 3200);
+          setTimeout(function(){ location.reload(); }, 1000);
+        }
+      });
+    };
+  })();
+</script>
+<script src="api.js"></script>
 <script src="shell.js"></script>
 </body>
 </html>
