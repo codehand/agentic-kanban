@@ -5,5 +5,5 @@ coverage/
 .env
 .claude/worktree/
 
-# Local AI workflow tooling — not committed to this repo.
-.ai/
+# .ai/ workflow tooling is tracked; instance data (state/evidence/reports)
+# is excluded via .ai/.gitignore.
