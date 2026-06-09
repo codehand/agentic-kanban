@@ -156,7 +156,7 @@ describe('Evidence Subsystem', () => {
 
       expect(result.success).toBe(true);
       expect(mockTransitionRepo.transitions.length).toBe(1);
-      expect(mockTransitionRepo.transitions[0].to).toBe('SELF_CHECK_PASSED');
+      expect(mockTransitionRepo.transitions[0].to_state).toBe('SELF_CHECK_PASSED');
     });
 
     it('AC7: fails when build fails', async () => {
@@ -370,7 +370,7 @@ describe('Evidence Subsystem', () => {
       expect(result.success).toBe(true);
       expect(mockTransitionRepo.transitions.length).toBe(1);
       const transition = mockTransitionRepo.transitions[0];
-      expect(transition.to).toBe('SELF_CHECK_PASSED');
+      expect(transition.to_state).toBe('SELF_CHECK_PASSED');
       expect(transition.actor_role).toBe('self-check');
     });
 

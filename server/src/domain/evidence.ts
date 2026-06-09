@@ -114,9 +114,16 @@ export async function selfcheck(
   // Score the evidence according to the acceptance criteria
   const scoringResult = scoreEvidence(evidence, config);
 
-  // Determine the target state based on scoring
-  const targetState: 'SELF_CHECK_PASSED' | 'SELF_CHECK_FAILED' =
-    scoringResult.passed ? 'SELF_CHECK_PASSED' : 'SELF_CHECK_FAILED';
+  // If scoring fails, return immediately with failure - don't delegate to gate
+  if (!scoringResult.passed) {
+    return {
+      success: false,
+      reason: scoringResult.reason
+    };
+  }
+
+  // If scoring passes, determine target state and delegate to gate
+  const targetState: 'SELF_CHECK_PASSED' | 'SELF_CHECK_FAILED' = 'SELF_CHECK_PASSED';
 
   // Create the transition input for the gate
   const input: ProposeInput = {
@@ -130,7 +137,7 @@ export async function selfcheck(
     evidence: {
       manifest_json: evidence.manifest_json,
       checksum: validateAndChecksumManifest(evidence.manifest_json),
-    },
+    }, // Transform database evidence to guard-compatible format
     computeChecksum: (data: string) => validateAndChecksumManifest(data),
   };
 
