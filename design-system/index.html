@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="theme.css" />
 </head>
 
-<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="board" data-project="opf-hub" data-awaiting="2">
+<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="board" data-project="opf-hub" data-awaiting="0">
 
 <div class="flex h-full">
 
@@ -52,21 +52,16 @@
       </div>
     </header>
 
-    <!-- across-projects strip -->
-    <div class="shrink-0 border-b border-border bg-panel/40 px-4 py-2 flex items-center gap-3 text-[12px]">
-      <span class="flex items-center gap-1.5 text-st_human font-medium">
-        <i class="ph-fill ph-hand-tap text-[14px]"></i> 2 tasks awaiting you
-      </span>
-      <span class="text-border">|</span>
-      <span class="text-muted">9 active across <span class="text-text">opf-hub</span></span>
-      <span class="ml-auto flex items-center gap-1.5 text-muted">
-        <i class="ph ph-arrows-clockwise text-[13px]"></i>
-        live, updated <span class="mono text-text">6s</span> ago
-      </span>
+    <!-- across-projects strip (populated by live data) -->
+    <div id="board-strip" class="shrink-0 border-b border-border bg-panel/40 px-4 py-2 flex items-center gap-3 text-[12px]">
+      <span class="flex items-center gap-1.5 text-muted"><i class="ph ph-spinner text-[13px] animate-spin"></i> Loading&hellip;</span>
     </div>
 
     <!-- ============ KANBAN BOARD ============ -->
-    <div class="flex-1 overflow-x-auto overflow-y-hidden console-grid">
+    <div id="board-loading" class="flex-1 grid place-items-center text-muted text-[13px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[16px]"></i> Loading board&hellip;</span></div>
+    <div id="board-error" class="flex-1 grid place-items-center hidden"><div class="text-center"><p class="text-ev_fail text-[14px] font-medium">Failed to load board</p><p class="text-muted text-[12.5px] mt-1" id="board-error-msg"></p><button onclick="loadBoard()" class="mt-3 text-accent text-[12.5px] hover:underline">Retry</button></div></div>
+    <div id="board-empty" class="flex-1 grid place-items-center hidden"><div class="text-center"><p class="text-muted text-[14px]">No tasks yet</p><p class="text-muted text-[12.5px] mt-1">Create a task to get started.</p></div></div>
+    <div id="board-columns" class="flex-1 overflow-x-auto overflow-y-hidden console-grid hidden">
       <div class="flex gap-3 h-full p-3 min-w-max">
 
         <!-- COLUMN: Backlog -->
@@ -75,46 +70,11 @@
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_todo"></span>
               <h2 class="text-[12.5px] font-semibold">Backlog</h2>
-              <span class="mono text-[11px] text-muted">3</span>
+              <span id="count-todo" class="mono text-[11px] text-muted">0</span>
             </div>
             <span class="mono text-[10px] text-muted uppercase tracking-wider">TODO</span>
           </div>
-          <div class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5">
-
-            <article onclick="openDrawer()" class="cursor-pointer rounded-lg border border-border border-l-2 border-l-st_todo bg-panel hover:border-borderlt p-3">
-              <div class="flex items-center justify-between">
-                <span class="mono text-[11px] text-muted">TASK-009</span>
-                <span class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-st_todo"><i class="ph ph-circle text-[9px]"></i>TODO</span>
-              </div>
-              <h3 class="mt-1.5 text-[13px] font-medium leading-snug">Document worktree teardown on reset</h3>
-              <div class="mt-2.5 flex items-center gap-1.5">
-                <span class="mono text-[10px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">opf-hub</span>
-              </div>
-            </article>
-
-            <article onclick="openDrawer()" class="cursor-pointer rounded-lg border border-border border-l-2 border-l-st_todo bg-panel hover:border-borderlt p-3">
-              <div class="flex items-center justify-between">
-                <span class="mono text-[11px] text-muted">TASK-010</span>
-                <span class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-st_todo"><i class="ph ph-circle text-[9px]"></i>TODO</span>
-              </div>
-              <h3 class="mt-1.5 text-[13px] font-medium leading-snug">Verify head_sha exists on remote before MR link</h3>
-              <div class="mt-2.5 flex items-center gap-1.5">
-                <span class="mono text-[10px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">api-marketplace</span>
-              </div>
-            </article>
-
-            <article onclick="openDrawer()" class="cursor-pointer rounded-lg border border-border border-l-2 border-l-st_todo bg-panel hover:border-borderlt p-3">
-              <div class="flex items-center justify-between">
-                <span class="mono text-[11px] text-muted">TASK-011</span>
-                <span class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded bg-white/5 text-st_todo"><i class="ph ph-circle text-[9px]"></i>TODO</span>
-              </div>
-              <h3 class="mt-1.5 text-[13px] font-medium leading-snug">Add Allow-No-Code-Change helper to task form</h3>
-              <div class="mt-2.5 flex items-center gap-1.5">
-                <span class="mono text-[10px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">opf-hub</span>
-              </div>
-            </article>
-
-          </div>
+          <div id="col-todo" class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5"></div>
         </section>
 
         <!-- COLUMN: In Progress -->
@@ -123,45 +83,11 @@
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_prog"></span>
               <h2 class="text-[12.5px] font-semibold">In Progress</h2>
-              <span class="mono text-[11px] text-muted">2</span>
+              <span id="count-in_progress" class="mono text-[11px] text-muted">0</span>
             </div>
             <span class="mono text-[10px] text-muted uppercase tracking-wider">IN_PROGRESS</span>
           </div>
-          <div class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5">
-
-            <!-- leased / live -->
-            <article onclick="openDrawer()" class="cursor-pointer rounded-lg border border-border border-l-2 border-l-st_prog bg-panel hover:border-borderlt p-3">
-              <div class="flex items-center justify-between">
-                <span class="mono text-[11px] text-muted">TASK-004</span>
-                <span class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded bg-st_prog/12 text-st_prog"><i class="ph-fill ph-circle-notch text-[9px]"></i>IN_PROGRESS</span>
-              </div>
-              <h3 class="mt-1.5 text-[13px] font-medium leading-snug">Refactor evidence manifest writer to jq</h3>
-              <div class="mt-2.5 flex items-center gap-1.5 flex-wrap">
-                <span class="mono text-[10px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">opf-hub</span>
-              </div>
-              <div class="mt-2.5 flex items-center justify-between rounded-md bg-st_prog/8 border border-st_prog/20 px-2 py-1.5">
-                <span class="flex items-center gap-1.5 text-[11px] text-st_prog">
-                  <span class="w-1.5 h-1.5 rounded-full bg-st_prog heartbeat"></span>
-                  <i class="ph ph-robot text-[13px]"></i> implementer
-                </span>
-                <span class="mono text-[11px] text-muted">lease 12m</span>
-              </div>
-            </article>
-
-            <!-- IMPLEMENTED (also in this column per state map) -->
-            <article onclick="openDrawer()" class="cursor-pointer rounded-lg border border-border border-l-2 border-l-st_impl bg-panel hover:border-borderlt p-3">
-              <div class="flex items-center justify-between">
-                <span class="mono text-[11px] text-muted">TASK-006</span>
-                <span class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded bg-st_impl/12 text-st_impl"><i class="ph-fill ph-check-circle text-[9px]"></i>IMPLEMENTED</span>
-              </div>
-              <h3 class="mt-1.5 text-[13px] font-medium leading-snug">Add lease heartbeat exponential backoff</h3>
-              <div class="mt-2.5 flex items-center gap-1.5 flex-wrap">
-                <span class="mono text-[10px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">opf-hub</span>
-                <span class="mono text-[10px] text-muted">awaiting self-check</span>
-              </div>
-            </article>
-
-          </div>
+          <div id="col-in_progress" class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5"></div>
         </section>
 
         <!-- COLUMN: Self-Check -->
@@ -170,32 +96,11 @@
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_self"></span>
               <h2 class="text-[12.5px] font-semibold">Self-Check</h2>
-              <span class="mono text-[11px] text-muted">1</span>
+              <span id="count-evidence" class="mono text-[11px] text-muted">0</span>
             </div>
             <span class="mono text-[10px] text-muted uppercase tracking-wider">EVIDENCE</span>
           </div>
-          <div class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5">
-
-            <!-- SELF_CHECK_FAILED amber -->
-            <article onclick="openDrawer()" class="cursor-pointer rounded-lg border border-border border-l-2 border-l-st_selffail bg-panel hover:border-borderlt p-3">
-              <div class="flex items-center justify-between">
-                <span class="mono text-[11px] text-muted">TASK-005</span>
-                <span class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded bg-st_selffail/12 text-st_selffail"><i class="ph-fill ph-warning text-[9px]"></i>SELF_CHECK_FAILED</span>
-              </div>
-              <h3 class="mt-1.5 text-[13px] font-medium leading-snug">Fix coverage aggregation across repos</h3>
-              <div class="mt-2.5 flex items-center gap-1.5 flex-wrap">
-                <span class="mono text-[10px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">opf-hub</span>
-                <span class="mono text-[10px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">api-marketplace</span>
-              </div>
-              <!-- evidence glyphs -->
-              <div class="mt-2.5 flex items-center gap-3 text-[10.5px] mono">
-                <span class="flex items-center gap-1 text-ev_pass"><i class="ph-fill ph-hammer"></i>build 0</span>
-                <span class="flex items-center gap-1 text-ev_fail"><i class="ph-fill ph-test-tube"></i>test 1</span>
-                <span class="flex items-center gap-1 text-muted"><i class="ph ph-chart-bar"></i>71.3%</span>
-              </div>
-            </article>
-
-          </div>
+          <div id="col-evidence" class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5"></div>
         </section>
 
         <!-- COLUMN: Judge Review -->
@@ -204,49 +109,11 @@
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_reject"></span>
               <h2 class="text-[12.5px] font-semibold">Judge Review</h2>
-              <span class="mono text-[11px] text-muted">2</span>
+              <span id="count-verdict" class="mono text-[11px] text-muted">0</span>
             </div>
             <span class="mono text-[10px] text-muted uppercase tracking-wider">VERDICT</span>
           </div>
-          <div class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5">
-
-            <!-- SELF_CHECK_PASSED -> awaiting judge -->
-            <article onclick="openDrawer()" class="cursor-pointer rounded-lg border border-border border-l-2 border-l-st_self bg-panel hover:border-borderlt p-3">
-              <div class="flex items-center justify-between">
-                <span class="mono text-[11px] text-muted">TASK-003</span>
-                <span class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded bg-st_self/12 text-st_self"><i class="ph-fill ph-shield-check text-[9px]"></i>SELF_CHECK_PASSED</span>
-              </div>
-              <h3 class="mt-1.5 text-[13px] font-medium leading-snug">Cover token-expiry edge cases in auth</h3>
-              <div class="mt-2.5 flex items-center gap-1.5 flex-wrap">
-                <span class="mono text-[10px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">api-marketplace</span>
-              </div>
-              <div class="mt-2.5 flex items-center gap-3 text-[10.5px] mono">
-                <span class="flex items-center gap-1 text-ev_pass"><i class="ph-fill ph-hammer"></i>build 0</span>
-                <span class="flex items-center gap-1 text-ev_pass"><i class="ph-fill ph-test-tube"></i>test 0</span>
-                <span class="flex items-center gap-1 text-ev_pass"><i class="ph ph-chart-bar"></i>88.6%</span>
-              </div>
-              <div class="mt-2 flex items-center gap-1.5 text-[11px] text-st_self">
-                <span class="w-1.5 h-1.5 rounded-full bg-st_self heartbeat"></span>
-                <i class="ph ph-robot text-[13px]"></i> judge reviewing
-              </div>
-            </article>
-
-            <!-- JUDGE_REJECTED -->
-            <article onclick="openDrawer()" class="cursor-pointer rounded-lg border border-border border-l-2 border-l-st_reject bg-panel hover:border-borderlt p-3">
-              <div class="flex items-center justify-between">
-                <span class="mono text-[11px] text-muted">TASK-008</span>
-                <span class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded bg-st_reject/12 text-st_reject"><i class="ph-fill ph-x-circle text-[9px]"></i>JUDGE_REJECTED</span>
-              </div>
-              <h3 class="mt-1.5 text-[13px] font-medium leading-snug">Validate MR state sync against GitLab webhook</h3>
-              <div class="mt-2.5 flex items-center gap-1.5 flex-wrap">
-                <span class="mono text-[10px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">opf-hub</span>
-              </div>
-              <div class="mt-2.5 rounded-md bg-st_reject/8 border border-st_reject/20 px-2 py-1.5 text-[11px] text-st_reject leading-snug">
-                <i class="ph ph-arrow-u-down-left"></i> sent back: test asserts mock, not webhook payload
-              </div>
-            </article>
-
-          </div>
+          <div id="col-verdict" class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5"></div>
         </section>
 
         <!-- COLUMN: Awaiting Human (HERO) -->
@@ -255,54 +122,11 @@
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_human heartbeat"></span>
               <h2 class="text-[12.5px] font-semibold text-st_human">Awaiting Human</h2>
-              <span class="mono text-[11px] px-1.5 rounded bg-st_human/15 text-st_human">2</span>
+              <span id="count-human" class="mono text-[11px] px-1.5 rounded bg-st_human/15 text-st_human">0</span>
             </div>
             <span class="mono text-[10px] text-st_human/80 uppercase tracking-wider">NEEDS YOU</span>
           </div>
-          <div class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5 rounded-lg">
-
-            <article onclick="openDrawer()" class="cursor-pointer rounded-lg border border-st_human/40 border-l-2 border-l-st_human bg-panel glow-human hover:bg-st_human/5 p-3">
-              <div class="flex items-center justify-between">
-                <span class="mono text-[11px] text-muted">TASK-002</span>
-                <span class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded bg-st_human/15 text-st_human"><i class="ph-fill ph-gavel text-[9px]"></i>JUDGE_PASSED</span>
-              </div>
-              <h3 class="mt-1.5 text-[13px] font-medium leading-snug">Wire FREE subscribe e2e flow</h3>
-              <div class="mt-2.5 flex items-center gap-1.5 flex-wrap">
-                <span class="mono text-[10px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">opf-auto-e2e</span>
-                <span class="mono text-[10px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">api-marketplace</span>
-              </div>
-              <div class="mt-2.5 flex items-center gap-3 text-[10.5px] mono">
-                <span class="flex items-center gap-1 text-ev_pass"><i class="ph-fill ph-hammer"></i>build 0</span>
-                <span class="flex items-center gap-1 text-ev_pass"><i class="ph-fill ph-test-tube"></i>test 0</span>
-                <span class="flex items-center gap-1 text-ev_pass"><i class="ph ph-chart-bar"></i>84.2%</span>
-                <span class="flex items-center gap-1 text-ev_pass"><i class="ph-fill ph-shield-check"></i></span>
-              </div>
-              <div class="mt-2.5 flex items-center gap-2 rounded-md bg-st_done/8 border border-st_done/20 px-2 py-1.5 text-[11px] text-st_done">
-                <i class="ph-fill ph-gavel text-[13px]"></i> Judge: <span class="font-semibold">PASS</span>
-              </div>
-            </article>
-
-            <article onclick="openDrawer()" class="cursor-pointer rounded-lg border border-st_human/40 border-l-2 border-l-st_human bg-panel glow-human hover:bg-st_human/5 p-3">
-              <div class="flex items-center justify-between">
-                <span class="mono text-[11px] text-muted">TASK-007</span>
-                <span class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded bg-st_human/15 text-st_human"><i class="ph-fill ph-gavel text-[9px]"></i>JUDGE_PASSED</span>
-              </div>
-              <h3 class="mt-1.5 text-[13px] font-medium leading-snug">Add request-ID middleware to gateway</h3>
-              <div class="mt-2.5 flex items-center gap-1.5 flex-wrap">
-                <span class="mono text-[10px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">opf-hub</span>
-              </div>
-              <div class="mt-2.5 flex items-center gap-3 text-[10.5px] mono">
-                <span class="flex items-center gap-1 text-ev_pass"><i class="ph-fill ph-hammer"></i>build 0</span>
-                <span class="flex items-center gap-1 text-ev_pass"><i class="ph-fill ph-test-tube"></i>test 0</span>
-                <span class="flex items-center gap-1 text-ev_warn"><i class="ph ph-chart-bar"></i>79.1%</span>
-                <span class="flex items-center gap-1 text-ev_pass"><i class="ph-fill ph-shield-check"></i></span>
-              </div>
-              <div class="mt-2.5 flex items-center gap-2 rounded-md bg-st_done/8 border border-st_done/20 px-2 py-1.5 text-[11px] text-st_done">
-                <i class="ph-fill ph-gavel text-[13px]"></i> Judge: <span class="font-semibold">PASS</span>
-              </div>
-            </article>
-
-          </div>
+          <div id="col-judge_passed" class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5 rounded-lg"></div>
         </section>
 
         <!-- COLUMN: Done -->
@@ -311,32 +135,11 @@
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_done"></span>
               <h2 class="text-[12.5px] font-semibold">Done</h2>
-              <span class="mono text-[11px] text-muted">1</span>
+              <span id="count-done" class="mono text-[11px] text-muted">0</span>
             </div>
             <span class="mono text-[10px] text-muted uppercase tracking-wider">DONE</span>
           </div>
-          <div class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5">
-
-            <article onclick="openDrawer()" class="cursor-pointer rounded-lg border border-border border-l-2 border-l-st_done bg-panel/60 hover:border-borderlt p-3 opacity-90">
-              <div class="flex items-center justify-between">
-                <span class="mono text-[11px] text-muted">TASK-001</span>
-                <span class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded bg-st_done/12 text-st_done"><i class="ph-fill ph-check-fat text-[9px]"></i>DONE</span>
-              </div>
-              <h3 class="mt-1.5 text-[13px] font-medium leading-snug">Initialize SQLite schema and migrations</h3>
-              <div class="mt-2.5 flex items-center gap-1.5 flex-wrap">
-                <span class="mono text-[10px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">opf-hub</span>
-                <span class="mono text-[10px] text-muted">approved by operator</span>
-              </div>
-            </article>
-
-            <!-- loading skeleton sample (a card streaming in) -->
-            <div class="rounded-lg border border-border bg-panel p-3 space-y-2">
-              <div class="skel h-3 w-16 rounded"></div>
-              <div class="skel h-3.5 w-full rounded"></div>
-              <div class="skel h-3 w-2/3 rounded"></div>
-            </div>
-
-          </div>
+          <div id="col-done" class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5"></div>
         </section>
 
       </div>
@@ -354,184 +157,32 @@
     <div class="flex items-start gap-3 px-5 pt-4">
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
-          <span class="mono text-[12px] text-muted">TASK-002</span>
-          <span class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded bg-st_human/15 text-st_human"><i class="ph-fill ph-gavel text-[10px]"></i>JUDGE_PASSED</span>
+          <span id="drawer-key" class="mono text-[12px] text-muted"></span>
+          <span id="drawer-state-badge" class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded"></span>
         </div>
-        <h2 class="mt-1.5 text-[17px] font-semibold leading-tight tracking-tight">Wire FREE subscribe e2e flow</h2>
-        <p class="mt-1 text-[11.5px] text-muted">in <span class="text-text">opf-hub</span> &middot; updated <span class="mono">3m</span> ago</p>
+        <h2 id="drawer-title" class="mt-1.5 text-[17px] font-semibold leading-tight tracking-tight"></h2>
+        <p class="mt-1 text-[11.5px] text-muted">in <span id="drawer-project" class="text-text"></span> &middot; updated <span id="drawer-updated" class="mono"></span></p>
       </div>
       <button onclick="closeDrawer()" class="grid place-items-center w-8 h-8 rounded-md text-muted hover:bg-white/5 shrink-0"><i class="ph ph-x text-[16px]"></i></button>
     </div>
 
     <!-- primary action: state-driven -->
     <div class="flex items-center gap-2 px-5 py-3">
-      <button onclick="confirmApprove()" class="flex items-center gap-2 rounded-md bg-st_human px-3.5 h-9 text-[13px] font-semibold text-white hover:brightness-110 active:translate-y-px glow-human">
+      <button id="btn-approve" onclick="confirmApprove()" class="hidden flex items-center gap-2 rounded-md bg-st_human px-3.5 h-9 text-[13px] font-semibold text-white hover:brightness-110 active:translate-y-px glow-human">
         <i class="ph-fill ph-check-circle text-[15px]"></i> Approve &rarr; Done
       </button>
-      <button class="flex items-center gap-1.5 rounded-md border border-border bg-panel2 px-3 h-9 text-[12.5px] text-muted hover:text-text hover:border-borderlt">
+      <button id="btn-reset" onclick="doReset()" class="hidden flex items-center gap-1.5 rounded-md border border-border bg-panel2 px-3 h-9 text-[12.5px] text-muted hover:text-text hover:border-borderlt">
         <i class="ph ph-arrow-counter-clockwise text-[14px]"></i> Reset
       </button>
-      <button class="ml-auto grid place-items-center w-9 h-9 rounded-md border border-border bg-panel2 text-muted hover:text-st_reject hover:border-st_reject/40" title="Remove (guarded)">
+      <button id="btn-remove" onclick="doRemove()" class="hidden ml-auto grid place-items-center w-9 h-9 rounded-md border border-border bg-panel2 text-muted hover:text-st_reject hover:border-st_reject/40" title="Remove (guarded)">
         <i class="ph ph-trash text-[14px]"></i>
       </button>
     </div>
   </div>
 
   <!-- drawer body (scroll) -->
-  <div class="flex-1 overflow-y-auto px-5 py-4 space-y-5 text-[13px]">
-
-    <!-- SPEC -->
-    <section>
-      <h3 class="text-[11px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-file-text text-[13px]"></i> Spec</h3>
-      <div class="space-y-3 text-text/90 leading-relaxed">
-        <p><span class="text-muted">Purpose.</span> Prove a brand-new account can subscribe to the FREE plan end to end, from signup to entitlement, across the marketplace API and the e2e harness.</p>
-
-        <div>
-          <p class="text-[11px] uppercase tracking-wider text-muted mb-1.5">Acceptance criteria</p>
-          <p class="text-[11px] text-muted mb-1">Machine-verifiable</p>
-          <ul class="space-y-1 mono text-[12px]">
-            <li class="flex items-start gap-2"><i class="ph-fill ph-check-square text-ev_pass mt-px"></i> AC1: <span class="text-text/80">go test ./subscribe/... passes</span></li>
-            <li class="flex items-start gap-2"><i class="ph-fill ph-check-square text-ev_pass mt-px"></i> AC2: <span class="text-text/80">coverage subscribe/ &ge; 80%</span></li>
-          </ul>
-          <p class="text-[11px] text-muted mt-2 mb-1">Human / semantic</p>
-          <ul class="space-y-1 text-[12.5px]">
-            <li class="flex items-start gap-2"><i class="ph ph-square text-muted mt-px"></i> AC3: entitlement returns FREE tier with correct quota after subscribe</li>
-          </ul>
-        </div>
-      </div>
-    </section>
-
-    <!-- REPOS & MR -->
-    <section>
-      <h3 class="text-[11px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-git-branch text-[13px]"></i> Repos &amp; MR</h3>
-      <div class="space-y-2">
-
-        <div class="rounded-lg border border-border bg-panel2 p-2.5">
-          <div class="flex items-center justify-between">
-            <span class="mono text-[12px] font-medium">opf-auto-e2e</span>
-            <a class="inline-flex items-center gap-1 mono text-[10.5px] px-1.5 py-0.5 rounded bg-st_prog/12 text-st_prog hover:underline">
-              <i class="ph ph-git-pull-request text-[11px]"></i> MR Open <i class="ph ph-arrow-square-out text-[10px]"></i>
-            </a>
-          </div>
-          <div class="mt-1.5 flex items-center gap-2 mono text-[11px] text-muted">
-            <span class="px-1.5 py-0.5 rounded bg-bg border border-border">fix/TASK-002-free-subscribe</span>
-            <span class="text-text/70">7f3a9c1..b2e0d48</span>
-          </div>
-        </div>
-
-        <div class="rounded-lg border border-border bg-panel2 p-2.5">
-          <div class="flex items-center justify-between">
-            <span class="mono text-[12px] font-medium">api-marketplace</span>
-            <a class="inline-flex items-center gap-1 mono text-[10.5px] px-1.5 py-0.5 rounded bg-muted/15 text-muted hover:underline">
-              <i class="ph ph-git-pull-request text-[11px]"></i> MR Draft <i class="ph ph-arrow-square-out text-[10px]"></i>
-            </a>
-          </div>
-          <div class="mt-1.5 flex items-center gap-2 mono text-[11px] text-muted">
-            <span class="px-1.5 py-0.5 rounded bg-bg border border-border">fix/TASK-002-free-subscribe</span>
-            <span class="text-text/70">a18d0f2..6c4717e</span>
-          </div>
-        </div>
-
-      </div>
-    </section>
-
-    <!-- EVIDENCE -->
-    <section>
-      <div class="flex items-center justify-between mb-2">
-        <h3 class="text-[11px] uppercase tracking-wider text-muted flex items-center gap-1.5"><i class="ph ph-seal-check text-[13px]"></i> Evidence</h3>
-        <span class="mono text-[10.5px] text-muted">measured 3m ago by runner</span>
-      </div>
-
-      <div class="rounded-lg border border-border bg-panel2 divide-y divide-border">
-        <div class="grid grid-cols-2 gap-px">
-          <div class="flex items-center justify-between px-3 py-2">
-            <span class="flex items-center gap-1.5 text-[12px] text-muted"><i class="ph-fill ph-hammer text-[13px]"></i> build</span>
-            <span class="mono text-[12px] text-ev_pass flex items-center gap-1"><i class="ph ph-check"></i>exit 0</span>
-          </div>
-          <div class="flex items-center justify-between px-3 py-2 border-l border-border">
-            <span class="flex items-center gap-1.5 text-[12px] text-muted"><i class="ph-fill ph-test-tube text-[13px]"></i> test</span>
-            <span class="mono text-[12px] text-ev_pass flex items-center gap-1"><i class="ph ph-check"></i>exit 0</span>
-          </div>
-          <div class="flex items-center justify-between px-3 py-2 border-t border-border">
-            <span class="flex items-center gap-1.5 text-[12px] text-muted"><i class="ph ph-magnifying-glass text-[13px]"></i> lint</span>
-            <span class="mono text-[12px] text-ev_pass flex items-center gap-1"><i class="ph ph-check"></i>exit 0</span>
-          </div>
-          <div class="flex items-center justify-between px-3 py-2 border-t border-l border-border">
-            <span class="flex items-center gap-1.5 text-[12px] text-muted"><i class="ph ph-list-checks text-[13px]"></i> ac</span>
-            <span class="mono text-[12px] text-ev_pass flex items-center gap-1"><i class="ph ph-check"></i>exit 0</span>
-          </div>
-        </div>
-
-        <div class="flex items-center justify-between px-3 py-2.5">
-          <span class="flex items-center gap-1.5 text-[12px] text-muted"><i class="ph ph-chart-bar text-[13px]"></i> coverage <span class="mono text-[10px]">(min of 2 repos)</span></span>
-          <span class="mono text-[12px] text-ev_pass">84.2%</span>
-        </div>
-
-        <div class="flex items-center justify-between px-3 py-2.5">
-          <span class="flex items-center gap-1.5 text-[12px] text-muted"><i class="ph-fill ph-shield-check text-[13px] text-ev_pass"></i> manifest checksum</span>
-          <span class="mono text-[12px] text-ev_pass">12 files OK</span>
-        </div>
-      </div>
-
-      <button class="mt-2 flex items-center gap-1.5 text-[11.5px] text-accent hover:underline">
-        <i class="ph ph-caret-right text-[12px]"></i> Expand logs &amp; per-file checksums
-      </button>
-      <p class="mt-1.5 mono text-[10px] text-muted flex items-center gap-1"><i class="ph ph-lock-simple"></i> immutable &middot; written 0444 by run-evidence.sh</p>
-    </section>
-
-    <!-- TIMELINE -->
-    <section>
-      <h3 class="text-[11px] uppercase tracking-wider text-muted mb-3 flex items-center gap-1.5"><i class="ph ph-clock-counter-clockwise text-[13px]"></i> Timeline</h3>
-
-      <ol class="relative border-l border-border ml-1.5 space-y-4 pl-4">
-
-        <!-- verdict (emphasized) -->
-        <li class="relative">
-          <span class="absolute -left-[22px] top-1 w-3 h-3 rounded-full bg-st_done ring-4 ring-panel"></span>
-          <div class="rounded-lg border border-st_done/30 bg-st_done/8 p-3">
-            <div class="flex items-center justify-between">
-              <span class="flex items-center gap-1.5 text-[11px]"><span class="mono px-1.5 py-0.5 rounded bg-st_done/15 text-st_done">judge</span> verdict</span>
-              <span class="mono text-[10.5px] text-muted">3m ago</span>
-            </div>
-            <p class="mt-1.5 text-[13px] font-semibold text-st_done flex items-center gap-1.5"><i class="ph-fill ph-gavel"></i> VERDICT: PASS</p>
-            <p class="mt-1 text-[12.5px] text-text/80 leading-relaxed">Diff against base reviewed in worktree. Subscribe test exercises the real entitlement path, not a stub. AC3 holds: FREE quota returned correctly. No requirement skipped.</p>
-          </div>
-        </li>
-
-        <!-- transition -->
-        <li class="relative">
-          <span class="absolute -left-[22px] top-1 w-3 h-3 rounded-full bg-st_self ring-4 ring-panel"></span>
-          <p class="text-[12px]"><span class="mono px-1.5 py-0.5 rounded bg-white/5 text-st_self">gate</span> set <span class="mono text-st_self">SELF_CHECK_PASSED</span></p>
-          <p class="mt-0.5 mono text-[10.5px] text-muted">build/test/ac exit 0 &middot; checksum verified &middot; 4m ago</p>
-        </li>
-
-        <!-- comment narrative -->
-        <li class="relative">
-          <span class="absolute -left-[22px] top-1 w-3 h-3 rounded-full bg-st_prog ring-4 ring-panel"></span>
-          <div class="flex items-center justify-between">
-            <span class="text-[11px]"><span class="mono px-1.5 py-0.5 rounded bg-st_prog/12 text-st_prog">implementer</span></span>
-            <span class="mono text-[10.5px] text-muted">11m ago</span>
-          </div>
-          <p class="mt-1 text-[12.5px] text-text/80 leading-relaxed">Added subscribe handler + e2e spec across both repos. Pushed branch and opened MRs. Coverage on subscribe/ at 84%.</p>
-        </li>
-
-        <!-- evidence submitted -->
-        <li class="relative">
-          <span class="absolute -left-[22px] top-1 w-3 h-3 rounded-full bg-muted ring-4 ring-panel"></span>
-          <p class="text-[12px]"><span class="mono px-1.5 py-0.5 rounded bg-white/5 text-muted">runner</span> submitted evidence</p>
-          <p class="mt-0.5 mono text-[10.5px] text-muted">manifest 12 files &middot; 5m ago</p>
-        </li>
-
-        <!-- claim -->
-        <li class="relative">
-          <span class="absolute -left-[22px] top-1 w-3 h-3 rounded-full bg-border ring-4 ring-panel"></span>
-          <p class="text-[12px] text-muted"><span class="mono px-1.5 py-0.5 rounded bg-white/5 text-st_prog">implementer</span> claimed task &middot; worktrees created</p>
-          <p class="mt-0.5 mono text-[10.5px] text-muted">18m ago</p>
-        </li>
-
-      </ol>
-    </section>
-
+  <div id="drawer-body" class="flex-1 overflow-y-auto px-5 py-4 space-y-5 text-[13px]">
+    <div class="grid place-items-center py-8 text-muted text-[13px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[16px]"></i> Loading&hellip;</span></div>
   </div>
 </aside>
 
@@ -540,15 +191,14 @@
   <div class="w-full max-w-sm rounded-xl border border-st_human/30 bg-panel glow-human-soft p-5">
     <div class="flex items-center gap-2.5">
       <span class="grid place-items-center w-9 h-9 rounded-lg bg-st_human/15 text-st_human"><i class="ph-fill ph-check-circle text-[18px]"></i></span>
-      <h3 class="text-[15px] font-semibold">Approve TASK-002?</h3>
+      <h3 id="confirm-title" class="text-[15px] font-semibold">Approve task?</h3>
     </div>
     <p class="mt-3 text-[12.5px] text-muted leading-relaxed">
-      This marks the task <span class="text-text font-medium">DONE</span>. It does <span class="text-text font-medium">not</span> merge the MR. You open and merge each repo's
-      <span class="mono text-[11px] text-text">fix/TASK-002-free-subscribe</span> branch yourself.
+      This marks the task <span class="text-text font-medium">DONE</span>. It does <span class="text-text font-medium">not</span> merge the MR. You open and merge each repo's branch yourself.
     </p>
     <div class="mt-3">
       <label class="text-[11px] text-muted">Review note (optional)</label>
-      <textarea rows="2" class="mt-1 w-full rounded-md border border-border bg-panel2 px-2.5 py-2 text-[12.5px] text-text placeholder:text-muted outline-none focus:border-accent/60" placeholder="Looks good, merging marketplace MR after release window."></textarea>
+      <textarea id="confirm-note" rows="2" class="mt-1 w-full rounded-md border border-border bg-panel2 px-2.5 py-2 text-[12.5px] text-text placeholder:text-muted outline-none focus:border-accent/60" placeholder="Looks good, merging after release window."></textarea>
     </div>
     <div class="mt-4 flex items-center justify-end gap-2">
       <button onclick="closeConfirm()" class="rounded-md border border-border bg-panel2 px-3 h-9 text-[12.5px] text-muted hover:text-text">Cancel</button>
@@ -561,39 +211,333 @@
 
 <!-- ============ TOAST ============ -->
 <div id="toast" class="fixed bottom-4 right-4 z-[70] hidden items-center gap-2 rounded-lg border border-st_done/30 bg-panel px-3.5 py-2.5 text-[12.5px] shadow-lg">
-  <i class="ph-fill ph-check-circle text-st_done text-[16px]"></i>
-  <span>TASK-002 marked <span class="font-semibold text-st_done">DONE</span>. MRs left open for manual merge.</span>
+  <i id="toast-icon" class="ph-fill ph-check-circle text-st_done text-[16px]"></i>
+  <span id="toast-msg">Done.</span>
 </div>
 
+<script src="api.js"></script>
 <script>
-  const drawer = document.getElementById('drawer');
-  const scrim  = document.getElementById('scrim');
+  /* board.js — Live board wiring. Fetches tasks from /api/tasks and renders cards. */
+  (function () {
+    'use strict';
+    var api = window.__kanban_api;
+    var drawer = document.getElementById('drawer');
+    var scrim  = document.getElementById('scrim');
+    var confirmEl = document.getElementById('confirm');
+    var selectedTask = null; // { project, key, state }
 
-  function openDrawer() {
-    drawer.classList.remove('translate-x-full');
-    scrim.classList.remove('opacity-0','pointer-events-none');
-  }
-  function closeDrawer() {
-    drawer.classList.add('translate-x-full');
-    scrim.classList.add('opacity-0','pointer-events-none');
-  }
-  function scrollToHuman() {
-    document.getElementById('col-human').scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'});
-  }
+    // --- State → column mapping ---
+    var STATE_COL = {
+      'TODO': 'col-todo',
+      'IN_PROGRESS': 'col-in_progress',
+      'IMPLEMENTED': 'col-in_progress',
+      'EVIDENCE': 'col-evidence',
+      'SELF_CHECK_PASSED': 'col-verdict',
+      'SELF_CHECK_FAILED': 'col-evidence',
+      'JUDGE_REJECTED': 'col-verdict',
+      'JUDGE_PASSED': 'col-judge_passed',
+      'DONE': 'col-done',
+    };
+    var STATE_COUNT = {
+      'TODO': 'count-todo',
+      'IN_PROGRESS': 'count-in_progress',
+      'IMPLEMENTED': 'count-in_progress',
+      'EVIDENCE': 'count-evidence',
+      'SELF_CHECK_PASSED': 'count-verdict',
+      'SELF_CHECK_FAILED': 'count-evidence',
+      'JUDGE_REJECTED': 'count-verdict',
+      'JUDGE_PASSED': 'count-human',
+      'DONE': 'count-done',
+    };
+    var STATE_LABEL = {
+      'TODO': { text: 'TODO', icon: 'ph-circle', cls: 'bg-white/5 text-st_todo' },
+      'IN_PROGRESS': { text: 'IN_PROGRESS', icon: 'ph-circle-notch', cls: 'bg-st_prog/12 text-st_prog', fill: true },
+      'IMPLEMENTED': { text: 'IMPLEMENTED', icon: 'ph-check-circle', cls: 'bg-st_impl/12 text-st_impl', fill: true },
+      'EVIDENCE': { text: 'EVIDENCE', icon: 'ph-seal-check', cls: 'bg-st_self/12 text-st_self', fill: true },
+      'SELF_CHECK_PASSED': { text: 'SELF_CHECK_PASSED', icon: 'ph-shield-check', cls: 'bg-st_self/12 text-st_self', fill: true },
+      'SELF_CHECK_FAILED': { text: 'SELF_CHECK_FAILED', icon: 'ph-warning', cls: 'bg-st_selffail/12 text-st_selffail', fill: true },
+      'JUDGE_REJECTED': { text: 'JUDGE_REJECTED', icon: 'ph-x-circle', cls: 'bg-st_reject/12 text-st_reject', fill: true },
+      'JUDGE_PASSED': { text: 'JUDGE_PASSED', icon: 'ph-gavel', cls: 'bg-st_human/15 text-st_human', fill: true },
+      'DONE': { text: 'DONE', icon: 'ph-check-fat', cls: 'bg-st_done/12 text-st_done', fill: true },
+    };
+    var BORDER_COLORS = {
+      'TODO': 'border-l-st_todo', 'IN_PROGRESS': 'border-l-st_prog', 'IMPLEMENTED': 'border-l-st_impl',
+      'EVIDENCE': 'border-l-st_self', 'SELF_CHECK_PASSED': 'border-l-st_self',
+      'SELF_CHECK_FAILED': 'border-l-st_selffail', 'JUDGE_REJECTED': 'border-l-st_reject',
+      'JUDGE_PASSED': 'border-l-st_human', 'DONE': 'border-l-st_done',
+    };
 
-  const confirmEl = document.getElementById('confirm');
-  function confirmApprove(){ confirmEl.classList.remove('hidden'); confirmEl.classList.add('flex'); }
-  function closeConfirm(){ confirmEl.classList.add('hidden'); confirmEl.classList.remove('flex'); }
-  function doApprove(){
-    closeConfirm();
-    const t = document.getElementById('toast');
-    t.classList.remove('hidden'); t.classList.add('flex');
-    setTimeout(()=>{ t.classList.add('hidden'); t.classList.remove('flex'); }, 3200);
-  }
+    // --- Helpers ---
+    function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function relTime(iso) {
+      if (!iso) return '';
+      var d = new Date(iso), now = new Date(), s = Math.floor((now - d) / 1000);
+      if (s < 60) return s + 's';
+      if (s < 3600) return Math.floor(s/60) + 'm';
+      if (s < 86400) return Math.floor(s/3600) + 'h';
+      return Math.floor(s/86400) + 'd';
+    }
 
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeConfirm(); closeDrawer(); }
-  });
+    function cardHtml(t, projectSlug) {
+      var st = STATE_LABEL[t.state] || { text: t.state, icon: 'ph-circle', cls: 'bg-white/5 text-muted' };
+      var fill = st.fill ? 'fill' : '';
+      var border = BORDER_COLORS[t.state] || 'border-l-border';
+      var extra = t.state === 'JUDGE_PASSED' ? ' border-st_human/40 glow-human hover:bg-st_human/5' : ' hover:border-borderlt';
+      var opacity = t.state === 'DONE' ? ' opacity-90' : '';
+      var lease = '';
+      if (t.state === 'IN_PROGRESS' && t.lease_until) {
+        var left = Math.max(0, Math.floor((new Date(t.lease_until) - new Date()) / 60000));
+        lease = '<div class="mt-2.5 flex items-center justify-between rounded-md bg-st_prog/8 border border-st_prog/20 px-2 py-1.5"><span class="flex items-center gap-1.5 text-[11px] text-st_prog"><span class="w-1.5 h-1.5 rounded-full bg-st_prog heartbeat"></span><i class="ph ph-robot text-[13px]"></i> agent</span><span class="mono text-[11px] text-muted">lease ' + left + 'm</span></div>';
+      }
+      return '<article onclick="window.__openDrawer(\'' + esc(projectSlug) + '\',\'' + esc(t.key) + '\')" class="cursor-pointer rounded-lg border border-border border-l-2 ' + border + ' bg-panel' + extra + ' p-3' + opacity + '">' +
+        '<div class="flex items-center justify-between"><span class="mono text-[11px] text-muted">' + esc(t.key) + '</span>' +
+        '<span class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded ' + st.cls + '"><i class="ph' + fill + ' ' + st.icon + ' text-[9px]"></i>' + esc(st.text) + '</span></div>' +
+        '<h3 class="mt-1.5 text-[13px] font-medium leading-snug">' + esc(t.title) + '</h3>' +
+        '<div class="mt-2.5 flex items-center gap-1.5"><span class="mono text-[10px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">' + esc(projectSlug) + '</span></div>' +
+        lease + '</article>';
+    }
+
+    // --- Load board ---
+    window.loadBoard = function () {
+      if (!api) return;
+      document.getElementById('board-loading').classList.remove('hidden');
+      document.getElementById('board-error').classList.add('hidden');
+      document.getElementById('board-empty').classList.add('hidden');
+      document.getElementById('board-columns').classList.add('hidden');
+
+      api.listProjects().then(function (res) {
+        if (!res || !res.projects) { showBoardError('No projects returned'); return; }
+        var projects = res.projects;
+        if (projects.length === 0) {
+          document.getElementById('board-loading').classList.add('hidden');
+          document.getElementById('board-empty').classList.remove('hidden');
+          return;
+        }
+        // Load tasks for each project
+        var allTasks = [];
+        var projMap = {};
+        projects.forEach(function (p) { projMap[p.id] = p.slug || p.id; });
+        var pending = projects.length;
+        projects.forEach(function (p) {
+          var slug = p.slug || p.id;
+          api.listTasks(slug).then(function (tres) {
+            if (tres && tres.tasks) {
+              tres.tasks.forEach(function (t) { allTasks.push({ task: t, project: slug }); });
+            }
+          }).catch(function () {}).then(function () {
+            pending--;
+            if (pending <= 0) renderBoard(allTasks, projects);
+          });
+        });
+      }).catch(function (err) { showBoardError(String(err)); });
+    };
+
+    function showBoardError(msg) {
+      document.getElementById('board-loading').classList.add('hidden');
+      document.getElementById('board-error').classList.remove('hidden');
+      document.getElementById('board-error-msg').textContent = msg;
+    }
+
+    function renderBoard(tasks, projects) {
+      document.getElementById('board-loading').classList.add('hidden');
+      if (tasks.length === 0) {
+        document.getElementById('board-empty').classList.remove('hidden');
+        return;
+      }
+      document.getElementById('board-columns').classList.remove('hidden');
+
+      // Clear columns
+      ['col-todo','col-in_progress','col-evidence','col-verdict','col-judge_passed','col-done'].forEach(function (id) {
+        document.getElementById(id).innerHTML = '';
+      });
+      // Reset counts
+      ['count-todo','count-in_progress','count-evidence','count-verdict','count-human','count-done'].forEach(function (id) {
+        document.getElementById(id).textContent = '0';
+      });
+
+      var humanCount = 0;
+      var totalActive = 0;
+      tasks.forEach(function (item) {
+        var t = item.task, slug = item.project;
+        var colId = STATE_COL[t.state];
+        if (!colId) return;
+        var col = document.getElementById(colId);
+        if (col) col.insertAdjacentHTML('beforeend', cardHtml(t, slug));
+        // Update counts
+        var countId = STATE_COUNT[t.state];
+        if (countId) {
+          var el = document.getElementById(countId);
+          if (el) el.textContent = String(parseInt(el.textContent || '0') + 1);
+        }
+        if (t.state !== 'DONE') totalActive++;
+        if (t.state === 'JUDGE_PASSED') humanCount++;
+      });
+
+      // Update strip
+      var strip = document.getElementById('board-strip');
+      var projName = projects.length === 1 ? (projects[0].slug || projects[0].name) : projects.length + ' projects';
+      strip.innerHTML =
+        '<span class="flex items-center gap-1.5 text-st_human font-medium"><i class="ph-fill ph-hand-tap text-[14px]"></i> ' + humanCount + ' tasks awaiting you</span>' +
+        '<span class="text-border">|</span>' +
+        '<span class="text-muted">' + totalActive + ' active across <span class="text-text">' + esc(projName) + '</span></span>' +
+        '<span class="ml-auto flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-full bg-ev_pass heartbeat"></span> live</span>';
+      document.body.dataset.awaiting = String(humanCount);
+    }
+
+    // --- Drawer ---
+    window.__openDrawer = function (project, key) {
+      selectedTask = { project: project, key: key };
+      drawer.classList.remove('translate-x-full');
+      scrim.classList.remove('opacity-0', 'pointer-events-none');
+      // Reset drawer content
+      document.getElementById('drawer-key').textContent = key;
+      document.getElementById('drawer-title').textContent = 'Loading…';
+      document.getElementById('drawer-state-badge').innerHTML = '';
+      document.getElementById('drawer-project').textContent = project;
+      document.getElementById('drawer-updated').textContent = '';
+      document.getElementById('btn-approve').classList.add('hidden');
+      document.getElementById('btn-reset').classList.add('hidden');
+      document.getElementById('btn-remove').classList.add('hidden');
+      document.getElementById('drawer-body').innerHTML = '<div class="grid place-items-center py-8 text-muted text-[13px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[16px]"></i> Loading…</span></div>';
+
+      if (!api) return;
+      api.getTask(project, key).then(function (res) {
+        if (!res || !res.task) {
+          document.getElementById('drawer-body').innerHTML = '<p class="text-ev_fail text-[13px]">Task not found.</p>';
+          return;
+        }
+        var t = res.task;
+        selectedTask.state = t.state;
+        document.getElementById('drawer-title').textContent = t.title;
+        document.getElementById('drawer-updated').textContent = relTime(t.updated_at);
+        // State badge
+        var st = STATE_LABEL[t.state] || { text: t.state, icon: 'ph-circle', cls: 'bg-white/5 text-muted' };
+        document.getElementById('drawer-state-badge').className = 'inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded ' + st.cls;
+        document.getElementById('drawer-state-badge').innerHTML = '<i class="ph' + (st.fill ? '-fill' : '') + ' ' + st.icon + ' text-[10px]"></i>' + esc(st.text);
+
+        // Show action buttons based on state
+        if (t.state === 'JUDGE_PASSED') document.getElementById('btn-approve').classList.remove('hidden');
+        if (t.state === 'JUDGE_REJECTED' || t.state === 'SELF_CHECK_FAILED') document.getElementById('btn-reset').classList.remove('hidden');
+        document.getElementById('btn-remove').classList.remove('hidden');
+
+        // Render body
+        var html = '';
+        // Spec section
+        html += '<section><h3 class="text-[11px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-file-text text-[13px]"></i> Spec</h3>';
+        html += '<div class="text-text/90 leading-relaxed text-[12.5px] whitespace-pre-wrap">' + esc(t.body_md || '(no spec)') + '</div></section>';
+
+        // Gitrefs
+        if (res.gitrefs && res.gitrefs.length > 0) {
+          html += '<section><h3 class="text-[11px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-git-branch text-[13px]"></i> Repos &amp; MR</h3><div class="space-y-2">';
+          res.gitrefs.forEach(function (g) {
+            html += '<div class="rounded-lg border border-border bg-panel2 p-2.5"><span class="mono text-[12px] font-medium">' + esc(g.repo || '') + '</span>';
+            if (g.branch) html += '<div class="mt-1 mono text-[11px] text-muted">' + esc(g.branch) + '</div>';
+            if (g.head_sha) html += '<div class="mt-0.5 mono text-[10.5px] text-muted">' + esc(g.head_sha.substring(0, 7)) + '</div>';
+            html += '</div>';
+          });
+          html += '</div></section>';
+        }
+
+        // Evidence
+        if (res.evidence) {
+          html += '<section><h3 class="text-[11px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-seal-check text-[13px]"></i> Evidence</h3>';
+          html += '<div class="rounded-lg border border-border bg-panel2 divide-y divide-border">';
+          var ev = res.evidence;
+          if (ev.build_exit !== undefined) html += '<div class="flex items-center justify-between px-3 py-2"><span class="flex items-center gap-1.5 text-[12px] text-muted"><i class="ph-fill ph-hammer text-[13px]"></i> build</span><span class="mono text-[12px] ' + (ev.build_exit === 0 ? 'text-ev_pass' : 'text-ev_fail') + '">exit ' + ev.build_exit + '</span></div>';
+          if (ev.test_exit !== undefined) html += '<div class="flex items-center justify-between px-3 py-2"><span class="flex items-center gap-1.5 text-[12px] text-muted"><i class="ph-fill ph-test-tube text-[13px]"></i> test</span><span class="mono text-[12px] ' + (ev.test_exit === 0 ? 'text-ev_pass' : 'text-ev_fail') + '">exit ' + ev.test_exit + '</span></div>';
+          html += '</div>';
+          html += '<a href="evidence.html" class="mt-2 flex items-center gap-1.5 text-[11.5px] text-accent hover:underline"><i class="ph ph-caret-right text-[12px]"></i> View full evidence</a>';
+          html += '</section>';
+        }
+
+        // Timeline
+        if (res.timeline && res.timeline.length > 0) {
+          html += '<section><h3 class="text-[11px] uppercase tracking-wider text-muted mb-3 flex items-center gap-1.5"><i class="ph ph-clock-counter-clockwise text-[13px]"></i> Timeline</h3>';
+          html += '<ol class="relative border-l border-border ml-1.5 space-y-4 pl-4">';
+          res.timeline.forEach(function (tr) {
+            var dotColor = tr.to_state === 'DONE' ? 'bg-st_done' : tr.to_state === 'JUDGE_PASSED' ? 'bg-st_human' : tr.actor_role === 'judge' ? 'bg-st_self' : 'bg-border';
+            html += '<li class="relative"><span class="absolute -left-[22px] top-1 w-3 h-3 rounded-full ' + dotColor + ' ring-4 ring-panel"></span>';
+            html += '<p class="text-[12px]"><span class="mono px-1.5 py-0.5 rounded bg-white/5 text-text/70">' + esc(tr.actor_role || '') + '</span> ';
+            html += '<span class="mono text-text/70">' + esc(tr.from_state || '') + '</span> &rarr; <span class="mono text-text">' + esc(tr.to_state || '') + '</span></p>';
+            if (tr.note) html += '<p class="mt-0.5 text-[12px] text-text/80">' + esc(tr.note) + '</p>';
+            html += '<p class="mt-0.5 mono text-[10.5px] text-muted">' + relTime(tr.at) + ' ago</p>';
+            html += '</li>';
+          });
+          html += '</ol></section>';
+        }
+
+        document.getElementById('drawer-body').innerHTML = html;
+      }).catch(function (err) {
+        document.getElementById('drawer-body').innerHTML = '<p class="text-ev_fail text-[13px]">Failed to load task: ' + esc(String(err)) + '</p>';
+      });
+    };
+
+    window.openDrawer = function () {}; // no-op, replaced by __openDrawer
+    window.closeDrawer = function () {
+      drawer.classList.add('translate-x-full');
+      scrim.classList.add('opacity-0', 'pointer-events-none');
+    };
+    window.scrollToHuman = function () {
+      document.getElementById('col-human').scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'});
+    };
+
+    window.confirmApprove = function () {
+      if (!selectedTask) return;
+      document.getElementById('confirm-title').textContent = 'Approve ' + selectedTask.key + '?';
+      confirmEl.classList.remove('hidden'); confirmEl.classList.add('flex');
+    };
+    window.closeConfirm = function () { confirmEl.classList.add('hidden'); confirmEl.classList.remove('flex'); };
+
+    window.doApprove = function () {
+      if (!selectedTask || !api) return;
+      closeConfirm();
+      var note = document.getElementById('confirm-note').value;
+      api.approveTask(selectedTask.project, selectedTask.key, note).then(function (res) {
+        if (res && res.task) {
+          showToast('TASK', selectedTask.key + ' marked DONE. MRs left open for manual merge.');
+          setTimeout(function () { loadBoard(); closeDrawer(); }, 800);
+        }
+      });
+    };
+
+    window.doReset = function () {
+      if (!selectedTask || !api) return;
+      api.resetTask(selectedTask.project, selectedTask.key).then(function (res) {
+        if (res && res.task) {
+          showToast('reset', selectedTask.key + ' reset to IN_PROGRESS.');
+          setTimeout(function () { loadBoard(); closeDrawer(); }, 800);
+        }
+      });
+    };
+
+    window.doRemove = function () {
+      if (!selectedTask || !api) return;
+      if (!confirm('Remove ' + selectedTask.key + '?')) return;
+      api.removeTask(selectedTask.project, selectedTask.key).then(function (res) {
+        if (res && res.removed) {
+          showToast('remove', selectedTask.key + ' removed.');
+          setTimeout(function () { loadBoard(); closeDrawer(); }, 800);
+        }
+      });
+    };
+
+    function showToast(type, msg) {
+      var t = document.getElementById('toast');
+      document.getElementById('toast-msg').textContent = msg;
+      t.classList.remove('hidden'); t.classList.add('flex');
+      setTimeout(function () { t.classList.add('hidden'); t.classList.remove('flex'); }, 3200);
+    }
+
+    // SSE: reload board on transition
+    window.addEventListener('kanban:transition', function () { loadBoard(); });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { closeConfirm(); closeDrawer(); }
+    });
+
+    // Init
+    loadBoard();
+  })();
 </script>
 <script src="shell.js"></script>
 </body>

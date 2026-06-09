@@ -32,7 +32,7 @@
         <label class="text-[12px] font-medium">Operator token</label>
         <div class="flex items-center gap-2 rounded-md border border-border bg-panel2 px-3 h-11 focus-within:border-accent/60">
           <i class="ph ph-key text-muted text-[15px]"></i>
-          <input id="tok" type="password" value="akb_live_8f2c4a91e7d0" class="flex-1 bg-transparent mono text-[13px] outline-none" />
+          <input id="tok" type="password" placeholder="akb_live_…" class="flex-1 bg-transparent mono text-[13px] outline-none" />
           <button onclick="const t=document.getElementById('tok'); t.type = t.type==='password'?'text':'password'; this.firstElementChild.classList.toggle('ph-eye'); this.firstElementChild.classList.toggle('ph-eye-slash')" class="text-muted hover:text-text"><i class="ph ph-eye text-[15px]"></i></button>
         </div>
       </div>
@@ -42,16 +42,16 @@
         <input type="checkbox" checked class="accent-accent w-3.5 h-3.5" /> Remember on this device
       </label>
 
-      <button class="mt-5 w-full flex items-center justify-center gap-2 rounded-md bg-accent h-11 text-[13px] font-semibold text-white hover:bg-accent/90 active:translate-y-px">
+      <button id="unlock-btn" class="mt-5 w-full flex items-center justify-center gap-2 rounded-md bg-accent h-11 text-[13px] font-semibold text-white hover:bg-accent/90 active:translate-y-px">
         <i class="ph-fill ph-lock-key-open text-[15px]"></i> Unlock board
       </button>
 
-      <!-- error state example (wrong / expired) -->
-      <div class="mt-4 flex items-start gap-2 rounded-md border border-ev_fail/30 bg-ev_fail/8 px-3 py-2.5">
+      <!-- error state (shown on failure) -->
+      <div id="signin-error" class="mt-4 hidden items-start gap-2 rounded-md border border-ev_fail/30 bg-ev_fail/8 px-3 py-2.5">
         <i class="ph-fill ph-warning-circle text-ev_fail text-[15px] mt-px"></i>
         <div class="text-[12px] leading-snug">
           <p class="text-ev_fail font-medium">Token rejected</p>
-          <p class="text-muted mt-0.5">This token is expired or revoked. Ask the operator to mint a new <span class="mono">human</span> token in Tokens.</p>
+          <p id="signin-error-msg" class="text-muted mt-0.5">Invalid or expired token. Ask the operator to mint a new <span class="mono">human</span> token in Tokens.</p>
         </div>
       </div>
     </div>
@@ -59,6 +59,81 @@
     <p class="mt-4 text-center mono text-[10.5px] text-muted">bearer auth, localhost / LAN only. Not for public internet at v1.</p>
   </div>
 
+<script src="api.js"></script>
+<script>
+  /* signin.js — S5 token gate. Stores token, validates via API, redirects to app. */
+  (function () {
+    'use strict';
+    // If already have token, skip sign-in
+    if (localStorage.getItem('kanban_token')) {
+      location.href = 'index.html';
+      return;
+    }
+
+    var input = document.getElementById('tok');
+    var btn = document.getElementById('unlock-btn');
+    var errBox = document.getElementById('signin-error');
+    var errMsg = document.getElementById('signin-error-msg');
+
+    // Handle deep-links: /p/<project> or /t/<KEY>
+    var redirectTo = 'index.html';
+    var path = location.pathname;
+    var pm = path.match(/\/p\/([^/]+)/);
+    var tm = path.match(/\/t\/([^/]+)/);
+    if (pm) redirectTo = 'index.html#project=' + encodeURIComponent(pm[1]);
+    if (tm) redirectTo = 'index.html#task=' + encodeURIComponent(tm[1]);
+
+    function submit() {
+      var token = input.value.trim();
+      if (!token) {
+        errBox.classList.remove('hidden'); errBox.classList.add('flex');
+        errMsg.textContent = 'Please enter a token.';
+        return;
+      }
+      btn.disabled = true;
+      btn.innerHTML = '<i class="ph ph-spinner animate-spin text-[15px]"></i> Verifying…';
+      errBox.classList.add('hidden'); errBox.classList.remove('flex');
+
+      // Store token temporarily to test it
+      window.__kanban_setToken(token);
+      // Verify by calling /api/projects
+      fetch('/api/projects', { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(function (res) {
+          if (res.ok) {
+            // Token valid — redirect
+            location.href = redirectTo;
+          } else {
+            // Invalid — clear and show error
+            window.__kanban_clearToken();
+            errBox.classList.remove('hidden'); errBox.classList.add('flex');
+            errMsg.textContent = res.status === 401
+              ? 'Token rejected. Check the token and try again.'
+              : 'Server error (' + res.status + '). Try again.';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="ph-fill ph-lock-key-open text-[15px]"></i> Unlock board';
+          }
+        })
+        .catch(function () {
+          window.__kanban_clearToken();
+          errBox.classList.remove('hidden'); errBox.classList.add('flex');
+          errMsg.textContent = 'Cannot reach server. Is it running?';
+          btn.disabled = false;
+          btn.innerHTML = '<i class="ph-fill ph-lock-key-open text-[15px]"></i> Unlock board';
+        });
+    }
+
+    btn.addEventListener('click', submit);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+
+    // Pre-fill from query param (e.g., ?token=xxx for first-run flow)
+    var params = new URLSearchParams(location.search);
+    var qToken = params.get('token');
+    if (qToken) {
+      input.value = qToken;
+      submit();
+    }
+  })();
+</script>
 <script src="shell.js"></script>
 </body>
 </html>

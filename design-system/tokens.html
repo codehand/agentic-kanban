@@ -80,53 +80,12 @@
                   <th class="text-left font-medium px-4 py-2.5">Role</th>
                   <th class="text-left font-medium px-4 py-2.5">Label</th>
                   <th class="text-left font-medium px-4 py-2.5 hidden md:table-cell">Scope</th>
-                  <th class="text-left font-medium px-4 py-2.5 hidden sm:table-cell">Last used</th>
+                  <th class="text-left font-medium px-4 py-2.5 hidden sm:table-cell">Created</th>
                   <th class="text-right font-medium px-4 py-2.5">Action</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-border">
-                <tr>
-                  <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[11px] px-2 py-0.5 rounded bg-accent/12 text-accent"><i class="ph-fill ph-user-circle text-[11px]"></i>human</span></td>
-                  <td class="px-4 py-3">operator <span class="text-muted text-[11px]">(you)</span></td>
-                  <td class="px-4 py-3 mono text-[11px] text-muted hidden md:table-cell">all projects</td>
-                  <td class="px-4 py-3 mono text-[11px] text-muted hidden sm:table-cell">just now</td>
-                  <td class="px-4 py-3 text-right"><span class="mono text-[11px] text-muted">current</span></td>
-                </tr>
-                <tr>
-                  <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[11px] px-2 py-0.5 rounded bg-st_prog/12 text-st_prog"><i class="ph ph-robot text-[11px]"></i>implementer</span></td>
-                  <td class="px-4 py-3">sonnet-impl-01</td>
-                  <td class="px-4 py-3 mono text-[11px] text-muted hidden md:table-cell">opf-hub</td>
-                  <td class="px-4 py-3 mono text-[11px] text-muted hidden sm:table-cell">5m ago</td>
-                  <td class="px-4 py-3 text-right"><button class="mono text-[11px] text-muted hover:text-ev_fail">Revoke</button></td>
-                </tr>
-                <tr>
-                  <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[11px] px-2 py-0.5 rounded bg-st_self/12 text-st_self"><i class="ph ph-shield-check text-[11px]"></i>self-check</span></td>
-                  <td class="px-4 py-3">selfcheck-01</td>
-                  <td class="px-4 py-3 mono text-[11px] text-muted hidden md:table-cell">opf-hub</td>
-                  <td class="px-4 py-3 mono text-[11px] text-muted hidden sm:table-cell">4m ago</td>
-                  <td class="px-4 py-3 text-right"><button class="mono text-[11px] text-muted hover:text-ev_fail">Revoke</button></td>
-                </tr>
-                <tr>
-                  <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[11px] px-2 py-0.5 rounded bg-st_human/12 text-st_human"><i class="ph-fill ph-gavel text-[11px]"></i>judge</span></td>
-                  <td class="px-4 py-3">opus-judge</td>
-                  <td class="px-4 py-3 mono text-[11px] text-muted hidden md:table-cell">opf-hub</td>
-                  <td class="px-4 py-3 mono text-[11px] text-muted hidden sm:table-cell">3m ago</td>
-                  <td class="px-4 py-3 text-right"><button class="mono text-[11px] text-muted hover:text-ev_fail">Revoke</button></td>
-                </tr>
-                <tr>
-                  <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[11px] px-2 py-0.5 rounded bg-white/5 text-muted"><i class="ph ph-cpu text-[11px]"></i>runner</span></td>
-                  <td class="px-4 py-3">ci-runner</td>
-                  <td class="px-4 py-3 mono text-[11px] text-muted hidden md:table-cell">opf-hub</td>
-                  <td class="px-4 py-3 mono text-[11px] text-muted hidden sm:table-cell">3m ago</td>
-                  <td class="px-4 py-3 text-right"><button class="mono text-[11px] text-muted hover:text-ev_fail">Revoke</button></td>
-                </tr>
-                <tr class="opacity-50">
-                  <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[11px] px-2 py-0.5 rounded bg-st_prog/12 text-st_prog"><i class="ph ph-robot text-[11px]"></i>implementer</span></td>
-                  <td class="px-4 py-3 line-through">old-laptop</td>
-                  <td class="px-4 py-3 mono text-[11px] text-muted hidden md:table-cell">opf-hub</td>
-                  <td class="px-4 py-3 mono text-[11px] text-muted hidden sm:table-cell">2d ago</td>
-                  <td class="px-4 py-3 text-right"><span class="mono text-[11px] text-ev_fail">revoked</span></td>
-                </tr>
+              <tbody id="tokens-body" class="divide-y divide-border">
+                <tr><td colspan="5" class="px-4 py-3 text-muted text-[12px]">Loading&hellip;</td></tr>
               </tbody>
             </table>
           </div>
@@ -137,6 +96,44 @@
     </div>
   </main>
 </div>
+<script src="api.js"></script>
+<script>
+  /* tokens.js — Live data wiring for tokens page. Fetches from /api/tokens. */
+  (function () {
+    'use strict';
+    var api = window.__kanban_api;
+    if (!api) return;
+    var tbody = document.getElementById('tokens-body');
+    var ROLE_ICONS = {
+      'human': { icon: 'ph-user-circle', fill: true, cls: 'bg-accent/12 text-accent' },
+      'implementer': { icon: 'ph-robot', fill: false, cls: 'bg-st_prog/12 text-st_prog' },
+      'self-check': { icon: 'ph-shield-check', fill: true, cls: 'bg-st_self/12 text-st_self' },
+      'judge': { icon: 'ph-gavel', fill: true, cls: 'bg-st_human/12 text-st_human' },
+      'runner': { icon: 'ph-cpu', fill: false, cls: 'bg-white/5 text-muted' },
+    };
+
+    api.listTokens().then(function (res) {
+      if (!res || !res.tokens || res.tokens.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-3 text-muted text-[12px]">No tokens found.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = '';
+      res.tokens.forEach(function (t) {
+        var r = ROLE_ICONS[t.role] || { icon: 'ph-circle', fill: false, cls: 'bg-white/5 text-muted' };
+        var revoked = !!t.revoked_at;
+        var tr = '<tr' + (revoked ? ' class="opacity-50"' : '') + '>' +
+          '<td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[11px] px-2 py-0.5 rounded ' + r.cls + '"><i class="ph' + (r.fill ? '-fill' : '') + ' ' + r.icon + ' text-[11px]"></i>' + (t.role || '') + '</span></td>' +
+          '<td class="px-4 py-3' + (revoked ? ' line-through' : '') + '">' + (t.label || t.id) + '</td>' +
+          '<td class="px-4 py-3 mono text-[11px] text-muted hidden md:table-cell">' + (t.project_id || 'all') + '</td>' +
+          '<td class="px-4 py-3 mono text-[11px] text-muted hidden sm:table-cell">' + (t.created_at || '') + '</td>' +
+          '<td class="px-4 py-3 text-right">' + (revoked ? '<span class="mono text-[11px] text-ev_fail">revoked</span>' : '<span class="mono text-[11px] text-muted">active</span>') + '</td></tr>';
+        tbody.insertAdjacentHTML('beforeend', tr);
+      });
+    }).catch(function () {
+      tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-3 text-ev_fail text-[12px]">Failed to load tokens.</td></tr>';
+    });
+  })();
+</script>
 <script src="shell.js"></script>
 </body>
 </html>
