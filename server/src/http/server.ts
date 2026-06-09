@@ -1,4 +1,6 @@
 import { createServer, IncomingMessage, ServerResponse } from 'node:http'
+import type { Db } from '../db/connection.js'
+import { mountMcpRoute } from '../mcp/server.js'
 import { logger } from '../logger.js'
 
 function handleHealthz(_req: IncomingMessage, res: ServerResponse): void {
@@ -11,7 +13,7 @@ function handleHealthz(_req: IncomingMessage, res: ServerResponse): void {
   res.end(body)
 }
 
-function router(req: IncomingMessage, res: ServerResponse): void {
+function baseRouter(req: IncomingMessage, res: ServerResponse): void {
   const url = req.url ?? '/'
 
   if (url === '/healthz' || url === '/healthz/') {
@@ -23,13 +25,15 @@ function router(req: IncomingMessage, res: ServerResponse): void {
   res.end(JSON.stringify({ error: 'not found' }))
 }
 
-export function createHttpServer() {
+export function createHttpServer(db?: Db) {
+  // If a db is provided, mount the MCP route at /mcp on top of the base router.
+  const router = db ? mountMcpRoute(baseRouter, db) : baseRouter
   return createServer(router)
 }
 
-export function startServer(port: number): Promise<void> {
+export function startServer(port: number, db?: Db): Promise<void> {
   return new Promise((resolve) => {
-    const server = createHttpServer()
+    const server = createHttpServer(db)
     server.listen(port, () => {
       logger.info({ port }, 'HTTP server listening')
       resolve()
