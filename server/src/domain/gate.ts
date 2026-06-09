@@ -10,6 +10,8 @@ import { isAllowed, allowedRole } from './statemachine.js'
 import type { TaskState, ActorRole } from './statemachine.js'
 import { guardImplemented, guardVerdict, guardChecksum } from './guards.js'
 import type { GitRef, Comment, Evidence } from './guards.js'
+import { checkLease } from './lease.js'
+import type { LeaseRepository } from './lease.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,6 +43,8 @@ export interface ProposeInput {
   comments?: Comment[]
   evidence?: Evidence | null
   computeChecksum?: (data: string) => string
+  // Lease repository for lease guard (optional — if not provided, lease check is skipped)
+  leaseRepo?: LeaseRepository
 }
 
 export interface ProposeResult {
@@ -94,7 +98,21 @@ export function propose(
     }
   }
 
-  // 4. Guards per target state
+  // 4. Lease guard: require caller to hold lease for non-human/non-gate transitions
+  // Exception: human role and self-check/judge roles (gate transitions) don't need lease
+  if (actor_role !== 'human' && actor_role !== 'self-check' && actor_role !== 'judge') {
+    if (input.leaseRepo) {
+      const leaseCheck = checkLease(task_id, actor_token_id, input.leaseRepo, now)
+      if (!leaseCheck.hasLease) {
+        return {
+          ok: false,
+          error: leaseCheck.error ?? `Actor '${actor_token_id}' does not hold lease on task '${task_id}'`,
+        }
+      }
+    }
+  }
+
+  // 5. Guards per target state
 
   // Guard →IMPLEMENTED
   if (to === 'IMPLEMENTED') {
@@ -119,7 +137,7 @@ export function propose(
     }
   }
 
-  // 5. Write transition (append-only) + update task state
+  // 6. Write transition (append-only) + update task state
   const transition: TransitionRecord = {
     task_id,
     from_state: from,
