@@ -151,9 +151,16 @@ guard_implemented() { # TASK
     if [ -n "$(git -C "$rd" status --porcelain -- . ':(exclude).ai' ':(exclude).claude' 2>/dev/null)" ]; then
       die "$r: checkout chính ($rd) có thay đổi chưa commit. Code task PHẢI nằm trong worktree, không phải main tree. REJECT."
     fi
-    # (a') branch chính không được advance ngoài worktree
+    # (a') branch chính không được advance ngoài worktree (trừ khi chỉ advance .ai/.claude)
     if [ -n "$base" ] && [ "$(git -C "$rd" rev-parse HEAD 2>/dev/null)" != "$base" ]; then
-      die "$r: branch chính có commit mới ngoài worktree (HEAD != base). Code task PHẢI nằm trong worktree. REJECT."
+      # Cho phép advance nếu tất cả commit mới chỉ chạm .ai/ và .claude/ (workflow-only commits)
+      local non_workflow_diff
+      non_workflow_diff="$(git -C "$rd" diff --name-only "$base" HEAD -- . ':(exclude).ai' ':(exclude).claude' 2>/dev/null)"
+      if [ -n "$non_workflow_diff" ]; then
+        die "$r: branch chính có commit mới ngoài worktree (chạm file ngoài .ai/.claude). Code task PHẢI nằm trong worktree. REJECT."
+      else
+        warn "$r: branch chính advanced vs base nhưng chỉ .ai/.claude — OK (workflow-only commits)"
+      fi
     fi
     # (b) worktree phải có thay đổi vs base (commit lên branch hoặc uncommitted)
     [ -n "$(git -C "$wt" status --porcelain -- . ':(exclude).ai' ':(exclude).claude' 2>/dev/null)" ] && any_change=1

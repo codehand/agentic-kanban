@@ -3,3 +3,4 @@ dist/
 coverage/
 *.db
 .env
+.claude/worktree/
