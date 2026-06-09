@@ -16,7 +16,7 @@ Every task is isolated on its own branch + git **worktree** — one per repo it 
 - `Repos: <r1> <r2> …` — repos (paths relative to the engine root) the task changes. Default `.` (single repo). A multi-repo workspace (folder of independent git repos) lists several.
 - `Branch: fix/<TASK>-<slug>` — one branch name shared across every repo (slug AI-generated from the title).
 
-Entering `IN_PROGRESS` makes the gate create branch + worktree per repo at `<repo>/.claude/worktree/<branch>` (branched from each repo's **current** branch HEAD; base recorded in state). The Implementer works **only inside the worktrees** — if task code leaks into any repo's main checkout, the gate **REJECTS** the move to IMPLEMENTED. Build/test/coverage and the Judge's diff all run inside the worktrees. `approve` does **not** auto-merge — you open the MR/merge each repo's branch yourself. `gate.sh worktrees <TASK>` prints the paths.
+Entering `IN_PROGRESS` makes the gate create branch + worktree per repo at `<repo>/.claude/worktree/<branch>` (branched from each repo's **current** branch HEAD; base recorded in state). The Implementer works **only inside the worktrees** — if task code leaks into any repo's main checkout, the gate **REJECTS** the move to IMPLEMENTED. Build/test/coverage and the Judge's diff all run inside the worktrees. `approve` does **not** auto-merge — you open the MR/merge each repo's branch yourself, or run `/merge <TASK>` after DONE for a conflict-safe local merge. `gate.sh worktrees <TASK>` prints the paths.
 
 ## Deploy to another project (portable)
 
@@ -61,7 +61,7 @@ What you almost never change: `gate.sh`, `guard-protected-paths.sh`, the agent p
 .ai/scripts/gate.sh --help 2>/dev/null; echo "---"
 # in a NEW session, the hook should block this:
 #   try to Write a file under .ai/evidence/  → expect "BLOCKED"
-ls .claude/agents .claude/commands           # implementer/self-check/judge + 5 commands present
+ls .claude/agents .claude/commands           # implementer/self-check/judge + 6 commands present
 jq '.hooks.PreToolUse[0].hooks[0].command' .claude/settings.json   # points to .ai/scripts/guard-protected-paths.sh
 ```
 
@@ -104,7 +104,14 @@ Finally, the **human** (only) approves:
 ```bash
 .ai/scripts/gate.sh approve TASK-002       # JUDGE_PASSED → DONE (does NOT merge the branch)
 ```
-`approve` only marks DONE — the task's branch + worktrees stay in place. Open the MR / merge each repo's `fix/<TASK>-<slug>` branch yourself, then clean up with `gate.sh remove`.
+`approve` only marks DONE — the task's branch + worktrees stay in place. Then either open the MR / merge each repo's `fix/<TASK>-<slug>` branch yourself, **or** use the local merge helper:
+
+```
+/merge TASK-002       # (only after DONE) merge the worktree branch → each repo's current branch,
+                      # then remove the worktree + branch. The task itself is kept.
+```
+
+On conflict, `/merge` does **not** dirty any main checkout: the gate aborts, spins up an `integrate/<TASK>` worktree off the current branch, merges the task branch there, the agent resolves + commits, then `gate.sh merge-finish` fast-forwards the current branch and cleans up. Single-branch local convenience — for review-gated flows, open an MR instead.
 
 ## Models & running with independence (multi-terminal)
 
@@ -129,6 +136,9 @@ Switch a terminal's model with `/model` (or launch with `--model`). Running `/ju
 ## Operator commands
 ```bash
 .ai/scripts/gate.sh worktrees TASK-002     # print branch + per-repo worktree paths
+.ai/scripts/gate.sh merge  TASK-002        # (only after DONE) merge worktree branch → current branch per repo;
+                                           # clean → drop worktree/branch (keeps task); conflict → exit 2 (see /merge)
+.ai/scripts/gate.sh merge-finish TASK-002  # finish merge after conflicts resolved+committed in the integration worktree
 .ai/scripts/gate.sh reset  TASK-002        # back to TODO; wipe evidence/reports + remove worktrees & branch
 .ai/scripts/gate.sh remove TASK-002 --yes  # delete the task entirely (incl. worktrees & branch)
 ```

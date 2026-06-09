@@ -10,6 +10,11 @@
 #   gate.sh propose  TASK FROM TO ACTOR-> agent đề xuất chuyển state (có guard)
 #   gate.sh selfcheck TASK             -> gate tự chấm từ evidence -> SELF_CHECK_PASSED/FAILED
 #   gate.sh approve  TASK              -> CHỈ HUMAN: JUDGE_PASSED -> DONE
+#   gate.sh merge    TASK              -> CHỈ DONE: merge branch worktree -> current branch mỗi repo,
+#                                         clean thì gỡ worktree/branch (giữ task); conflict thì dựng
+#                                         integration worktree (exit 2) cho agent resolve rồi merge-finish
+#   gate.sh merge-finish TASK          -> sau khi agent resolve+commit trong integration worktree:
+#                                         FF current branch -> integration, gỡ integration + worktree/branch task
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"   # .ai/scripts -> repo root
@@ -178,7 +183,7 @@ verify_checksums() { # so sánh sha256 thực tế với manifest -> chống s�
 
 # =====================================================================
 cmd="${1:-}"; task="${2:-}"
-[ -n "$cmd" ] || die "usage: gate.sh <init|state|worktrees|propose|selfcheck|approve|reset|remove> ..."
+[ -n "$cmd" ] || die "usage: gate.sh <init|state|worktrees|propose|selfcheck|approve|merge|merge-finish|reset|remove> ..."
 
 case "$cmd" in
   init)
@@ -284,6 +289,102 @@ case "$cmd" in
     [ "$real" = "JUDGE_PASSED" ] || die "approve yêu cầu state=JUDGE_PASSED (hiện: $real)"
     transition_allowed "JUDGE_PASSED" "DONE" "human" || die "transition không hợp lệ"
     write_state "$task" "DONE" "human" "$(ev_dir "$task")" "approved by $(whoami)"
+    ;;
+
+  merge)
+    # CHỈ DONE: merge branch worktree -> current branch mỗi repo. KHÔNG xoá task.
+    # Clean  -> merge thẳng + gỡ worktree/branch task (giữ task).
+    # Conflict -> KHÔNG để main tree bẩn: abort, dựng integration worktree từ current branch,
+    #             merge branch task vào đó (để conflict lại), exit 2. Agent resolve+commit trong
+    #             integration worktree rồi chạy 'gate.sh merge-finish'.
+    [ -n "$task" ] || die "usage: gate.sh merge TASK"
+    sf="$(state_file "$task")"; [ -f "$sf" ] || die "no state file for $task"
+    [ "$(cur_state "$task")" = "DONE" ] || die "merge yêu cầu state=DONE (đã approve). Hiện: $(cur_state "$task")"
+    br="$(jq -r '.branch // ""' "$sf")"
+    [ -n "$br" ] || die "$task chưa có branch worktree (chưa từng vào IN_PROGRESS)"
+
+    mergejson='{}'; need_resolve=0
+    for r in $(task_repos "$task"); do
+      rd="$(repo_dir "$r")"
+      [ -d "$rd/.git" ] || die "$r: không phải git repo ($rd)"
+      wt="$ROOT/$(jq -r --arg r "$r" '.repos[$r].wt // ""' "$sf")"
+      git -C "$rd" show-ref --verify --quiet "refs/heads/$br" || die "$r: branch '$br' không tồn tại"
+      cur="$(git -C "$rd" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+      [ "$cur" = "HEAD" ] && die "$r: checkout chính đang detached HEAD — checkout branch đích trước khi merge"
+      [ "$cur" = "$br" ] && die "$r: checkout chính đang đứng trên '$br' — checkout branch đích trước khi merge"
+      [ -z "$(git -C "$rd" status --porcelain -- . ':(exclude).ai' ':(exclude).claude' 2>/dev/null)" ] \
+        || die "$r: checkout chính ($rd) chưa sạch — commit/stash trước khi merge"
+      if [ -d "$wt" ] && [ -n "$(git -C "$wt" status --porcelain -- . ':(exclude).ai' ':(exclude).claude' 2>/dev/null)" ]; then
+        die "$r: worktree task ($wt) còn thay đổi chưa commit — commit trong worktree trước khi merge"
+      fi
+      if git -C "$rd" merge --no-edit -m "Merge branch '$br' ($task) into $cur" "$br" >/dev/null 2>&1; then
+        ok "$r: merged '$br' -> $cur (clean)"
+        mergejson="$(jq -n --argjson c "$mergejson" --arg r "$r" --arg t "$cur" '$c + {($r):{target:$t, mode:"merged"}}')"
+      else
+        git -C "$rd" merge --abort 2>/dev/null || true
+        ibr="integrate/$task"; iwt="$rd/.claude/worktree/$ibr"
+        if [ -d "$iwt" ]; then
+          git -C "$rd" worktree remove --force "$iwt" 2>/dev/null || rm -rf "$iwt"
+          git -C "$rd" worktree prune 2>/dev/null || true
+          git -C "$rd" branch -D "$ibr" 2>/dev/null || true
+        fi
+        mkdir -p "$(dirname "$iwt")"
+        git -C "$rd" worktree add -b "$ibr" "$iwt" HEAD >/dev/null 2>&1 \
+          || die "$r: tạo integration worktree thất bại"
+        git -C "$iwt" merge --no-edit -m "Merge branch '$br' ($task) into $cur" "$br" >/dev/null 2>&1 || true
+        conflicts="$(git -C "$iwt" diff --name-only --diff-filter=U 2>/dev/null | tr '\n' ' ')"
+        need_resolve=1
+        warn "$r: CONFLICT — integration worktree: ${iwt#$ROOT/}"
+        warn "$r:   file conflict: ${conflicts:-(merge dừng, xem git -C $iwt status)}"
+        mergejson="$(jq -n --argjson c "$mergejson" --arg r "$r" --arg t "$cur" --arg ib "$ibr" --arg iw "${iwt#$ROOT/}" \
+          '$c + {($r):{target:$t, mode:"integrating", integ_branch:$ib, integ_wt:$iw}}')"
+      fi
+    done
+
+    tmp="$(mktemp)"; jq --argjson m "$mergejson" '.merge={repos:$m}' "$sf" > "$tmp" && mv "$tmp" "$sf"
+
+    if [ "$need_resolve" = "1" ]; then
+      echo "MERGE_CONFLICT: resolve conflict trong (các) integration worktree ở trên, 'git add' + 'git commit', rồi chạy: .ai/scripts/gate.sh merge-finish $task" >&2
+      exit 2
+    fi
+    worktree_teardown "$task"
+    tmp="$(mktemp)"; jq 'del(.branch,.repos,.merge) | .merged=true' "$sf" > "$tmp" && mv "$tmp" "$sf"
+    printf '%s\t%s\tmerge -> done (clean)\tactor=human\n' "$NOW" "$task" >> "$(log_file "$task")"
+    ok "$task: merged toàn bộ repo vào current branch; worktree/branch task đã gỡ (task giữ nguyên)"
+    ;;
+
+  merge-finish)
+    # Hoàn tất merge sau khi agent resolve conflict + commit trong integration worktree.
+    [ -n "$task" ] || die "usage: gate.sh merge-finish TASK"
+    sf="$(state_file "$task")"; [ -f "$sf" ] || die "no state file for $task"
+    jq -e '.merge.repos' "$sf" >/dev/null 2>&1 || die "$task không ở giữa quá trình merge (chạy gate.sh merge trước)"
+    while IFS=$'\t' read -r r mode target ibr iwtrel; do
+      [ -z "$r" ] && continue
+      [ "$mode" = "integrating" ] || continue
+      rd="$(repo_dir "$r")"; iwt="$ROOT/$iwtrel"
+      [ -d "$iwt" ] || die "$r: thiếu integration worktree ($iwtrel) — chạy lại gate.sh merge"
+      git -C "$iwt" rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1 \
+        && die "$r: integration worktree còn merge dở — resolve + 'git commit' trong $iwtrel trước"
+      [ -z "$(git -C "$iwt" diff --name-only --diff-filter=U 2>/dev/null)" ] \
+        || die "$r: còn file conflict chưa resolve trong $iwtrel"
+      [ -z "$(git -C "$iwt" status --porcelain 2>/dev/null)" ] \
+        || die "$r: integration worktree còn thay đổi chưa commit ($iwtrel)"
+      cur="$(git -C "$rd" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+      [ "$cur" = "$target" ] || die "$r: checkout chính đang ở '$cur', không phải '$target' — checkout lại trước khi finish"
+      [ -z "$(git -C "$rd" status --porcelain -- . ':(exclude).ai' ':(exclude).claude' 2>/dev/null)" ] \
+        || die "$r: checkout chính chưa sạch"
+      git -C "$rd" merge --ff-only "$ibr" >/dev/null 2>&1 \
+        || die "$r: không FF được '$target' -> '$ibr' (branch đích đã dịch chuyển?)"
+      ok "$r: merged (qua integration) -> $target"
+      git -C "$rd" worktree remove --force "$iwt" 2>/dev/null || rm -rf "$iwt"
+      git -C "$rd" worktree prune 2>/dev/null || true
+      git -C "$rd" branch -D "$ibr" 2>/dev/null || true
+    done < <(jq -r '.merge.repos | to_entries[] | "\(.key)\t\(.value.mode)\t\(.value.target)\t\(.value.integ_branch // "")\t\(.value.integ_wt // "")"' "$sf")
+
+    worktree_teardown "$task"
+    tmp="$(mktemp)"; jq 'del(.branch,.repos,.merge) | .merged=true' "$sf" > "$tmp" && mv "$tmp" "$sf"
+    printf '%s\t%s\tmerge-finish -> done\tactor=human\n' "$NOW" "$task" >> "$(log_file "$task")"
+    ok "$task: hoàn tất merge (conflict đã resolve); worktree/branch task đã gỡ (task giữ nguyên)"
     ;;
 
   reset)

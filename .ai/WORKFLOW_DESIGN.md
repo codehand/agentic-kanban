@@ -43,6 +43,7 @@
 | `IN_PROGRESS → IMPLEMENTED` | Guard: với mỗi repo (a) checkout chính **sạch** + `HEAD == base_sha` → code task **không** rò ra main tree; (b) worktree **có** thay đổi vs base. Vi phạm (a) hoặc không (b) → **REJECT**. |
 | Self-Check / Judge | build/test/cover chạy trong worktree; Judge diff `base_sha..` trong worktree. |
 | `approve → DONE` | **KHÔNG** auto-merge. Branch + worktree giữ nguyên để con người mở MR/merge. |
+| `merge` (CHỈ sau DONE) | Lệnh tường minh do con người gọi (`/merge` hoặc `gate.sh merge`). Mỗi repo: merge branch worktree → **current branch của checkout chính**. Clean → merge thẳng rồi `git worktree remove` + `branch -D` branch task (**giữ task**). Conflict → `merge --abort` (checkout chính KHÔNG bị bẩn), dựng **integration worktree** `integrate/<TASK>` từ current branch, merge branch task vào đó để conflict ở yên trong worktree đó; agent resolve + commit; `gate.sh merge-finish` FF current branch → integration rồi gỡ integration + worktree/branch task. Xong set `merged=true`, xoá `branch`/`repos`/`merge` khỏi state, **task không bị xoá**. |
 | `reset` / `remove` | `git worktree remove` + `branch -D` cho từng repo, xoá `branch`/`repos` khỏi state. |
 
 **Đường dẫn suy ra tất định:** với `(repo, branch)` → worktree = `<repo>/.claude/worktree/<branch>`. Engine chỉ cần đọc `Repos:`/`Branch:` (hoặc `state.repos`) là tìm được mọi thứ.
@@ -164,7 +165,7 @@ Quy tắc gate:
     implementer.md self-check.md judge.md
   claude/                   # BẢN GỐC — install.sh copy sang .claude/
     agents/    implementer.md self-check.md judge.md   # subagent (kèm model)
-    commands/  impl.md selfcheck.md judge.md status.md newtask.md
+    commands/  impl.md selfcheck.md judge.md status.md newtask.md merge.md
     settings.hook.json      # snippet hook để merge vào .claude/settings.json
   # ====== INSTANCE DATA (sinh ra theo project, .gitignore) ======
   tasks/
@@ -256,8 +257,13 @@ Càng đẩy AC xuống nhóm machine-verifiable, false-positive càng khó xả
 /selfcheck TASK-001   # chạy run-evidence.sh (per-repo, trong worktree) → gate set PASSED/FAILED theo exit
 /judge TASK-001       # Judge (Opus) diff base..branch trong worktree → gate set JUDGE_PASSED/REJECTED
 # Human review diff (trong worktree) + .ai/reports/TASK-001/judge.md + .ai/evidence/TASK-001/
-.ai/scripts/gate.sh approve TASK-001   # CHỈ người dùng chạy → DONE (KHÔNG auto-merge; tự mở MR/merge branch)
+.ai/scripts/gate.sh approve TASK-001   # CHỈ người dùng chạy → DONE (KHÔNG auto-merge)
+/merge TASK-001                        # (tuỳ chọn, sau DONE) merge branch worktree → current branch mỗi repo;
+                                       # conflict → agent resolve trong integration worktree → gate.sh merge-finish;
+                                       # xong gỡ worktree/branch task, GIỮ task. Hoặc tự mở MR thay vì /merge.
 ```
+
+> `/merge` không thay con người mở MR — nó là tiện ích merge-local cho workflow đơn nhánh. Pipeline cốt lõi vẫn dừng ở `approve → DONE`; merge là bước tách rời, tường minh, chỉ chạy được sau DONE.
 
 ---
 
