@@ -1,8 +1,0 @@
-# Instance data — generated per project, not part of the portable engine.
-state/
-evidence/
-reports/
-
-# Tasks are project-specific specs; keep them tracked. Comment out the next
-# line if you prefer NOT to commit task definitions.
-# tasks/
