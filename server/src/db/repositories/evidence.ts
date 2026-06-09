@@ -11,6 +11,7 @@ export interface Evidence {
   coverage_pct: number | null
   manifest_json: string
   logs_json: string
+  manifest_checksum: string
   created_at: string
 }
 
@@ -25,6 +26,7 @@ export interface NewEvidence {
   coverage_pct?: number
   manifest_json?: string
   logs_json?: string
+  manifest_checksum?: string
 }
 
 /**
@@ -38,8 +40,8 @@ export function insertEvidence(db: Db, e: NewEvidence): Evidence {
     INSERT INTO evidence
       (id, task_id, submitted_by_token_id,
        build_exit, test_exit, lint_exit, ac_exit, coverage_pct,
-       manifest_json, logs_json)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       manifest_json, logs_json, manifest_checksum)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     e.id,
     e.task_id,
@@ -51,6 +53,7 @@ export function insertEvidence(db: Db, e: NewEvidence): Evidence {
     e.coverage_pct ?? null,
     e.manifest_json ?? '{}',
     e.logs_json ?? '{}',
+    e.manifest_checksum ?? '',
   )
 
   return getEvidenceById(db, e.id)!

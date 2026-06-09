@@ -44,8 +44,10 @@ export function submit(
     throw new Error(`Evidence submission requires role='runner', got role='${role}'`);
   }
 
-  // Validate the manifest JSON and compute its checksum for verification
-  validateAndChecksumManifest(evidenceData.manifest_json);
+  // Validate the manifest JSON and compute its reference checksum for storage.
+  // This checksum is the tamper-detection anchor: selfcheck will later recompute
+  // from the manifest read back from DB and compare against this stored value.
+  const manifestChecksum = validateAndChecksumManifest(evidenceData.manifest_json);
 
   // Prepare the new evidence record
   const newEvidence = {
@@ -59,6 +61,7 @@ export function submit(
     coverage_pct: evidenceData.coverage_pct !== undefined ? evidenceData.coverage_pct : null,
     manifest_json: evidenceData.manifest_json,
     logs_json: evidenceData.logs_json || '{}',
+    manifest_checksum: manifestChecksum,
   } as NewEvidence;
 
   // Submit the evidence (append-only, no update path - AC6)
@@ -95,9 +98,12 @@ export async function selfcheck(
     };
   }
 
-  // Verify the manifest checksum (AC8)
+  // Verify the manifest checksum (AC8).
+  // Compare the checksum stored at submit-time against a fresh computation
+  // from the manifest read back from DB. If they differ, the manifest was
+  // tampered with after submission — reject.
   try {
-    const isValid = verifyManifestChecksum(evidence.manifest_json, validateAndChecksumManifest(evidence.manifest_json));
+    const isValid = verifyManifestChecksum(evidence.manifest_json, evidence.manifest_checksum);
     if (!isValid) {
       return {
         success: false,
@@ -136,8 +142,8 @@ export async function selfcheck(
     evidence_id: evidence.id,
     evidence: {
       manifest_json: evidence.manifest_json,
-      checksum: validateAndChecksumManifest(evidence.manifest_json),
-    }, // Transform database evidence to guard-compatible format
+      checksum: evidence.manifest_checksum,
+    }, // Transform database evidence to guard-compatible format (use stored checksum, not freshly computed)
     computeChecksum: (data: string) => validateAndChecksumManifest(data),
   };
 
