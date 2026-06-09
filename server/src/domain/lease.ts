@@ -4,19 +4,16 @@
  *
  * All I/O is injected (repository interfaces) so the domain logic is pure-testable.
  *
- * IMPORTANT: For production use, the LeaseRepository implementation MUST use
- * SQLite transactions (BEGIN IMMEDIATE or BEGIN EXCLUSIVE) to ensure atomic
- * check-and-set semantics. The domain logic here performs check-then-write,
- * which is only safe if the repository wraps it in a transaction.
- *
- * Example transaction usage in repository:
- *   db.transaction(() => {
- *     const task = getTaskById(id);
- *     if (task.lease_until && new Date(task.lease_until) > new Date()) {
- *       throw new Error('Already leased');
- *     }
- *     updateLease(id, token, leaseUntil);
- *   })();
+ * ATOMICITY / TRANSACTION SEMANTICS:
+ * The claim() function uses repository.try_claim() which MUST perform
+ * an atomic conditional UPDATE at the database level (single SQL statement,
+ * equivalent to a transaction):
+ *   UPDATE task SET assignee_token_id=?, lease_until=?
+ *   WHERE id=? AND (assignee_token_id IS NULL OR lease_until < ? OR assignee_token_id = ?)
+ * This ensures only one concurrent caller can win the claim (no TOCTOU race).
+ * The SQLite implementation in db/repositories/lease.ts uses this conditional UPDATE
+ * as a transaction-equivalent — a single atomic statement that either succeeds or fails
+ * based on the current DB state, with no gap between check and write.
  */
 
 // ---------------------------------------------------------------------------
@@ -55,9 +52,22 @@ export interface ReleaseResult {
 // Repository interface (injected; lease module never calls DB directly)
 // ---------------------------------------------------------------------------
 
+export interface TryClaimResult {
+  /** True if the claim succeeded (atomic check-and-set matched). */
+  claimed: boolean
+  /** The task state after the attempt (undefined if task not found). */
+  task: Task | undefined
+}
+
 export interface LeaseRepository {
   getTaskById(id: string): Task | undefined
   updateLease(id: string, assigneeTokenId: string | null, leaseUntil: string | null): Task | undefined
+  /**
+   * Atomically claim a task: performs a conditional UPDATE that only succeeds
+   * if the task is unclaimed, lease expired, or already claimed by the same token.
+   * MUST be implemented as a single SQL statement (transaction semantics) to prevent TOCTOU races.
+   */
+  try_claim(id: string, token: string, leaseUntil: string): TryClaimResult
 }
 
 // ---------------------------------------------------------------------------
@@ -67,7 +77,7 @@ export interface LeaseRepository {
 /**
  * Claim a task: set assignee_token_id + lease_until.
  * Only succeeds if task has no lease or lease has expired.
- * Uses transaction semantics via repository (atomic check-and-set).
+ * Uses atomic try_claim() — single conditional UPDATE prevents TOCTOU races.
  */
 export function claim(
   taskId: string,
@@ -76,39 +86,27 @@ export function claim(
   config: LeaseConfig,
   now: () => string = () => new Date().toISOString(),
 ): ClaimResult {
-  const task = repo.getTaskById(taskId)
-  if (!task) {
-    return { ok: false, error: `Task '${taskId}' not found` }
-  }
-
-  // Check if task is already leased to another token and lease hasn't expired
-  if (task.assignee_token_id !== null && task.lease_until !== null) {
-    const leaseUntil = new Date(task.lease_until)
-    const currentTime = new Date(now())
-
-    if (currentTime < leaseUntil) {
-      // Lease is still active and owned by someone else
-      if (task.assignee_token_id !== token) {
-        return {
-          ok: false,
-          error: `Task '${taskId}' is already leased to token '${task.assignee_token_id}' until ${task.lease_until}`,
-        }
-      }
-      // Already leased to this token — just extend
-    }
-  }
-
-  // Set lease: current time + TTL
+  // Compute lease expiry: current time + TTL
   const currentTime = new Date(now())
   const leaseUntil = new Date(currentTime.getTime() + config.ttlSeconds * 1000)
   const leaseUntilISO = leaseUntil.toISOString()
 
-  const updated = repo.updateLease(taskId, token, leaseUntilISO)
-  if (!updated) {
-    return { ok: false, error: `Failed to update lease for task '${taskId}'` }
+  // Atomic claim: single conditional UPDATE at the DB level
+  const result = repo.try_claim(taskId, token, leaseUntilISO)
+
+  if (!result.task) {
+    return { ok: false, error: `Task '${taskId}' not found` }
   }
 
-  return { ok: true, task: updated }
+  if (!result.claimed) {
+    // Task exists but claim failed — someone else holds an active lease
+    return {
+      ok: false,
+      error: `Task '${taskId}' is already leased to token '${result.task.assignee_token_id}' until ${result.task.lease_until}`,
+    }
+  }
+
+  return { ok: true, task: result.task }
 }
 
 // ---------------------------------------------------------------------------
