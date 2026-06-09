@@ -13,10 +13,15 @@
     "lint": "eslint server/src server/test --ext .ts"
   },
   "dependencies": {
+    "better-sqlite3": "^9.4.3",
     "pino": "^9.6.0",
     "yaml": "^2.7.0"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
+  },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
