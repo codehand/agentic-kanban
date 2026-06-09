@@ -403,6 +403,76 @@ describe('guardChecksum', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Checksum guard on SELF_CHECK transitions (via propose)
+// ---------------------------------------------------------------------------
+
+describe('SELF_CHECK: checksum guard via propose()', () => {
+  it('rejects IMPLEMENTED -> SELF_CHECK_PASSED when evidence is missing', () => {
+    const repo = makeRepo()
+    const result = propose({
+      task_id: 't1',
+      current_state: 'IMPLEMENTED',
+      from: 'IMPLEMENTED',
+      to: 'SELF_CHECK_PASSED',
+      actor_role: 'self-check',
+      actor_token_id: 'tok1',
+      evidence: null,
+      computeChecksum: sha256Identity,
+    }, repo)
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/[Ee]vidence|checksum/i)
+  })
+
+  it('rejects IMPLEMENTED -> SELF_CHECK_FAILED when evidence is missing', () => {
+    const repo = makeRepo()
+    const result = propose({
+      task_id: 't1',
+      current_state: 'IMPLEMENTED',
+      from: 'IMPLEMENTED',
+      to: 'SELF_CHECK_FAILED',
+      actor_role: 'self-check',
+      actor_token_id: 'tok1',
+      evidence: null,
+      computeChecksum: sha256Identity,
+    }, repo)
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/[Ee]vidence|checksum/i)
+  })
+
+  it('rejects IMPLEMENTED -> SELF_CHECK_PASSED when checksum does not match', () => {
+    const repo = makeRepo()
+    const result = propose({
+      task_id: 't1',
+      current_state: 'IMPLEMENTED',
+      from: 'IMPLEMENTED',
+      to: 'SELF_CHECK_PASSED',
+      actor_role: 'self-check',
+      actor_token_id: 'tok1',
+      evidence: { manifest_json: 'real-data', checksum: 'wrong-checksum' },
+      computeChecksum: sha256Identity,
+    }, repo)
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/checksum/i)
+  })
+
+  it('rejects IMPLEMENTED -> SELF_CHECK_FAILED when checksum does not match', () => {
+    const repo = makeRepo()
+    const result = propose({
+      task_id: 't1',
+      current_state: 'IMPLEMENTED',
+      from: 'IMPLEMENTED',
+      to: 'SELF_CHECK_FAILED',
+      actor_role: 'self-check',
+      actor_token_id: 'tok1',
+      evidence: { manifest_json: 'real-data', checksum: 'wrong-checksum' },
+      computeChecksum: sha256Identity,
+    }, repo)
+    expect(result.ok).toBe(false)
+    expect(result.error).toMatch(/checksum/i)
+  })
+})
+
+// ---------------------------------------------------------------------------
 // State mismatch
 // ---------------------------------------------------------------------------
 
@@ -461,6 +531,46 @@ describe('propose: happy path', () => {
     }, repo)
     expect(result.ok).toBe(true)
     expect(repo.states['task-1']).toBe('IMPLEMENTED')
+  })
+
+  it('IMPLEMENTED -> SELF_CHECK_PASSED (self-check happy path with valid checksum)', () => {
+    const repo = makeRepo()
+    const result = propose({
+      task_id: 'task-1',
+      current_state: 'IMPLEMENTED',
+      from: 'IMPLEMENTED',
+      to: 'SELF_CHECK_PASSED',
+      actor_role: 'self-check',
+      actor_token_id: 'token-selfcheck',
+      evidence: { manifest_json: 'my-evidence', checksum: 'my-evidence' },
+      computeChecksum: sha256Identity,
+    }, repo)
+    expect(result.ok).toBe(true)
+    expect(result.transition).toBeDefined()
+    expect(result.transition!.from_state).toBe('IMPLEMENTED')
+    expect(result.transition!.to_state).toBe('SELF_CHECK_PASSED')
+    expect(result.transition!.actor_role).toBe('self-check')
+    expect(repo.states['task-1']).toBe('SELF_CHECK_PASSED')
+  })
+
+  it('IMPLEMENTED -> SELF_CHECK_FAILED (self-check happy path with valid checksum)', () => {
+    const repo = makeRepo()
+    const result = propose({
+      task_id: 'task-1',
+      current_state: 'IMPLEMENTED',
+      from: 'IMPLEMENTED',
+      to: 'SELF_CHECK_FAILED',
+      actor_role: 'self-check',
+      actor_token_id: 'token-selfcheck',
+      evidence: { manifest_json: 'failed-evidence', checksum: 'failed-evidence' },
+      computeChecksum: sha256Identity,
+    }, repo)
+    expect(result.ok).toBe(true)
+    expect(result.transition).toBeDefined()
+    expect(result.transition!.from_state).toBe('IMPLEMENTED')
+    expect(result.transition!.to_state).toBe('SELF_CHECK_FAILED')
+    expect(result.transition!.actor_role).toBe('self-check')
+    expect(repo.states['task-1']).toBe('SELF_CHECK_FAILED')
   })
 
   it('SELF_CHECK_PASSED -> JUDGE_PASSED with verdict + checksum', () => {

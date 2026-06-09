@@ -64,7 +64,7 @@ export function listTasksByProject(db: Db, projectId: string, state?: string): T
     .all(projectId) as Task[]
 }
 
-export function updateTaskState(db: Db, id: string, state: string): Task | undefined {
+function updateTaskState(db: Db, id: string, state: string): Task | undefined {
   db.prepare(`
     UPDATE task SET state = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?
   `).run(state, id)

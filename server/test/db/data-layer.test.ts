@@ -125,10 +125,10 @@ describe('task repository', () => {
     expect(taskRepo.listTasksByProject(db, 'p1', 'IN_PROGRESS')).toHaveLength(1)
   })
 
-  it('update state', () => {
+  it('update state via gate only — updateTaskState is no longer public', () => {
     taskRepo.insertTask(db, { id: 't1', project_id: 'p1', key: 'TASK-001', title: 'T1' })
-    const updated = taskRepo.updateTaskState(db, 't1', 'IN_PROGRESS')
-    expect(updated?.state).toBe('IN_PROGRESS')
+    // updateTaskState is internal; state must be written through the gate.
+    expect((taskRepo as any).updateTaskState).toBeUndefined()
   })
 })
 
