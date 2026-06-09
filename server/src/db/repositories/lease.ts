@@ -18,10 +18,16 @@ function toDomainTask(dbTask: DbTask): DomainTask {
  *
  * The try_claim() method performs an ATOMIC conditional UPDATE to prevent
  * TOCTOU races. The SQL condition ensures only one concurrent caller wins:
- *   WHERE id=? AND (assignee_token_id IS NULL OR lease_until < ? OR assignee_token_id = ?)
+ *   WHERE id=? AND (assignee_token_id IS NULL OR lease_until < :now OR assignee_token_id = ?)
+ *
+ * IMPORTANT: the expiry threshold is the CURRENT TIME (`nowISO`), NOT the new
+ * lease end. Using the new lease end would let a later claimant steal an
+ * active lease because `oldLeaseUntil < newLeaseUntil` whenever
+ * `oldClaimTime < now` for a fixed TTL.
  */
 export function createLeaseRepository(db: Db): LeaseRepository {
-  // Prepared statement for atomic claim — single UPDATE, no separate read
+  // Prepared statement for atomic claim — single UPDATE, no separate read.
+  // Bound as: (token, leaseUntil, id, nowISO, token)
   const atomicClaimStmt = db.prepare(`
     UPDATE task
     SET assignee_token_id = ?,
@@ -42,11 +48,12 @@ export function createLeaseRepository(db: Db): LeaseRepository {
       return dbTask ? toDomainTask(dbTask) : undefined
     },
 
-    try_claim(id: string, token: string, leaseUntil: string): TryClaimResult {
+    try_claim(id: string, token: string, leaseUntil: string, nowISO: string): TryClaimResult {
       // Atomic conditional UPDATE: only succeeds if task is unclaimed,
-      // lease expired, or already claimed by the same token.
-      // This is a single SQL statement — no TOCTOU race possible.
-      const result = atomicClaimStmt.run(token, leaseUntil, id, leaseUntil, token)
+      // lease has expired (lease_until < nowISO), or already claimed by
+      // the same token (re-claim/extension).
+      // Bound as: (token, leaseUntil, id, nowISO, token)
+      const result = atomicClaimStmt.run(token, leaseUntil, id, nowISO, token)
 
       // Read the task after the attempt to return its current state
       const dbTask = getTaskByIdDb(db, id)

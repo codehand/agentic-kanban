@@ -215,6 +215,10 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       : null
 
     const repo = makeTransitionRepo(ctx)
+    // Wire the lease repository so the gate's lease guard actually fires
+    // for non-human/non-gate transitions (AC5). Without this, the guard is
+    // skipped because `input.leaseRepo` would be undefined.
+    const leaseRepo = createLeaseRepository(ctx.db)
     const result = propose(
       {
         task_id: task.id,
@@ -229,6 +233,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
         comments,
         evidence,
         computeChecksum: (data: string) => validateAndChecksumManifest(data),
+        leaseRepo,
       },
       repo,
     )

@@ -9,7 +9,10 @@
  * an atomic conditional UPDATE at the database level (single SQL statement,
  * equivalent to a transaction):
  *   UPDATE task SET assignee_token_id=?, lease_until=?
- *   WHERE id=? AND (assignee_token_id IS NULL OR lease_until < ? OR assignee_token_id = ?)
+ *   WHERE id=? AND (assignee_token_id IS NULL OR lease_until < :now OR assignee_token_id = ?)
+ * The `:now` parameter is the CURRENT TIME — NOT the new lease end — otherwise
+ * a later claimant would satisfy `lease_until < newLeaseUntil` for any still
+ * active lease and steal it (the defect flagged by the judge re-review).
  * This ensures only one concurrent caller can win the claim (no TOCTOU race).
  * The SQLite implementation in db/repositories/lease.ts uses this conditional UPDATE
  * as a transaction-equivalent — a single atomic statement that either succeeds or fails
@@ -64,10 +67,17 @@ export interface LeaseRepository {
   updateLease(id: string, assigneeTokenId: string | null, leaseUntil: string | null): Task | undefined
   /**
    * Atomically claim a task: performs a conditional UPDATE that only succeeds
-   * if the task is unclaimed, lease expired, or already claimed by the same token.
-   * MUST be implemented as a single SQL statement (transaction semantics) to prevent TOCTOU races.
+   * if the task is unclaimed, the existing lease has expired vs the CURRENT
+   * TIME (`nowISO`), or it is already held by the same token.
+   * MUST be implemented as a single SQL statement (transaction semantics) to
+   * prevent TOCTOU races.
+   *
+   * `nowISO` is the current time used for the expiry comparison — it MUST
+   * NOT be the new lease end. Using the new lease end as the threshold would
+   * allow a later claimant to steal an active lease (since newLeaseUntil >
+   * oldLeaseUntil whenever now > oldClaimTime for a fixed TTL).
    */
-  try_claim(id: string, token: string, leaseUntil: string): TryClaimResult
+  try_claim(id: string, token: string, leaseUntil: string, nowISO: string): TryClaimResult
 }
 
 // ---------------------------------------------------------------------------
@@ -87,12 +97,16 @@ export function claim(
   now: () => string = () => new Date().toISOString(),
 ): ClaimResult {
   // Compute lease expiry: current time + TTL
-  const currentTime = new Date(now())
+  const nowISO = now()
+  const currentTime = new Date(nowISO)
   const leaseUntil = new Date(currentTime.getTime() + config.ttlSeconds * 1000)
   const leaseUntilISO = leaseUntil.toISOString()
 
-  // Atomic claim: single conditional UPDATE at the DB level
-  const result = repo.try_claim(taskId, token, leaseUntilISO)
+  // Atomic claim: single conditional UPDATE at the DB level.
+  // Pass `nowISO` separately so the SQL compares lease_until against the
+  // CURRENT TIME, not against the new lease end (which would let a later
+  // claimant steal an active lease — see judge re-review).
+  const result = repo.try_claim(taskId, token, leaseUntilISO, nowISO)
 
   if (!result.task) {
     return { ok: false, error: `Task '${taskId}' not found` }

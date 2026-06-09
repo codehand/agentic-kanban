@@ -34,19 +34,23 @@ function makeLeaseRepo(tasks: Map<string, Task>): LeaseRepository {
     /**
      * Atomic claim for in-memory test repo.
      * Simulates the SQLite conditional UPDATE:
-     *   WHERE id=? AND (assignee_token_id IS NULL OR lease_until < ? OR assignee_token_id = ?)
+     *   WHERE id=? AND (assignee_token_id IS NULL OR lease_until < :now OR assignee_token_id = ?)
+     *
+     * The expiry threshold is the CURRENT TIME (`nowISO`), NOT the new lease
+     * end. This matches the real SQLite repo and prevents a later claimant
+     * from stealing an active lease.
      */
-    try_claim(id: string, token: string, leaseUntil: string): { claimed: boolean; task: Task | undefined } {
+    try_claim(id: string, token: string, leaseUntil: string, nowISO: string): { claimed: boolean; task: Task | undefined } {
       const task = tasks.get(id)
       if (!task) {
         return { claimed: false, task: undefined }
       }
 
-      // Check the same condition as the SQLite UPDATE
+      // Check the same condition as the SQLite UPDATE — expiry compared to now
       const canClaim =
         task.assignee_token_id === null ||
         task.lease_until === null ||
-        task.lease_until < leaseUntil ||
+        task.lease_until < nowISO ||
         task.assignee_token_id === token
 
       if (canClaim) {
@@ -539,6 +543,85 @@ describe('AC7: transaction semantics', () => {
     db.close()
   })
 
+  /**
+   * AC7 regression test: a LATER claimant must NOT steal an active lease.
+   * This is the exact scenario the judge re-review proved broken under the
+   * old predicate (`lease_until < newLeaseUntil`):
+   *   - token1 claims at 10:00 → lease until 10:15 (ACTIVE)
+   *   - token2 claims at 10:05 → newLeaseUntil=10:20 > 10:15 → old predicate
+   *     MATCHED and token2 stole the lease.
+   * With the fixed predicate (`lease_until < nowISO`), token2's now=10:05 is
+   * less than token1's lease_until=10:15, so the lease is correctly seen as
+   * active and the claim is rejected.
+   *
+   * NOTE: this test uses DIFFERENT `now` values for the two claims, unlike
+   * the earlier tests which share a fixed clock and cannot catch the bug.
+   */
+  it('AC7: later claimant cannot steal an active lease (time-advanced race)', async () => {
+    const { openMemoryDb } = await import('../src/db/connection.js')
+    const { createLeaseRepository } = await import('../src/db/repositories/lease.js')
+    const { runMigrations } = await import('../src/db/migrate.js')
+
+    const db = openMemoryDb()
+    runMigrations(db)
+
+    db.prepare(`INSERT INTO project (id, slug, name) VALUES ('proj1', 'test-project', 'Test Project')`).run()
+    db.prepare(`
+      INSERT INTO task (id, project_id, key, title, body_md, state, assignee_token_id, lease_until)
+      VALUES ('task1', 'proj1', 'T1', 'Test', '', 'TODO', NULL, NULL)
+    `).run()
+
+    const repo = createLeaseRepository(db)
+    const config = { ttlSeconds: 900 } // 15 minutes
+
+    // token1 claims at 10:00 → lease until 10:15
+    const nowA = () => '2026-06-09T10:00:00Z'
+    const r1 = claim('task1', 'token1', repo, config, nowA)
+    expect(r1.ok).toBe(true)
+    expect(r1.task!.assignee_token_id).toBe('token1')
+    expect(r1.task!.lease_until).toBe('2026-06-09T10:15:00.000Z')
+
+    // token2 claims 5 minutes LATER (10:05) — token1's lease is still active
+    // (expires at 10:15, which is > now=10:05). This MUST fail.
+    const nowB = () => '2026-06-09T10:05:00Z'
+    const r2 = claim('task1', 'token2', repo, config, nowB)
+    expect(r2.ok).toBe(false)
+    expect(r2.error).toContain('already leased')
+
+    // DB state must still show token1 as the assignee
+    const dbTask = db.prepare('SELECT assignee_token_id, lease_until FROM task WHERE id = ?').get('task1') as any
+    expect(dbTask.assignee_token_id).toBe('token1')
+    expect(dbTask.lease_until).toBe('2026-06-09T10:15:00.000Z')
+
+    db.close()
+  })
+
+  /**
+   * Same scenario as above, but against the in-memory mock — proves the
+   * mock correctly mirrors the fixed SQL semantics.
+   */
+  it('AC7: in-memory mock also blocks later-claimant steal', () => {
+    const tasks = new Map<string, Task>([
+      ['task1', { id: 'task1', assignee_token_id: null, lease_until: null }],
+    ])
+    const repo = makeLeaseRepo(tasks)
+    const config = { ttlSeconds: 900 }
+
+    // token1 claims at 10:00
+    const r1 = claim('task1', 'token1', repo, config, () => '2026-06-09T10:00:00Z')
+    expect(r1.ok).toBe(true)
+
+    // token2 claims at 10:05 — lease active until 10:15
+    const r2 = claim('task1', 'token2', repo, config, () => '2026-06-09T10:05:00Z')
+    expect(r2.ok).toBe(false)
+    expect(r2.error).toContain('already leased')
+
+    // After 10:15 the lease has expired and token2 can claim
+    const r3 = claim('task1', 'token2', repo, config, () => '2026-06-09T10:16:00Z')
+    expect(r3.ok).toBe(true)
+    expect(r3.task!.assignee_token_id).toBe('token2')
+  })
+
   // Test that the conditional UPDATE SQL itself is correct
   it('AC7: conditional UPDATE SQL rejects claim when lease is active', async () => {
     const { openMemoryDb } = await import('../src/db/connection.js')
@@ -554,14 +637,19 @@ describe('AC7: transaction semantics', () => {
       VALUES ('task1', 'proj1', 'T1', 'Test', '', 'TODO', 'token1', '2026-12-31T23:59:59Z')
     `).run()
 
-    // Run the exact same conditional UPDATE that try_claim uses
+    // Run the exact same conditional UPDATE that try_claim uses.
+    // NOTE: the expiry threshold is `nowISO` (current time), NOT the new
+    // lease end. The old (buggy) predicate compared against the new lease
+    // end, which allowed a later claimant to steal an active lease.
+    const nowISO = '2026-06-09T10:00:00Z'
+    const newLeaseUntil = '2026-12-31T23:59:59Z'
     const result = db.prepare(`
       UPDATE task
       SET assignee_token_id = ?, lease_until = ?,
           updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
       WHERE id = ?
         AND (assignee_token_id IS NULL OR lease_until < ? OR assignee_token_id = ?)
-    `).run('token2', '2026-12-31T23:59:59Z', 'task1', '2026-12-31T23:59:59Z', 'token2')
+    `).run('token2', newLeaseUntil, 'task1', nowISO, 'token2')
 
     // Should match 0 rows — lease is active and owned by token1
     expect(result.changes).toBe(0)
@@ -619,6 +707,7 @@ describe('AC7: transaction semantics', () => {
       VALUES ('task1', 'proj1', 'T1', 'Test', '', 'TODO', 'token1', '2026-12-31T23:59:59Z')
     `).run()
 
+    const nowISO = '2026-06-09T10:00:00Z'
     const newLease = '2027-01-01T00:00:00Z'
     const result = db.prepare(`
       UPDATE task
@@ -626,7 +715,7 @@ describe('AC7: transaction semantics', () => {
           updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
       WHERE id = ?
         AND (assignee_token_id IS NULL OR lease_until < ? OR assignee_token_id = ?)
-    `).run('token1', newLease, 'task1', newLease, 'token1')
+    `).run('token1', newLease, 'task1', nowISO, 'token1')
 
     // Same token can re-claim (extend)
     expect(result.changes).toBe(1)
