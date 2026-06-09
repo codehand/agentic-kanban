@@ -44,100 +44,48 @@
           </div>
         </a>
 
-        <h2 class="mt-7 mb-3 text-[12px] uppercase tracking-wider text-muted">3 projects</h2>
+        <h2 id="projects-heading" class="mt-7 mb-3 text-[12px] uppercase tracking-wider text-muted">Loading projects&hellip;</h2>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-          <!-- project: opf-hub -->
-          <a href="index.html" class="group rounded-xl border border-st_human/40 bg-panel glow-human-soft p-4 hover:border-st_human/60">
-            <div class="flex items-start justify-between">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <span class="grid place-items-center w-8 h-8 rounded-md bg-accent/15 text-accent shrink-0"><i class="ph-fill ph-folder text-[16px]"></i></span>
-                <div class="min-w-0">
-                  <h3 class="text-[14px] font-semibold truncate">opf-hub</h3>
-                  <p class="mono text-[11px] text-muted">14 tasks &middot; 1 repo</p>
-                </div>
-              </div>
-              <span class="inline-flex items-center gap-1 mono text-[11px] px-2 py-1 rounded-md bg-st_human/15 text-st_human"><i class="ph-fill ph-hand-tap text-[11px]"></i> 2 awaiting</span>
-            </div>
-
-            <!-- state distribution mini-bar -->
-            <div class="mt-4 flex h-2 w-full overflow-hidden rounded-full bg-panel2">
-              <span class="bg-st_todo" style="width:21%"></span>
-              <span class="bg-st_prog" style="width:14%"></span>
-              <span class="bg-st_selffail" style="width:7%"></span>
-              <span class="bg-st_reject" style="width:14%"></span>
-              <span class="bg-st_human" style="width:15%"></span>
-              <span class="bg-st_done" style="width:29%"></span>
-            </div>
-            <div class="mt-3 grid grid-cols-3 gap-y-2 mono text-[11px]">
-              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_todo"></span>Backlog 3</span>
-              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_prog"></span>Progress 2</span>
-              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_selffail"></span>Self-Check 1</span>
-              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_reject"></span>Judge 2</span>
-              <span class="flex items-center gap-1.5 text-st_human"><span class="w-1.5 h-1.5 rounded-sm bg-st_human"></span>Awaiting 2</span>
-              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_done"></span>Done 4</span>
-            </div>
-          </a>
-
-          <!-- project: api-marketplace -->
-          <a href="index.html" class="group rounded-xl border border-border bg-panel p-4 hover:border-borderlt">
-            <div class="flex items-start justify-between">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <span class="grid place-items-center w-8 h-8 rounded-md bg-panel2 text-muted shrink-0"><i class="ph-fill ph-folder text-[16px]"></i></span>
-                <div class="min-w-0">
-                  <h3 class="text-[14px] font-semibold truncate">api-marketplace</h3>
-                  <p class="mono text-[11px] text-muted">6 tasks &middot; 1 repo</p>
-                </div>
-              </div>
-              <span class="inline-flex items-center gap-1 mono text-[11px] px-2 py-1 rounded-md bg-white/5 text-muted">0 awaiting</span>
-            </div>
-            <div class="mt-4 flex h-2 w-full overflow-hidden rounded-full bg-panel2">
-              <span class="bg-st_todo" style="width:17%"></span>
-              <span class="bg-st_prog" style="width:17%"></span>
-              <span class="bg-st_self" style="width:16%"></span>
-              <span class="bg-st_done" style="width:50%"></span>
-            </div>
-            <div class="mt-3 grid grid-cols-3 gap-y-2 mono text-[11px]">
-              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_todo"></span>Backlog 1</span>
-              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_prog"></span>Progress 1</span>
-              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_self"></span>Judge 1</span>
-              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_done"></span>Done 3</span>
-            </div>
-          </a>
-
-          <!-- project: opf-auto-e2e -->
-          <a href="index.html" class="group rounded-xl border border-border bg-panel p-4 hover:border-borderlt">
-            <div class="flex items-start justify-between">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <span class="grid place-items-center w-8 h-8 rounded-md bg-panel2 text-muted shrink-0"><i class="ph-fill ph-folder text-[16px]"></i></span>
-                <div class="min-w-0">
-                  <h3 class="text-[14px] font-semibold truncate">opf-auto-e2e</h3>
-                  <p class="mono text-[11px] text-muted">4 tasks &middot; 1 repo</p>
-                </div>
-              </div>
-              <span class="inline-flex items-center gap-1 mono text-[11px] px-2 py-1 rounded-md bg-white/5 text-muted">0 awaiting</span>
-            </div>
-            <div class="mt-4 flex h-2 w-full overflow-hidden rounded-full bg-panel2">
-              <span class="bg-st_prog" style="width:25%"></span>
-              <span class="bg-st_done" style="width:75%"></span>
-            </div>
-            <div class="mt-3 grid grid-cols-3 gap-y-2 mono text-[11px]">
-              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_prog"></span>Progress 1</span>
-              <span class="flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-sm bg-st_done"></span>Done 3</span>
-            </div>
-          </a>
-
-          <!-- add project -->
-          <button class="rounded-xl border border-dashed border-border bg-transparent p-4 text-muted hover:text-text hover:border-borderlt flex items-center justify-center gap-2 min-h-[148px]">
-            <i class="ph ph-plus-circle text-[18px]"></i> <span class="text-[13px]">Add project</span>
-          </button>
-
+        <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- populated by live data from /api/projects -->
         </div>
       </div>
     </div>
   </main>
 </div>
+<script src="api.js"></script>
+<script>
+  /* projects.js — Live data wiring for projects page. Fetches from /api/projects. */
+  (function () {
+    'use strict';
+    var api = window.__kanban_api;
+    if (!api) return;
+    var heading = document.getElementById('projects-heading');
+    var grid = document.getElementById('projects-grid');
+
+    api.listProjects().then(function (res) {
+      if (!res || !res.projects) { heading.textContent = 'No projects found'; return; }
+      var projects = res.projects;
+      heading.textContent = projects.length + ' project' + (projects.length !== 1 ? 's' : '');
+      grid.innerHTML = '';
+      projects.forEach(function (p) {
+        var slug = p.slug || p.id;
+        var name = p.name || slug;
+        grid.insertAdjacentHTML('beforeend',
+          '<a href="index.html" class="group rounded-xl border border-border bg-panel p-4 hover:border-borderlt">' +
+          '<div class="flex items-start justify-between"><div class="flex items-center gap-2.5 min-w-0">' +
+          '<span class="grid place-items-center w-8 h-8 rounded-md bg-accent/15 text-accent shrink-0"><i class="ph-fill ph-folder text-[16px]"></i></span>' +
+          '<div class="min-w-0"><h3 class="text-[14px] font-semibold truncate">' + slug + '</h3>' +
+          '<p class="mono text-[11px] text-muted">' + (name !== slug ? name : slug) + '</p></div></div></div>' +
+          '</a>');
+      });
+      // Add "add project" button
+      grid.insertAdjacentHTML('beforeend',
+        '<button class="rounded-xl border border-dashed border-border bg-transparent p-4 text-muted hover:text-text hover:border-borderlt flex items-center justify-center gap-2 min-h-[148px]">' +
+        '<i class="ph ph-plus-circle text-[18px]"></i> <span class="text-[13px]">Add project</span></button>');
+    }).catch(function () { heading.textContent = 'Failed to load projects'; });
+  })();
+</script>
 <script src="shell.js"></script>
 </body>
 </html>

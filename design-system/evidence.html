@@ -170,6 +170,22 @@ PASS</pre>
     </div>
   </main>
 </div>
+<script src="api.js"></script>
+<script>
+  /* evidence.js — Live data wiring for evidence page. Fetches from /api/evidence. */
+  (function () {
+    'use strict';
+    var api = window.__kanban_api;
+    if (!api) return;
+    // Read task key and project from URL hash or data attributes
+    var project = document.body.dataset.project || 'opf-hub';
+    var taskKey = (location.hash || '').replace('#', '') || 'TASK-002';
+    api.getEvidence(project, taskKey).then(function (res) {
+      if (!res || !res.evidence) return;
+      console.log('[evidence] loaded', res.evidence);
+    }).catch(function () {});
+  })();
+</script>
 <script src="shell.js"></script>
 </body>
 </html>
