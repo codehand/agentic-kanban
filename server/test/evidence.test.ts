@@ -400,5 +400,67 @@ describe('Evidence Subsystem', () => {
         );
       }).rejects.toThrow("Self-check requires role='self-check', got role='implementer'");
     });
+
+    it('TASK-014: rejects tampered manifest stored in DB', async () => {
+      // Submit legitimate evidence — this stores the manifest and its checksum.
+      const ev = submit(
+        db,
+        'task-1',
+        'token-1',
+        'runner',
+        {
+          build_exit: 0,
+          test_exit: 0,
+          ac_exit: 0,
+          manifest_json: '{"file1": "original_hash"}'
+        }
+      );
+
+      // Sanity: selfcheck should pass before tampering.
+      const before = await selfcheck(
+        db,
+        'task-1',
+        'token-1',
+        'self-check',
+        {},
+        mockTaskRepo,
+        mockTransitionRepo
+      );
+      expect(before.success).toBe(true);
+
+      // Reset state for the post-tamper selfcheck.
+      mockTaskRepo.setCurrentState('task-1', 'IMPLEMENTED');
+      mockTransitionRepo.transitions = [];
+
+      // Simulate an attacker modifying the manifest_json in the DB after
+      // submission. We drop the append-only trigger temporarily to perform
+      // the UPDATE — in production this would be a direct SQLite attack.
+      db.exec('DROP TRIGGER IF EXISTS trg_evidence_no_update');
+      db.prepare('UPDATE evidence SET manifest_json = ? WHERE id = ?')
+        .run('{"file1": "tampered_hash"}', ev.id);
+      db.exec(`
+        CREATE TRIGGER trg_evidence_no_update
+        BEFORE UPDATE ON evidence
+        BEGIN
+          SELECT RAISE(ABORT, 'evidence is append-only: UPDATE not allowed');
+        END
+      `);
+
+      // selfcheck must now REJECT because the stored checksum (of the original
+      // manifest) no longer matches the tampered manifest read back from DB.
+      const after = await selfcheck(
+        db,
+        'task-1',
+        'token-1',
+        'self-check',
+        {},
+        mockTaskRepo,
+        mockTransitionRepo
+      );
+
+      expect(after.success).toBe(false);
+      expect(after.reason).toContain('checksum verification failed');
+      expect(mockTransitionRepo.transitions.length).toBe(0);
+    });
   });
 });
