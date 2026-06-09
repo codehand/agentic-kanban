@@ -53,6 +53,12 @@ export function listActiveTokens(db: Db): Token[] {
     .all() as Token[]
 }
 
+export function findActiveTokensByRole(db: Db, role: TokenRole): Token[] {
+  return db
+    .prepare(`SELECT * FROM token WHERE role = ? AND revoked_at IS NULL ORDER BY created_at ASC`)
+    .all(role) as Token[]
+}
+
 /** Soft-revoke: set revoked_at timestamp. */
 export function revokeToken(db: Db, id: string): Token | undefined {
   db.prepare(`

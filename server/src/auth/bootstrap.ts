@@ -9,16 +9,17 @@
  *    human token was created previously).
  */
 import Database from 'better-sqlite3';
+import { randomBytes } from 'node:crypto';
 import { logger } from '../logger.js';
 import { hashSecret } from './mint.js';
-import { findActiveTokensByRole } from '../db/repositories/token.js';
+import { listActiveTokens } from '../db/repositories/token.js';
 import { insertToken } from '../db/repositories/token.js';
 
 export const BOOTSTRAP_LABEL = 'admin';
 
 export interface BootstrapResult {
   created: boolean;
-  tokenId: number | null;
+  tokenId: string | null;
 }
 
 /**
@@ -39,8 +40,9 @@ export function bootstrapAdminToken(
   }
 
   // Idempotency: check if a human token labelled 'admin' already exists
-  const existing = findActiveTokensByRole(db, 'human').find(
-    t => t.label === BOOTSTRAP_LABEL
+  const allActiveTokens = listActiveTokens(db);
+  const existing = allActiveTokens.find(
+    t => t.role === 'human' && t.label === BOOTSTRAP_LABEL
   );
   if (existing) {
     logger.info({ msg: 'Bootstrap: human admin token already exists', token_id: existing.id });
@@ -49,13 +51,13 @@ export function bootstrapAdminToken(
 
   // SECURITY: hash the ADMIN_TOKEN; never log its value
   const secret_hash = hashSecret(adminToken);
-  const tokenId = insertToken(db, {
+  const tokenId = `tk_${randomBytes(16).toString('hex')}`;
+  const token = insertToken(db, {
+    id: tokenId,
     role: 'human',
-    project_id: null,
     label: BOOTSTRAP_LABEL,
     secret_hash,
-    revoked_at: null,
   });
-  logger.info({ msg: 'Bootstrap: created human admin token', token_id: tokenId });
-  return { created: true, tokenId };
+  logger.info({ msg: 'Bootstrap: created human admin token', token_id: token.id });
+  return { created: true, tokenId: token.id };
 }
