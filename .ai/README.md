@@ -104,14 +104,14 @@ Finally, the **human** (only) approves:
 ```bash
 .ai/scripts/gate.sh approve TASK-002       # JUDGE_PASSED → DONE (does NOT merge the branch)
 ```
-`approve` only marks DONE — the task's branch + worktrees stay in place. Then either open the MR / merge each repo's `fix/<TASK>-<slug>` branch yourself, **or** use the local merge helper:
+`approve` only marks DONE — the task's branch + worktrees stay in place. Then push + open a PR with the merge helper (a human merges the PR on the git server):
 
 ```
-/merge TASK-002       # (only after DONE) merge the worktree branch → each repo's current branch,
-                      # then remove the worktree + branch. The task itself is kept.
+/merge TASK-002       # (only after DONE) push each repo's worktree branch → origin,
+                      # then open a PR into master. Worktree/branch are KEPT.
 ```
 
-On conflict, `/merge` does **not** dirty any main checkout: the gate aborts, spins up an `integrate/<TASK>` worktree off the current branch, merges the task branch there, the agent resolves + commits, then `gate.sh merge-finish` fast-forwards the current branch and cleans up. Single-branch local convenience — for review-gated flows, open an MR instead.
+On conflict, `/merge` checks mergeability against `origin/master` with `git merge-tree` (no working tree touched). Mergeable → push the task branch + open the PR directly. Conflict → spin up an `integrate/<TASK>` worktree **off `origin/master`**, merge the task branch into it so conflicts land there, the agent resolves + commits, then `gate.sh merge-finish` pushes the integration branch and opens the PR (`integrate/<TASK>` → master). The human merges the PR on the server. PR creation uses the GitHub API (`gh` not required); the token comes from `GH_TOKEN`/`GITHUB_TOKEN` or the git credential helper.
 
 ## Models & running with independence (multi-terminal)
 
@@ -136,9 +136,9 @@ Switch a terminal's model with `/model` (or launch with `--model`). Running `/ju
 ## Operator commands
 ```bash
 .ai/scripts/gate.sh worktrees TASK-002     # print branch + per-repo worktree paths
-.ai/scripts/gate.sh merge  TASK-002        # (only after DONE) merge worktree branch → current branch per repo;
-                                           # clean → drop worktree/branch (keeps task); conflict → exit 2 (see /merge)
-.ai/scripts/gate.sh merge-finish TASK-002  # finish merge after conflicts resolved+committed in the integration worktree
+.ai/scripts/gate.sh merge  TASK-002        # (only after DONE) push worktree branch → origin + open PR into master per repo;
+                                           # mergeable → push + PR directly; conflict → exit 2 (see /merge). Worktree/branch kept.
+.ai/scripts/gate.sh merge-finish TASK-002  # after conflicts resolved+committed in the integration worktree: push it + open PR
 .ai/scripts/gate.sh reset  TASK-002        # back to TODO; wipe evidence/reports + remove worktrees & branch
 .ai/scripts/gate.sh remove TASK-002 --yes  # delete the task entirely (incl. worktrees & branch)
 ```

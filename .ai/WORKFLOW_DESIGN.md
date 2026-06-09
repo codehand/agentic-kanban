@@ -43,7 +43,7 @@
 | `IN_PROGRESS → IMPLEMENTED` | Guard: với mỗi repo (a) checkout chính **sạch** + `HEAD == base_sha` → code task **không** rò ra main tree; (b) worktree **có** thay đổi vs base. Vi phạm (a) hoặc không (b) → **REJECT**. |
 | Self-Check / Judge | build/test/cover chạy trong worktree; Judge diff `base_sha..` trong worktree. |
 | `approve → DONE` | **KHÔNG** auto-merge. Branch + worktree giữ nguyên để con người mở MR/merge. |
-| `merge` (CHỈ sau DONE) | Lệnh tường minh do con người gọi (`/merge` hoặc `gate.sh merge`). Mỗi repo: merge branch worktree → **current branch của checkout chính**. Clean → merge thẳng rồi `git worktree remove` + `branch -D` branch task (**giữ task**). Conflict → `merge --abort` (checkout chính KHÔNG bị bẩn), dựng **integration worktree** `integrate/<TASK>` từ current branch, merge branch task vào đó để conflict ở yên trong worktree đó; agent resolve + commit; `gate.sh merge-finish` FF current branch → integration rồi gỡ integration + worktree/branch task. Xong set `merged=true`, xoá `branch`/`repos`/`merge` khỏi state, **task không bị xoá**. |
+| `merge` (CHỈ sau DONE) | Lệnh tường minh do con người gọi (`/merge` hoặc `gate.sh merge`). Mỗi repo: `git fetch origin master`, kiểm tra mergeable bằng `git merge-tree` vs `origin/master`. Mergeable → `git push origin <branch task>` + tạo **PR vào master** (GitHub API; token từ `GH_TOKEN`/`GITHUB_TOKEN` hoặc git credential). Conflict → dựng **integration worktree** `integrate/<TASK>` **từ `origin/master`**, merge branch task vào đó để conflict ở yên trong worktree đó (exit 2); agent resolve + commit; `gate.sh merge-finish` push integration branch + tạo PR (`integrate/<TASK>` → master). **Human merge PR trên git server.** Worktree/branch local **GIỮ NGUYÊN**; PR url ghi vào `.merge.repos[r].pr` của state, **task không bị xoá**. |
 | `reset` / `remove` | `git worktree remove` + `branch -D` cho từng repo, xoá `branch`/`repos` khỏi state. |
 
 **Đường dẫn suy ra tất định:** với `(repo, branch)` → worktree = `<repo>/.claude/worktree/<branch>`. Engine chỉ cần đọc `Repos:`/`Branch:` (hoặc `state.repos`) là tìm được mọi thứ.
@@ -258,9 +258,9 @@ Càng đẩy AC xuống nhóm machine-verifiable, false-positive càng khó xả
 /judge TASK-001       # Judge (Opus) diff base..branch trong worktree → gate set JUDGE_PASSED/REJECTED
 # Human review diff (trong worktree) + .ai/reports/TASK-001/judge.md + .ai/evidence/TASK-001/
 .ai/scripts/gate.sh approve TASK-001   # CHỈ người dùng chạy → DONE (KHÔNG auto-merge)
-/merge TASK-001                        # (tuỳ chọn, sau DONE) merge branch worktree → current branch mỗi repo;
-                                       # conflict → agent resolve trong integration worktree → gate.sh merge-finish;
-                                       # xong gỡ worktree/branch task, GIỮ task. Hoặc tự mở MR thay vì /merge.
+/merge TASK-001                        # (tuỳ chọn, sau DONE) push branch worktree → origin + tạo PR vào master mỗi repo;
+                                       # conflict → agent resolve trong integration worktree → gate.sh merge-finish (push + PR);
+                                       # human merge PR trên git server. Worktree/branch local GIỮ NGUYÊN, GIỮ task.
 ```
 
 > `/merge` không thay con người mở MR — nó là tiện ích merge-local cho workflow đơn nhánh. Pipeline cốt lõi vẫn dừng ở `approve → DONE`; merge là bước tách rời, tường minh, chỉ chạy được sau DONE.
