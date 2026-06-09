@@ -99,7 +99,8 @@ describe('bootstrapAdminToken — idempotency', () => {
     const db = makeDb();
     const result = bootstrapAdminToken(db, 'super-secret-admin');
     expect(result.created).toBe(true);
-    expect(result.tokenId).toBeGreaterThan(0);
+    expect(result.tokenId).toBeDefined();
+    expect(result.tokenId).toMatch(/^tk_/); // Token IDs start with 'tk_'
 
     const humans = findActiveTokensByRole(db, 'human');
     expect(humans).toHaveLength(1);

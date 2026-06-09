@@ -20,4 +20,11 @@ export function openDatabase(dbPath: string): Db {
   return db
 }
 
+/**
+ * Open an in-memory database instance for testing.
+ */
+export function openMemoryDb(): Db {
+  return openDatabase(':memory:')
+}
+
 export type { Db }

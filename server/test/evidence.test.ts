@@ -4,13 +4,14 @@
  * AC8 (checksum verification), AC9 (lint/coverage config), AC10 (delegates to gate).
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { submit, selfcheck } from '../src/domain/evidence.js';
 import { verifyManifestChecksum, computeSha256 } from '../src/domain/checksum.js';
-import type { Db } from 'better-sqlite3';
-import { type Evidence, getLatestEvidenceByTask, insertEvidence, listEvidenceByTask } from '../src/db/repositories/evidence.js';
-import { type TaskState } from '../src/domain/statemachine.js';
-import type { ProposeInput } from '../src/domain/gate.js';
+import { openMemoryDb } from '../src/db/connection.js';
+import { runMigrations } from '../src/db/migrate.js';
+import { type Evidence, listEvidenceByTask } from '../src/db/repositories/evidence.js';
+import type { TaskState } from '../domain/statemachine.js';
+import { type ProposeInput, type TransitionRepository } from '../domain/gate.js';
 
 // Mock repositories
 interface MockTaskRepo {
@@ -25,104 +26,23 @@ interface MockTransitionRepo {
   setTaskState(task_id: string, state: TaskState): void;
 }
 
-// Mock DB for better-sqlite3 interface
-interface MockStatement {
-  run: (...params: any[]) => any;
-  get: (...params: any[]) => any;
-  all: (...params: any[]) => any;
-}
-
-interface MockDB {
-  prepare: (sql: string) => MockStatement;
-  evidences: Array<Evidence>;
-  statementMocks: Map<string, MockStatement>;
-}
-
 describe('Evidence Subsystem', () => {
-  let mockDb: MockDB;
+  let db: any;
   let mockTaskRepo: MockTaskRepo;
   let mockTransitionRepo: MockTransitionRepo;
 
   beforeEach(() => {
-    const evidences: Evidence[] = [];
+    // Create a fresh in-memory database for each test
+    db = openMemoryDb();
+    runMigrations(db);
 
-    // Create statement mocks for different SQL queries
-    const statementMocks = new Map<string, MockStatement>();
-
-    // INSERT INTO evidence statement mock
-    statementMocks.set('INSERT INTO evidence', {
-      run: (id: string, task_id: string, submitted_by_token_id: string,
-            build_exit: number, test_exit: number, lint_exit: number | null,
-            ac_exit: number, coverage_pct: number | null,
-            manifest_json: string, logs_json: string) => {
-        const evidence: Evidence = {
-          id,
-          task_id,
-          submitted_by_token_id,
-          build_exit,
-          test_exit,
-          lint_exit,
-          ac_exit,
-          coverage_pct,
-          manifest_json,
-          logs_json,
-          created_at: new Date().toISOString()
-        };
-        evidences.push(evidence);
-        return { lastInsertRowid: evidences.length }; // Simulate insert result
-      }
-    });
-
-    // SELECT * FROM evidence WHERE id = ? statement mock
-    statementMocks.set('SELECT * FROM evidence WHERE id =', {
-      get: (id: string) => evidences.find(e => e.id === id)
-    });
-
-    // SELECT * FROM evidence WHERE task_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1 statement mock
-    statementMocks.set('SELECT * FROM evidence WHERE task_id =', {
-      get: (taskId: string) => {
-        const taskEvidences = evidences.filter(e => e.task_id === taskId);
-        if (taskEvidences.length === 0) return undefined;
-
-        // Sort by created_at DESC (latest first), with a simulated rowid for tie-breaking
-        return [...taskEvidences].sort((a, b) => {
-          if (a.created_at !== b.created_at) {
-            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-          }
-          // Using id as tie-breaker for simplicity in test
-          return b.id.localeCompare(a.id);
-        })[0];
-      }
-    });
-
-    // SELECT * FROM evidence WHERE task_id = ? ORDER BY created_at ASC statement mock
-    statementMocks.set('SELECT * FROM evidence WHERE task_id = ? ORDER BY created_at ASC', {
-      all: (taskId: string) => evidences.filter(e => e.task_id === taskId)
-    });
-
-    mockDb = {
-      evidences,
-      statementMocks,
-      prepare: (sql: string) => {
-        // Find the appropriate mock by looking for the beginning of the SQL
-        for (const [key, stmt] of statementMocks.entries()) {
-          if (sql.startsWith(key)) {
-            return stmt;
-          }
-        }
-
-        // Default fallback
-        return {
-          run: () => {},
-          get: () => undefined,
-          all: () => []
-        };
-      }
-    };
+    // Create a test project and task first
+    db.prepare(`INSERT INTO project (id, slug, name) VALUES ('proj-1', 'test-project', 'Test Project')`).run();
+    db.prepare(`INSERT INTO task (id, project_id, key, title, state) VALUES ('task-1', 'proj-1', 'TASK-001', 'Test Task', 'IMPLEMENTED')`).run();
 
     // Initialize mock task repository
     mockTaskRepo = {
-      stateMap: new Map(),
+      stateMap: new Map([['task-1', 'IMPLEMENTED']]), // Default to IMPLEMENTED as per state machine
       getCurrentState(task_id: string): TaskState {
         return this.stateMap.get(task_id) ?? 'IMPLEMENTED';
       },
@@ -147,7 +67,7 @@ describe('Evidence Subsystem', () => {
     it('AC5: enforces role=runner', () => {
       expect(() =>
         submit(
-          mockDb as unknown as Db,
+          db,
           'task-1',
           'token-1',
           'implementer', // Wrong role
@@ -155,43 +75,9 @@ describe('Evidence Subsystem', () => {
         )
       ).toThrow("Evidence submission requires role='runner', got role='implementer'");
 
-      // Mock the necessary DB operations for the successful case
-      const originalPrepare = mockDb.prepare;
-      mockDb.prepare = (sql: string) => {
-        if (sql.startsWith('INSERT INTO evidence')) {
-          return {
-            run: (id: string, task_id: string, submitted_by_token_id: string,
-                  build_exit: number, test_exit: number, lint_exit: number | null,
-                  ac_exit: number, coverage_pct: number | null,
-                  manifest_json: string, logs_json: string) => {
-              const evidence: Evidence = {
-                id,
-                task_id,
-                submitted_by_token_id,
-                build_exit,
-                test_exit,
-                lint_exit,
-                ac_exit,
-                coverage_pct,
-                manifest_json,
-                logs_json,
-                created_at: new Date().toISOString()
-              };
-              mockDb.evidences.push(evidence);
-              return { lastInsertRowid: mockDb.evidences.length };
-            }
-          };
-        } else if (sql.startsWith('SELECT * FROM evidence WHERE id =')) {
-          return {
-            get: (id: string) => mockDb.evidences.find(e => e.id === id)
-          };
-        }
-        return originalPrepare.call(mockDb, sql);
-      };
-
       expect(() =>
         submit(
-          mockDb as unknown as Db,
+          db,
           'task-1',
           'token-1',
           'runner', // Correct role
@@ -202,7 +88,7 @@ describe('Evidence Subsystem', () => {
 
     it('AC6: creates new evidence row (append-only)', () => {
       const evidence1 = submit(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'runner',
@@ -210,7 +96,7 @@ describe('Evidence Subsystem', () => {
       );
 
       const evidence2 = submit(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'runner',
@@ -218,10 +104,15 @@ describe('Evidence Subsystem', () => {
       );
 
       // Should have two separate evidence records
-      expect(mockDb.evidences.length).toBe(2);
+      const allEvidence = listEvidenceByTask(db, 'task-1');
+      expect(allEvidence.length).toBe(2);
       expect(evidence1.id).not.toBe(evidence2.id);
       expect(evidence1.build_exit).toBe(0);
       expect(evidence2.build_exit).toBe(1);
+
+      // Verify the first evidence is unchanged
+      const retrievedEvidence1 = allEvidence.find(e => e.id === evidence1.id);
+      expect(retrievedEvidence1?.build_exit).toBe(0); // Should remain unchanged
     });
   });
 
@@ -241,7 +132,7 @@ describe('Evidence Subsystem', () => {
     it('AC7: passes when build/test/ac succeed', async () => {
       // First submit some evidence
       submit(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'runner',
@@ -254,7 +145,7 @@ describe('Evidence Subsystem', () => {
       );
 
       const result = await selfcheck(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'self-check',
@@ -270,7 +161,7 @@ describe('Evidence Subsystem', () => {
 
     it('AC7: fails when build fails', async () => {
       submit(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'runner',
@@ -283,7 +174,7 @@ describe('Evidence Subsystem', () => {
       );
 
       const result = await selfcheck(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'self-check',
@@ -298,7 +189,7 @@ describe('Evidence Subsystem', () => {
 
     it('AC7: fails when test fails', async () => {
       submit(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'runner',
@@ -311,7 +202,7 @@ describe('Evidence Subsystem', () => {
       );
 
       const result = await selfcheck(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'self-check',
@@ -326,7 +217,7 @@ describe('Evidence Subsystem', () => {
 
     it('AC7: fails when ac fails', async () => {
       submit(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'runner',
@@ -339,7 +230,7 @@ describe('Evidence Subsystem', () => {
       );
 
       const result = await selfcheck(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'self-check',
@@ -354,7 +245,7 @@ describe('Evidence Subsystem', () => {
 
     it('AC9: handles optional lint (pass/fail should not block)', async () => {
       submit(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'runner',
@@ -367,9 +258,12 @@ describe('Evidence Subsystem', () => {
         }
       );
 
+      // Reset task state to IMPLEMENTED before first selfcheck
+      mockTaskRepo.setCurrentState('task-1', 'IMPLEMENTED');
+
       // Without lint_required flag, should pass despite lint failure
       const result1 = await selfcheck(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'self-check',
@@ -383,9 +277,27 @@ describe('Evidence Subsystem', () => {
       // Clear transitions for next test
       mockTransitionRepo.transitions = [];
 
+      // Create a fresh evidence record for the second test
+      submit(
+        db,
+        'task-1',
+        'token-1',
+        'runner',
+        {
+          build_exit: 0,
+          test_exit: 0,
+          ac_exit: 0,
+          lint_exit: 1,  // Lint failed
+          manifest_json: '{"file1": "abc123"}'
+        }
+      );
+
+      // Reset task state again to IMPLEMENTED before second selfcheck
+      mockTaskRepo.setCurrentState('task-1', 'IMPLEMENTED');
+
       // With lint_required: true, should fail due to lint failure
       const result2 = await selfcheck(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'self-check',
@@ -400,7 +312,7 @@ describe('Evidence Subsystem', () => {
 
     it('AC9: handles coverage requirements', async () => {
       submit(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'runner',
@@ -413,9 +325,12 @@ describe('Evidence Subsystem', () => {
         }
       );
 
+      // Reset task state to IMPLEMENTED before selfcheck
+      mockTaskRepo.setCurrentState('task-1', 'IMPLEMENTED');
+
       // With required coverage above actual, should fail
       const result = await selfcheck(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'self-check',
@@ -430,7 +345,7 @@ describe('Evidence Subsystem', () => {
 
     it('AC10: delegates state change to gate', async () => {
       submit(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'runner',
@@ -443,7 +358,7 @@ describe('Evidence Subsystem', () => {
       );
 
       const result = await selfcheck(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'self-check',
@@ -461,7 +376,7 @@ describe('Evidence Subsystem', () => {
 
     it('AC5: enforces role=self-check', async () => {
       submit(
-        mockDb as unknown as Db,
+        db,
         'task-1',
         'token-1',
         'runner',
@@ -475,7 +390,7 @@ describe('Evidence Subsystem', () => {
 
       await expect(async () => {
         await selfcheck(
-          mockDb as unknown as Db,
+          db,
           'task-1',
           'token-1',
           'implementer', // Wrong role
