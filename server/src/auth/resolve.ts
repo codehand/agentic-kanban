@@ -5,12 +5,12 @@
  */
 import Database from 'better-sqlite3';
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { findTokenByHash, TokenRow } from '../db/repositories/token.js';
+import { listActiveTokens } from '../db/repositories/token.js';
 
 export interface ResolvedToken {
-  token_id: number;
+  token_id: string;
   role: string;
-  project_scope: number | null;
+  project_scope: string | null;
 }
 
 /**
@@ -27,9 +27,7 @@ export function resolveBearer(
   secret: string
 ): ResolvedToken | undefined {
   // Fetch all active (non-revoked) tokens — in v1 single-user the count is tiny
-  const rows = db
-    .prepare('SELECT * FROM token WHERE revoked_at IS NULL')
-    .all() as TokenRow[];
+  const rows = listActiveTokens(db);
 
   for (const row of rows) {
     if (verifyHashConstantTime(secret, row.secret_hash)) {

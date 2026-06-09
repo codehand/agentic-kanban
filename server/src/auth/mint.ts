@@ -7,12 +7,12 @@
  */
 import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import Database from 'better-sqlite3';
-import { insertToken, revokeToken } from '../db/repositories/token.js';
+import { insertToken, revokeToken as actualRevokeToken } from '../db/repositories/token.js';
 
 export type Role = 'human' | 'implementer' | 'self-check' | 'judge' | 'runner';
 
 export interface MintResult {
-  tokenId: number;
+  tokenId: string;
   /** Raw secret returned exactly once. NEVER log this value. */
   secret: string;
 }
@@ -51,24 +51,25 @@ export function mintToken(
   db: Database.Database,
   role: Role,
   label: string,
-  projectId?: number
+  projectId?: string | null
 ): MintResult {
   const secret = randomBytes(32).toString('hex');
   const secret_hash = hashSecret(secret);
-  const tokenId = insertToken(db, {
+  const tokenId = `tk_${randomBytes(16).toString('hex')}`;
+  const token = insertToken(db, {
+    id: tokenId,
     role,
-    project_id: projectId ?? null,
+    project_id: projectId ?? undefined,
     label,
     secret_hash,
-    revoked_at: null,
   });
   // secret is returned once; NOT stored in plaintext anywhere
-  return { tokenId, secret };
+  return { tokenId: token.id, secret };
 }
 
 /**
  * Revokes a token by id. The token will no longer authenticate.
  */
-export function revokeTokenById(db: Database.Database, tokenId: number): void {
-  revokeToken(db, tokenId);
+export function revokeTokenById(db: Database.Database, tokenId: string): void {
+  actualRevokeToken(db, tokenId);
 }

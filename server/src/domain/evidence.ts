@@ -44,8 +44,8 @@ export function submit(
     throw new Error(`Evidence submission requires role='runner', got role='${role}'`);
   }
 
-  // Validate and checksum the manifest
-  const manifestChecksum = validateAndChecksumManifest(evidenceData.manifest_json);
+  // Validate the manifest JSON and compute its checksum for verification
+  validateAndChecksumManifest(evidenceData.manifest_json);
 
   // Prepare the new evidence record
   const newEvidence = {
@@ -54,9 +54,9 @@ export function submit(
     submitted_by_token_id: submittedByTokenId,
     build_exit: evidenceData.build_exit,
     test_exit: evidenceData.test_exit,
-    lint_exit: evidenceData.lint_exit, // Will be handled by repository which converts undefined to null
+    lint_exit: evidenceData.lint_exit !== undefined ? evidenceData.lint_exit : null,
     ac_exit: evidenceData.ac_exit,
-    coverage_pct: evidenceData.coverage_pct, // Will be handled by repository which converts undefined to null
+    coverage_pct: evidenceData.coverage_pct !== undefined ? evidenceData.coverage_pct : null,
     manifest_json: evidenceData.manifest_json,
     logs_json: evidenceData.logs_json || '{}',
   } as NewEvidence;
