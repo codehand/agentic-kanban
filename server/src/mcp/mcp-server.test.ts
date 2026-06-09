@@ -175,9 +175,20 @@ describe('AC9: full happy-path lifecycle through tools', () => {
       await closeClient(human1)
     }
 
-    // --- Step 2: implementer transitions TODO → IN_PROGRESS ---
+    // --- Step 2: implementer claims the task (lease guard), then transitions TODO → IN_PROGRESS ---
     const impl2 = await makeClient(tokens.implementer.secret)
     try {
+      // Claim first — the gate's lease guard (AC5) requires the implementer
+      // to hold an active lease for non-human/non-gate transitions.
+      const claimRes = await impl2.client.callTool({
+        name: 'task.claim',
+        arguments: {
+          project: 'test-project',
+          key: taskKey,
+        },
+      })
+      expect(claimRes.isError).toBeFalsy()
+
       const trRes = await impl2.client.callTool({
         name: 'task.transition',
         arguments: {

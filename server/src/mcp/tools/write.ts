@@ -20,8 +20,9 @@ import { validateAndChecksumManifest } from '../../domain/checksum.js'
 import {
   insertTask,
   getTaskByKey,
-  updateTaskLease,
 } from '../../db/repositories/task.js'
+import { createLeaseRepository } from '../../db/repositories/lease.js'
+import { claim as domainClaim, heartbeat as domainHeartbeat, release as domainRelease } from '../../domain/lease.js'
 import { insertComment, type CommentKind, type Verdict } from '../../db/repositories/comment.js'
 import {
   insertGitRef,
@@ -36,8 +37,10 @@ import { getLatestEvidenceByTask } from '../../db/repositories/evidence.js'
 import type { McpContext } from '../context.js'
 import type { TaskState } from '../../domain/statemachine.js'
 import type { Db } from '../../db/connection.js'
+import { loadConfig } from '../../config/index.js'
 
-const LEASE_TTL_SECONDS = 900 // 15 minutes default
+const config = loadConfig()
+const LEASE_TTL_SECONDS = config.leaseTtlSeconds
 
 /**
  * Set a task's state directly in the DB.
@@ -129,15 +132,12 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
   }, async ({ project, key }) => {
     assertAuthorized(ctx.auth.role as Role, 'task.claim')
     const { task } = resolveTask(ctx, project, key)
-    if (task.assignee_token_id && task.lease_until) {
-      const expiry = new Date(task.lease_until).getTime()
-      if (expiry > Date.now()) {
-        throw new Error(`Task ${key} is already leased until ${task.lease_until}`)
-      }
+    const leaseRepo = createLeaseRepository(ctx.db)
+    const result = domainClaim(task.id, ctx.auth.token_id, leaseRepo, { ttlSeconds: LEASE_TTL_SECONDS })
+    if (!result.ok) {
+      throw new Error(result.error)
     }
-    const leaseUntil = new Date(Date.now() + LEASE_TTL_SECONDS * 1000).toISOString()
-    const updated = updateTaskLease(ctx.db, task.id, ctx.auth.token_id, leaseUntil)
-    return { content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }] }
+    return { content: [{ type: 'text', text: JSON.stringify(result.task, null, 2) }] }
   })
 
   // ---------- task.heartbeat ----------
@@ -150,12 +150,12 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
   }, async ({ project, key }) => {
     assertAuthorized(ctx.auth.role as Role, 'task.claim')
     const { task } = resolveTask(ctx, project, key)
-    if (task.assignee_token_id !== ctx.auth.token_id) {
-      throw new Error(`Task ${key} is not leased by this token`)
+    const leaseRepo = createLeaseRepository(ctx.db)
+    const result = domainHeartbeat(task.id, ctx.auth.token_id, leaseRepo, { ttlSeconds: LEASE_TTL_SECONDS })
+    if (!result.ok) {
+      throw new Error(result.error)
     }
-    const leaseUntil = new Date(Date.now() + LEASE_TTL_SECONDS * 1000).toISOString()
-    const updated = updateTaskLease(ctx.db, task.id, ctx.auth.token_id, leaseUntil)
-    return { content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }] }
+    return { content: [{ type: 'text', text: JSON.stringify(result.task, null, 2) }] }
   })
 
   // ---------- task.release ----------
@@ -168,11 +168,12 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
   }, async ({ project, key }) => {
     assertAuthorized(ctx.auth.role as Role, 'task.claim')
     const { task } = resolveTask(ctx, project, key)
-    if (task.assignee_token_id !== ctx.auth.token_id) {
-      throw new Error(`Task ${key} is not leased by this token`)
+    const leaseRepo = createLeaseRepository(ctx.db)
+    const result = domainRelease(task.id, ctx.auth.token_id, leaseRepo)
+    if (!result.ok) {
+      throw new Error(result.error)
     }
-    const updated = updateTaskLease(ctx.db, task.id, null, null)
-    return { content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }] }
+    return { content: [{ type: 'text', text: JSON.stringify(result.task, null, 2) }] }
   })
 
   // ---------- task.transition ----------
@@ -214,6 +215,10 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       : null
 
     const repo = makeTransitionRepo(ctx)
+    // Wire the lease repository so the gate's lease guard actually fires
+    // for non-human/non-gate transitions (AC5). Without this, the guard is
+    // skipped because `input.leaseRepo` would be undefined.
+    const leaseRepo = createLeaseRepository(ctx.db)
     const result = propose(
       {
         task_id: task.id,
@@ -228,6 +233,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
         comments,
         evidence,
         computeChecksum: (data: string) => validateAndChecksumManifest(data),
+        leaseRepo,
       },
       repo,
     )
