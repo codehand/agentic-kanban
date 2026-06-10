@@ -27,47 +27,81 @@
     <div class="flex-1 overflow-y-auto">
       <div class="max-w-[920px] mx-auto px-6 py-6 space-y-5">
 
-        <!-- secret-shown-once banner (just minted) -->
-        <div class="rounded-xl border border-accent/40 bg-accent/8 p-4">
-          <div class="flex items-center gap-2 text-[13px] font-medium text-accent"><i class="ph-fill ph-check-circle"></i> Minted <span class="mono">judge</span> token "opus-judge". Copy it now.</div>
+        <!-- secret-shown-once banner (hidden by default, revealed after mint) -->
+        <div id="minted-banner" class="hidden rounded-xl border border-accent/40 bg-accent/8 p-4" role="status" aria-live="polite">
+          <div class="flex items-center gap-2 text-[13px] font-medium text-accent"><i class="ph-fill ph-check-circle"></i> Minted <span class="mono" id="minted-role">token</span> "<span id="minted-label"></span>". Copy it now.</div>
           <p class="mt-1 text-[13px] text-muted">The secret is shown <span class="text-text font-medium">once</span>. It is stored only as a hash. If you lose it, revoke and mint a new one.</p>
           <div class="mt-3 flex items-center gap-2 rounded-md border border-border bg-bg px-3 h-10">
             <i class="ph ph-key text-muted text-[15px]"></i>
-            <code class="flex-1 mono text-[13px] text-text overflow-x-auto whitespace-nowrap">akb_live_judge_3d9f7b1a8c64e02f</code>
-            <button class="flex items-center gap-1 mono text-[13px] text-accent hover:underline shrink-0"><i class="ph ph-copy text-[14px]"></i> copy</button>
+            <code id="minted-secret" class="flex-1 mono text-[13px] text-text overflow-x-auto whitespace-nowrap"></code>
+            <button type="button" id="copy-secret-btn" aria-label="Copy secret" class="flex items-center gap-1 mono text-[13px] text-accent hover:underline shrink-0"><i class="ph ph-copy text-[14px]"></i> <span>copy</span></button>
+          </div>
+
+          <!-- Usage guidance -->
+          <div class="mt-4 space-y-2.5 text-[13px]">
+            <div class="text-[13px] font-semibold text-text">How to use this token</div>
+
+            <div class="rounded-md border border-border bg-bg p-3 space-y-2">
+              <div class="text-[13px] font-medium text-muted">1. HTTP header</div>
+              <div class="flex items-center gap-2">
+                <code id="guidance-bearer" class="flex-1 mono text-[13px] text-text overflow-x-auto whitespace-nowrap"></code>
+                <button type="button" data-copy-target="guidance-bearer" aria-label="Copy bearer header" class="copy-snippet mono text-[13px] text-accent hover:underline shrink-0"><i class="ph ph-copy text-[14px]"></i> copy</button>
+              </div>
+
+              <div class="text-[13px] font-medium text-muted mt-2">2. MCP endpoint</div>
+              <div class="flex items-center gap-2">
+                <code id="guidance-endpoint" class="flex-1 mono text-[13px] text-text overflow-x-auto whitespace-nowrap">/mcp</code>
+                <button type="button" data-copy-target="guidance-endpoint" aria-label="Copy endpoint" class="copy-snippet mono text-[13px] text-accent hover:underline shrink-0"><i class="ph ph-copy text-[14px]"></i> copy</button>
+              </div>
+
+              <div class="text-[13px] font-medium text-muted mt-2">3. Register with Claude Code</div>
+              <div class="flex items-center gap-2">
+                <code id="guidance-claude-add" class="flex-1 mono text-[13px] text-text overflow-x-auto whitespace-nowrap"></code>
+                <button type="button" data-copy-target="guidance-claude-add" aria-label="Copy claude mcp add command" class="copy-snippet mono text-[13px] text-accent hover:underline shrink-0"><i class="ph ph-copy text-[14px]"></i> copy</button>
+              </div>
+
+              <div class="text-[13px] font-medium text-muted mt-2">4. <code class="mono">.mcp.json</code> snippet</div>
+              <pre id="guidance-mcp-json" class="mono text-[13px] text-text bg-panel2 rounded p-2 overflow-x-auto whitespace-pre"></pre>
+              <button type="button" data-copy-target="guidance-mcp-json" aria-label="Copy .mcp.json snippet" class="copy-snippet mono text-[13px] text-accent hover:underline"><i class="ph ph-copy text-[14px]"></i> copy</button>
+            </div>
+
+            <p class="text-[13px] text-muted">Full guide: <a href="../docs/CONNECT_MCP.md" target="_blank" rel="noopener" class="text-accent hover:underline">docs/CONNECT_MCP.md</a></p>
           </div>
         </div>
 
         <!-- mint panel (hidden by default) -->
         <div id="mint" class="hidden rounded-xl border border-border bg-panel p-4">
           <h2 class="text-[14px] font-semibold mb-3">Mint a new token</h2>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div class="grid gap-1.5">
-              <label class="text-[13px] font-medium">Role</label>
-              <div class="relative">
-                <select class="appearance-none w-full rounded-md border border-border bg-panel2 px-3 h-10 text-[14px] outline-none focus:border-accent/60">
-                  <option>implementer</option><option>self-check</option><option>judge</option><option>runner</option><option>human</option>
-                </select>
-                <i class="ph ph-caret-down text-muted text-[14px] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+          <form id="mint-form" class="space-y-3" autocomplete="off">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div class="grid gap-1.5">
+                <label for="mint-role" class="text-[13px] font-medium">Role</label>
+                <div class="relative">
+                  <select id="mint-role" name="role" required class="appearance-none w-full rounded-md border border-border bg-panel2 px-3 h-10 text-[14px] outline-none focus:border-accent/60">
+                    <option value="implementer">implementer</option><option value="self-check">self-check</option><option value="judge">judge</option><option value="runner">runner</option><option value="human">human</option>
+                  </select>
+                  <i class="ph ph-caret-down text-muted text-[14px] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                </div>
+              </div>
+              <div class="grid gap-1.5">
+                <label for="mint-project" class="text-[13px] font-medium">Project scope <span class="text-muted font-normal text-[13px]">optional</span></label>
+                <div class="relative">
+                  <select id="mint-project" name="project" class="appearance-none w-full rounded-md border border-border bg-panel2 px-3 h-10 text-[14px] outline-none focus:border-accent/60">
+                    <option value="">(none)</option><option value="opf-hub">opf-hub</option><option value="api-marketplace">api-marketplace</option>
+                  </select>
+                  <i class="ph ph-caret-down text-muted text-[14px] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                </div>
+              </div>
+              <div class="grid gap-1.5">
+                <label for="mint-label" class="text-[13px] font-medium">Label</label>
+                <input id="mint-label" name="label" placeholder="e.g. sonnet-impl-02" class="rounded-md border border-border bg-panel2 px-3 h-10 text-[14px] outline-none focus:border-accent/60" />
               </div>
             </div>
-            <div class="grid gap-1.5">
-              <label class="text-[13px] font-medium">Project scope <span class="text-muted font-normal text-[13px]">optional</span></label>
-              <div class="relative">
-                <select class="appearance-none w-full rounded-md border border-border bg-panel2 px-3 h-10 text-[14px] outline-none focus:border-accent/60">
-                  <option>opf-hub</option><option>api-marketplace</option><option>all projects</option>
-                </select>
-                <i class="ph ph-caret-down text-muted text-[14px] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
-              </div>
+            <div id="mint-error" class="hidden text-[13px] text-ev_fail"></div>
+            <div class="mt-3 flex justify-end">
+              <button type="submit" id="mint-submit" class="flex items-center gap-1.5 rounded-md bg-accent px-3.5 h-9 text-[13px] font-semibold text-white hover:bg-accent/90"><i class="ph ph-key text-[15px]"></i> Mint &amp; reveal once</button>
             </div>
-            <div class="grid gap-1.5">
-              <label class="text-[13px] font-medium">Label</label>
-              <input placeholder="e.g. sonnet-impl-02" class="rounded-md border border-border bg-panel2 px-3 h-10 text-[14px] outline-none focus:border-accent/60" />
-            </div>
-          </div>
-          <div class="mt-3 flex justify-end">
-            <button class="flex items-center gap-1.5 rounded-md bg-accent px-3.5 h-9 text-[13px] font-semibold text-white hover:bg-accent/90"><i class="ph ph-key text-[15px]"></i> Mint &amp; reveal once</button>
-          </div>
+          </form>
         </div>
 
         <!-- tokens table -->
@@ -112,25 +146,123 @@
       'runner': { icon: 'ph-cpu', fill: false, cls: 'bg-white/5 text-muted' },
     };
 
-    api.listTokens().then(function (res) {
-      if (!res || !res.tokens || res.tokens.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-3 text-muted text-[13px]">No tokens found.</td></tr>';
-        return;
-      }
-      tbody.innerHTML = '';
-      res.tokens.forEach(function (t) {
-        var r = ROLE_ICONS[t.role] || { icon: 'ph-circle', fill: false, cls: 'bg-white/5 text-muted' };
-        var revoked = !!t.revoked_at;
-        var tr = '<tr' + (revoked ? ' class="opacity-50"' : '') + '>' +
-          '<td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[13px] px-2 py-0.5 rounded ' + r.cls + '"><i class="ph' + (r.fill ? '-fill' : '') + ' ' + r.icon + ' text-[13px]"></i>' + (t.role || '') + '</span></td>' +
-          '<td class="px-4 py-3' + (revoked ? ' line-through' : '') + '">' + (t.label || t.id) + '</td>' +
-          '<td class="px-4 py-3 mono text-[13px] text-muted hidden md:table-cell">' + (t.project_id || 'all') + '</td>' +
-          '<td class="px-4 py-3 mono text-[13px] text-muted hidden sm:table-cell">' + (t.created_at || '') + '</td>' +
-          '<td class="px-4 py-3 text-right">' + (revoked ? '<span class="mono text-[13px] text-ev_fail">revoked</span>' : '<span class="mono text-[13px] text-muted">active</span>') + '</td></tr>';
-        tbody.insertAdjacentHTML('beforeend', tr);
+    function reloadTokens() {
+      api.listTokens().then(function (res) {
+        if (!res || !res.tokens || res.tokens.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-3 text-muted text-[13px]">No tokens found.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = '';
+        res.tokens.forEach(function (t) {
+          var r = ROLE_ICONS[t.role] || { icon: 'ph-circle', fill: false, cls: 'bg-white/5 text-muted' };
+          var revoked = !!t.revoked_at;
+          var tr = '<tr' + (revoked ? ' class="opacity-50"' : '') + '>' +
+            '<td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[13px] px-2 py-0.5 rounded ' + r.cls + '"><i class="ph' + (r.fill ? '-fill' : '') + ' ' + r.icon + ' text-[13px]"></i>' + (t.role || '') + '</span></td>' +
+            '<td class="px-4 py-3' + (revoked ? ' line-through' : '') + '">' + (t.label || t.id) + '</td>' +
+            '<td class="px-4 py-3 mono text-[13px] text-muted hidden md:table-cell">' + (t.project_id || 'all') + '</td>' +
+            '<td class="px-4 py-3 mono text-[13px] text-muted hidden sm:table-cell">' + (t.created_at || '') + '</td>' +
+            '<td class="px-4 py-3 text-right">' + (revoked ? '<span class="mono text-[13px] text-ev_fail">revoked</span>' : '<span class="mono text-[13px] text-muted">active</span>') + '</td></tr>';
+          tbody.insertAdjacentHTML('beforeend', tr);
+        });
+      }).catch(function () {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-3 text-ev_fail text-[13px]">Failed to load tokens.</td></tr>';
       });
-    }).catch(function () {
-      tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-3 text-ev_fail text-[13px]">Failed to load tokens.</td></tr>';
+    }
+    reloadTokens();
+
+    // --- Clipboard helper ---
+    function copyText(text, btn) {
+      if (!text) return;
+      var done = function () {
+        if (!btn) return;
+        var orig = btn.innerHTML;
+        btn.innerHTML = '<i class="ph ph-check text-[13px]"></i> copied';
+        setTimeout(function () { btn.innerHTML = orig; }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+      } else {
+        fallbackCopy(text); done();
+      }
+    }
+    function fallbackCopy(text) {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch (e) { /* ignore */ }
+      document.body.removeChild(ta);
+    }
+
+    // --- Mint form handler ---
+    var form = document.getElementById('mint-form');
+    var banner = document.getElementById('minted-banner');
+    var errBox = document.getElementById('mint-error');
+    if (form) {
+      form.addEventListener('submit', function (evt) {
+        evt.preventDefault();
+        errBox.classList.add('hidden'); errBox.textContent = '';
+        var roleEl = document.getElementById('mint-role');
+        var projectEl = document.getElementById('mint-project');
+        var labelEl = document.getElementById('mint-label');
+        var role = roleEl ? roleEl.value : '';
+        var project = projectEl ? (projectEl.value || null) : null;
+        var label = labelEl ? labelEl.value : '';
+        if (!role) { errBox.textContent = 'Role is required.'; errBox.classList.remove('hidden'); return; }
+
+        api.mintToken({ role: role, project: project, label: label }).then(function (res) {
+          if (!res || !res.secret) {
+            errBox.textContent = (res && res.error) ? res.error : 'Mint failed.';
+            errBox.classList.remove('hidden');
+            return;
+          }
+          // Populate banner with real values
+          var secretEl = document.getElementById('minted-secret');
+          var roleOut = document.getElementById('minted-role');
+          var labelOut = document.getElementById('minted-label');
+          var bearerOut = document.getElementById('guidance-bearer');
+          var claudeAdd = document.getElementById('guidance-claude-add');
+          var mcpJson = document.getElementById('guidance-mcp-json');
+          if (secretEl) secretEl.textContent = res.secret;
+          if (roleOut) roleOut.textContent = res.role || role;
+          if (labelOut) labelOut.textContent = res.label || label || res.id;
+
+          var serverOrigin = location.origin;
+          if (bearerOut) bearerOut.textContent = 'Authorization: Bearer ' + res.secret;
+          if (claudeAdd) claudeAdd.textContent = 'claude mcp add --transport http taskhub ' + serverOrigin + '/mcp --header "Authorization: Bearer ' + res.secret + '"';
+          if (mcpJson) mcpJson.textContent = JSON.stringify({
+            mcpServers: {
+              taskhub: {
+                type: 'streamable-http',
+                url: serverOrigin + '/mcp',
+                headers: { Authorization: 'Bearer ' + res.secret }
+              }
+            }
+          }, null, 2);
+
+          banner.classList.remove('hidden');
+          banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          reloadTokens();
+        }).catch(function (e) {
+          errBox.textContent = 'Network error: ' + (e && e.message ? e.message : 'unknown');
+          errBox.classList.remove('hidden');
+        });
+      });
+    }
+
+    // --- Copy buttons (secret + snippets) ---
+    var copySecretBtn = document.getElementById('copy-secret-btn');
+    if (copySecretBtn) {
+      copySecretBtn.addEventListener('click', function () {
+        var s = document.getElementById('minted-secret');
+        copyText(s ? s.textContent : '', copySecretBtn);
+      });
+    }
+    document.querySelectorAll('.copy-snippet').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var targetId = btn.getAttribute('data-copy-target');
+        var el = targetId ? document.getElementById(targetId) : null;
+        copyText(el ? el.textContent : '', btn);
+      });
     });
   })();
 </script>

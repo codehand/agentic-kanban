@@ -77,6 +77,19 @@
       return apiFetch('/tokens').then(function (r) { return r ? r.json() : null; });
     },
 
+    mintToken: function (opts) {
+      opts = opts || {};
+      return apiFetch('/tokens', {
+        method: 'POST',
+        headers: Object.assign(authHeaders(), { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          role: opts.role || '',
+          label: opts.label || '',
+          project: opts.project || null,
+        }),
+      }).then(function (r) { return r ? r.json() : null; });
+    },
+
     approveTask: function (project, key, note) {
       var qs = '?project=' + encodeURIComponent(project);
       return apiFetch('/tasks/' + encodeURIComponent(key) + '/approve' + qs, {
