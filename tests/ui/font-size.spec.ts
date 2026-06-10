@@ -82,10 +82,12 @@ async function assertFloor13(page: Page, label: string) {
 test.describe('TASK-016 font-size floor (≥ 13px)', () => {
   test.beforeEach(() => ensureShotDir());
 
-  test('index.html — board screen font sizes ≥ 13px', async ({ page }) => {
-    await page.goto(pageUrl('index.html'));
+  test('new-task.html — full page flow (board-like screen with sidebar)', async ({ page }) => {
+    // new-task.html renders fully under file:// (no API auto-call, no redirect).
+    // Shows the sidebar rail + modal + header — a good "flow" representative screen.
+    await page.goto(pageUrl('new-task.html'));
     await waitForTailwind(page);
-    await assertFloor13(page, 'index.html');
+    await assertFloor13(page, 'new-task.html');
     await page.screenshot({ path: path.join(SHOT_DIR, 'flow-index.png'), fullPage: true });
   });
 
@@ -100,7 +102,7 @@ test.describe('TASK-016 font-size floor (≥ 13px)', () => {
       await cta.first().scrollIntoViewIfNeeded();
       await cta.first().screenshot({ path: path.join(SHOT_DIR, 'cta-create-task.png') });
     }
-    // Fallback / additional full-page screenshot.
+    // Full-page CTA screen.
     await page.screenshot({ path: path.join(SHOT_DIR, 'cta-full.png'), fullPage: true });
   });
 
@@ -111,17 +113,15 @@ test.describe('TASK-016 font-size floor (≥ 13px)', () => {
     await page.screenshot({ path: path.join(SHOT_DIR, 'flow-first-run.png'), fullPage: true });
   });
 
-  test('menu — sidebar navigation closeup', async ({ page }) => {
-    await page.goto(pageUrl('index.html'));
+  test('menu — sidebar navigation closeup from #rail', async ({ page }) => {
+    // new-task.html renders the rail via shell.js without API redirect.
+    await page.goto(pageUrl('new-task.html'));
     await waitForTailwind(page);
-    // The sidebar is the <aside> or the nav area on the left.
-    const sidebar = page.locator('aside, nav').first();
-    if ((await sidebar.count()) > 0) {
-      await sidebar.screenshot({ path: path.join(SHOT_DIR, 'menu-sidebar.png') });
-    } else {
-      // Fallback: crop the left portion via full screenshot.
-      await page.screenshot({ path: path.join(SHOT_DIR, 'menu-sidebar.png') });
-    }
+    // Wait for shell.js to populate the rail.
+    const rail = page.locator('#rail');
+    await rail.waitFor({ state: 'visible', timeout: 10_000 });
+    await expect(rail.locator('nav')).toBeVisible({ timeout: 5_000 });
+    await rail.screenshot({ path: path.join(SHOT_DIR, 'menu-sidebar.png') });
   });
 
   test('font before/after — visual comparison', async ({ page }) => {
@@ -155,6 +155,12 @@ test.describe('TASK-016 font-size floor (≥ 13px)', () => {
   });
 
   test('all screens — comprehensive font-size audit', async ({ page }) => {
+    // Pages that auto-call /api/* redirect to signin.html when no token is set.
+    // Inject a fake token so the pages stay on their URL (API calls fail gracefully,
+    // showing error states, but the full HTML with text-[Npx] classes is rendered).
+    await page.goto(pageUrl('signin.html'));
+    await page.evaluate(() => localStorage.setItem('kanban_token', 'test_fake_token_for_ui_audit'));
+
     const screens = [
       'index.html',
       'projects.html',
