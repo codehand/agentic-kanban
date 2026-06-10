@@ -8,11 +8,11 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
-<script src="theme.js"></script>
-<link rel="stylesheet" href="theme.css" />
+<script src="/theme.js"></script>
+<link rel="stylesheet" href="/theme.css" />
 </head>
 
-<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="board" data-project="opf-hub" data-awaiting="0">
+<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="board" data-awaiting="0">
 
 <div class="flex h-full">
 
@@ -26,7 +26,7 @@
     <header class="h-14 shrink-0 border-b border-border bg-panel/80 backdrop-blur flex items-center gap-3 px-4">
       <button class="lg:hidden grid place-items-center w-8 h-8 rounded-md text-muted hover:bg-white/5"><i class="ph ph-list text-[19px]"></i></button>
       <div class="flex items-center gap-2 min-w-0">
-        <span class="text-[15px] font-semibold tracking-tight">opf-hub</span>
+        <span id="topbar-project" class="text-[15px] font-semibold tracking-tight">&hellip;</span>
         <span class="text-muted text-[13px] hidden sm:inline">Board</span>
       </div>
 
@@ -215,7 +215,8 @@
   <span id="toast-msg">Done.</span>
 </div>
 
-<script src="api.js"></script>
+<script src="/api.js"></script>
+<script src="/shell.js"></script>
 <script>
   /* board.js — Live board wiring. Fetches tasks from /api/tasks and renders cards. */
   (function () {
@@ -298,6 +299,9 @@
     }
 
     // --- Load board ---
+    // The board shows ONE project: the one in the URL path (/<project-id>/index.html).
+    var currentSlug = '';
+
     window.loadBoard = function () {
       if (!api) return;
       document.getElementById('board-loading').classList.remove('hidden');
@@ -309,26 +313,33 @@
         if (!res || !res.projects) { showBoardError('No projects returned'); return; }
         var projects = res.projects;
         if (projects.length === 0) {
-          document.getElementById('board-loading').classList.add('hidden');
-          document.getElementById('board-empty').classList.remove('hidden');
+          // Empty-state guide: no projects yet — send to first-run onboarding.
+          location.replace('/first-run.html');
           return;
         }
-        // Load tasks for each project
-        var allTasks = [];
-        var projMap = {};
-        projects.forEach(function (p) { projMap[p.id] = p.slug || p.id; });
-        var pending = projects.length;
+        var fromPath = window.projectFromPath ? window.projectFromPath() : '';
+        if (!fromPath) {
+          // No project in the URL — go to the first project's board.
+          var first = projects[0].slug || projects[0].id;
+          location.replace('/' + encodeURIComponent(first) + '/index.html');
+          return;
+        }
+        var proj = null;
         projects.forEach(function (p) {
-          var slug = p.slug || p.id;
-          api.listTasks(slug).then(function (tres) {
-            if (tres && tres.tasks) {
-              tres.tasks.forEach(function (t) { allTasks.push({ task: t, project: slug }); });
-            }
-          }).catch(function () {}).then(function () {
-            pending--;
-            if (pending <= 0) renderBoard(allTasks, projects);
-          });
+          if (p.slug === fromPath || p.id === fromPath) proj = p;
         });
+        if (!proj) { showBoardError('Project not found: ' + fromPath); return; }
+        var slug = proj.slug || proj.id;
+        currentSlug = slug;
+        document.getElementById('topbar-project').textContent = slug;
+        // Load tasks for THIS project only.
+        api.listTasks(slug).then(function (tres) {
+          var tasks = [];
+          if (tres && tres.tasks) {
+            tres.tasks.forEach(function (t) { tasks.push({ task: t, project: slug }); });
+          }
+          renderBoard(tasks, [proj]);
+        }).catch(function (err) { showBoardError(String(err)); });
       }).catch(function (err) { showBoardError(String(err)); });
     };
 
@@ -529,10 +540,12 @@
     }
 
     // SSE: soft-refetch board + show toast on live events
-    // Only react to events for the currently viewed project (data-project on body).
-    // This prevents toast/refetch noise from tasks in other projects.
+    // Only react to events for the project in the URL path (projectFromPath),
+    // not a hardcoded data-project. Prevents noise from other projects while
+    // keeping live updates working for whichever project is selected.
     function currentProject() {
-      return document.body.dataset.project || '';
+      if (currentSlug) return currentSlug;
+      return (window.projectFromPath ? window.projectFromPath() : '') || '';
     }
 
     window.addEventListener('kanban:created', function (e) {
@@ -570,6 +583,5 @@
     })();
   })();
 </script>
-<script src="shell.js"></script>
 </body>
 </html>

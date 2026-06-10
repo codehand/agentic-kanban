@@ -57,6 +57,14 @@
       return apiFetch('/projects').then(function (r) { return r ? r.json() : null; });
     },
 
+    createProject: function (payload) {
+      return apiFetch('/projects', {
+        method: 'POST',
+        headers: Object.assign(authHeaders(), { 'Content-Type': 'application/json' }),
+        body: JSON.stringify(payload),
+      }).then(function (r) { return r ? r.json() : null; });
+    },
+
     listTasks: function (project, state) {
       var qs = '?project=' + encodeURIComponent(project);
       if (state) qs += '&state=' + encodeURIComponent(state);

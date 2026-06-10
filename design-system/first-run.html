@@ -7,8 +7,8 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
-<script src="theme.js"></script>
-<link rel="stylesheet" href="theme.css" />
+<script src="/theme.js"></script>
+<link rel="stylesheet" href="/theme.css" />
 </head>
 
 <body class="font-sans text-text antialiased min-h-[100dvh] console-grid">
@@ -29,13 +29,24 @@
       <p class="mt-2 text-[14px] text-muted leading-relaxed max-w-[42ch] mx-auto">No projects yet. Create your first project, then point an agent at this server over MCP to start moving tasks across the board.</p>
 
       <div class="mt-6 flex flex-col sm:flex-row items-center justify-center gap-2.5">
-        <button class="flex items-center gap-1.5 rounded-md bg-accent px-4 h-10 text-[14px] font-semibold text-white hover:bg-accent/90 active:translate-y-px">
+        <button id="btn-create-project" class="flex items-center gap-1.5 rounded-md bg-accent px-4 h-10 text-[14px] font-semibold text-white hover:bg-accent/90 active:translate-y-px">
           <i class="ph ph-plus text-[16px]"></i> Create first project
         </button>
         <button class="flex items-center gap-1.5 rounded-md border border-border bg-panel2 px-4 h-10 text-[14px] text-muted hover:text-text hover:border-borderlt">
           <i class="ph ph-book-open text-[16px]"></i> Connect an agent
         </button>
       </div>
+
+      <form id="create-project-form" class="mt-5 hidden text-left max-w-[360px] mx-auto">
+        <label for="field-project-name" class="text-[13px] text-muted">Project name</label>
+        <input id="field-project-name" placeholder="my-project" autocomplete="off"
+          class="mt-1 w-full rounded-md border border-border bg-panel2 px-2.5 py-2 text-[13px] text-text placeholder:text-muted outline-none focus:border-accent/60" />
+        <p id="create-project-error" class="hidden mt-1.5 text-[13px] text-ev_fail"></p>
+        <button type="submit" id="btn-create-project-submit"
+          class="mt-2.5 w-full flex items-center justify-center gap-1.5 rounded-md bg-accent px-4 h-10 text-[14px] font-semibold text-white hover:bg-accent/90 active:translate-y-px">
+          <i class="ph ph-check text-[16px]"></i> Create project
+        </button>
+      </form>
 
       <div class="mt-6 rounded-lg border border-border bg-bg px-4 py-3 text-left">
         <p class="text-[13px] text-muted mb-1.5">Point an MCP client at:</p>
@@ -105,6 +116,54 @@
     </div>
   </div>
 
-<script src="shell.js"></script>
+<script src="/api.js"></script>
+<script src="/shell.js"></script>
+<script>
+  /* first-run.js — wire "Create first project" → POST /api/projects → redirect to the new board. */
+  (function () {
+    'use strict';
+    var api = window.__kanban_api;
+    var btn = document.getElementById('btn-create-project');
+    var form = document.getElementById('create-project-form');
+    var input = document.getElementById('field-project-name');
+    var errEl = document.getElementById('create-project-error');
+    var submitBtn = document.getElementById('btn-create-project-submit');
+
+    function showError(msg) {
+      errEl.textContent = msg;
+      errEl.classList.remove('hidden');
+    }
+
+    function slugify(s) {
+      return s.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+    }
+
+    btn.addEventListener('click', function () {
+      form.classList.remove('hidden');
+      input.focus();
+    });
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      errEl.classList.add('hidden');
+      var name = input.value.trim();
+      var slug = slugify(name);
+      if (!slug) { showError('Enter a project name.'); return; }
+      if (!api) { location.href = '/signin.html'; return; }
+      submitBtn.disabled = true;
+      api.createProject({ slug: slug, name: name }).then(function (res) {
+        if (res && res.project) {
+          location.href = '/' + encodeURIComponent(res.project.slug) + '/index.html';
+        } else {
+          submitBtn.disabled = false;
+          showError((res && res.error) || 'Failed to create project.');
+        }
+      }).catch(function (err) {
+        submitBtn.disabled = false;
+        showError(String(err));
+      });
+    });
+  })();
+</script>
 </body>
 </html>

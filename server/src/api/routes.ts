@@ -9,6 +9,7 @@
  *   GET /api/tokens            — list active tokens
  *
  * Write endpoints (bearer role = human only):
+ *   POST /api/projects                     — create project (slug + name)
  *   POST /api/tasks/:key/approve?project= — approve JUDGE_PASSED → DONE
  *   POST /api/tasks/:key/reset?project=   — reset task to IN_PROGRESS
  *   POST /api/tasks/:key/remove?project=  — remove task
@@ -21,7 +22,7 @@ import type { Db } from '../db/connection.js'
 import { parseBearerHeader } from '../auth/parse.js'
 import { resolveBearer, type ResolvedToken } from '../auth/resolve.js'
 import { authorize, type Role } from '../auth/authorize.js'
-import { listProjects, getProjectBySlug, getProjectById } from '../db/repositories/project.js'
+import { listProjects, getProjectBySlug, getProjectById, insertProject } from '../db/repositories/project.js'
 import { listTasksByProject, getTaskByKey, getTaskById, insertTask } from '../db/repositories/task.js'
 import { listCommentsByTask } from '../db/repositories/comment.js'
 import { getLatestEvidenceByTask, listEvidenceByTask } from '../db/repositories/evidence.js'
@@ -242,6 +243,32 @@ async function handleMintToken(db: Db, _query: Record<string, string>, auth: Res
     project: project ?? null,
     secret: result.secret,
   })
+}
+
+// Slugs become URL path segments (/<project-id>/index.html) — keep them path-safe.
+const SLUG_RE = /^[a-zA-Z0-9][a-zA-Z0-9_-]*$/
+
+async function handleCreateProject(db: Db, _query: Record<string, string>, auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  // Same permission as MCP project.create (human only).
+  if (!authorize(auth.role as Role, 'task.create')) {
+    sendJson(res, 403, { error: 'Forbidden' }); return
+  }
+  const body = await readJsonBody(req)
+  const slug = typeof body?.['slug'] === 'string' ? body['slug'].trim() : ''
+  if (!slug) {
+    sendJson(res, 400, { error: 'slug is required' }); return
+  }
+  if (!SLUG_RE.test(slug)) {
+    sendJson(res, 400, { error: 'slug may only contain letters, digits, "-" and "_"' }); return
+  }
+  const name = (typeof body?.['name'] === 'string' && body['name'].trim()) || slug
+  const existing = getProjectBySlug(db, slug)
+  if (existing) {
+    sendJson(res, 409, { error: `Project with slug '${slug}' already exists` }); return
+  }
+  const id = `proj_${slug}_${Date.now().toString(36)}`
+  const project = insertProject(db, { id, slug, name })
+  sendJson(res, 201, { project })
 }
 
 async function handleCreateTask(db: Db, query: Record<string, string>, auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -470,6 +497,9 @@ export function mountApiRoutes(
 
       // POST write endpoints (human only)
       if (method === 'POST') {
+        if (path === '/api/projects') {
+          await handleCreateProject(db, query, auth, req, res); return
+        }
         if (path === '/api/tasks') {
           await handleCreateTask(db, query, auth, req, res); return
         }
