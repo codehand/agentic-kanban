@@ -7,3 +7,7 @@ coverage/
 
 # .ai/ workflow tooling is tracked; instance data (state/evidence/reports)
 # is excluded via .ai/.gitignore.
+.ai/
+
+# Playwright
+test-results/

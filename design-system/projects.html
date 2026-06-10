@@ -18,14 +18,14 @@
   <main class="flex-1 min-w-0 flex flex-col">
     <!-- top bar -->
     <header class="h-14 shrink-0 border-b border-border bg-panel/80 backdrop-blur flex items-center gap-3 px-4">
-      <span class="text-[14px] font-semibold tracking-tight">Projects</span>
+      <span class="text-[15px] font-semibold tracking-tight">Projects</span>
       <div class="ml-auto flex items-center gap-2">
         <div class="hidden md:flex items-center gap-2 rounded-md border border-border bg-panel2 px-2.5 h-9 w-56 text-muted focus-within:border-accent/60">
-          <i class="ph ph-magnifying-glass text-[15px]"></i>
-          <input placeholder="Search projects" class="bg-transparent text-[12.5px] text-text placeholder:text-muted outline-none w-full" />
+          <i class="ph ph-magnifying-glass text-[16px]"></i>
+          <input placeholder="Search projects" class="bg-transparent text-[13px] text-text placeholder:text-muted outline-none w-full" />
         </div>
-        <a href="new-task.html" class="flex items-center gap-1.5 rounded-md bg-accent px-3 h-9 text-[12.5px] font-medium text-white hover:bg-accent/90 active:translate-y-px">
-          <i class="ph ph-plus text-[14px]"></i> New Task
+        <a href="new-task.html" class="flex items-center gap-1.5 rounded-md bg-accent px-3 h-9 text-[13px] font-medium text-white hover:bg-accent/90 active:translate-y-px">
+          <i class="ph ph-plus text-[15px]"></i> New Task
         </a>
       </div>
     </header>
@@ -37,14 +37,14 @@
         <a href="index.html#col-human" class="block rounded-xl border border-st_human/40 bg-st_human/10 glow-human-soft px-5 py-4 hover:bg-st_human/15">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-[17px] font-semibold text-st_human flex items-center gap-2"><i class="ph-fill ph-hand-tap"></i> 2 tasks awaiting you</p>
-              <p class="mt-0.5 text-[12px] text-muted">Across all projects. These are cleared by the gate and only you can mark them Done.</p>
+              <p class="text-[18px] font-semibold text-st_human flex items-center gap-2"><i class="ph-fill ph-hand-tap"></i> 2 tasks awaiting you</p>
+              <p class="mt-0.5 text-[13px] text-muted">Across all projects. These are cleared by the gate and only you can mark them Done.</p>
             </div>
-            <span class="hidden sm:flex items-center gap-1 text-[12.5px] text-st_human">Review now <i class="ph ph-arrow-right"></i></span>
+            <span class="hidden sm:flex items-center gap-1 text-[13px] text-st_human">Review now <i class="ph ph-arrow-right"></i></span>
           </div>
         </a>
 
-        <h2 id="projects-heading" class="mt-7 mb-3 text-[12px] uppercase tracking-wider text-muted">Loading projects&hellip;</h2>
+        <h2 id="projects-heading" class="mt-7 mb-3 text-[13px] uppercase tracking-wider text-muted">Loading projects&hellip;</h2>
 
         <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- populated by live data from /api/projects -->
@@ -74,15 +74,15 @@
         grid.insertAdjacentHTML('beforeend',
           '<a href="index.html" class="group rounded-xl border border-border bg-panel p-4 hover:border-borderlt">' +
           '<div class="flex items-start justify-between"><div class="flex items-center gap-2.5 min-w-0">' +
-          '<span class="grid place-items-center w-8 h-8 rounded-md bg-accent/15 text-accent shrink-0"><i class="ph-fill ph-folder text-[16px]"></i></span>' +
-          '<div class="min-w-0"><h3 class="text-[14px] font-semibold truncate">' + slug + '</h3>' +
-          '<p class="mono text-[11px] text-muted">' + (name !== slug ? name : slug) + '</p></div></div></div>' +
+          '<span class="grid place-items-center w-8 h-8 rounded-md bg-accent/15 text-accent shrink-0"><i class="ph-fill ph-folder text-[17px]"></i></span>' +
+          '<div class="min-w-0"><h3 class="text-[15px] font-semibold truncate">' + slug + '</h3>' +
+          '<p class="mono text-[13px] text-muted">' + (name !== slug ? name : slug) + '</p></div></div></div>' +
           '</a>');
       });
       // Add "add project" button
       grid.insertAdjacentHTML('beforeend',
         '<button class="rounded-xl border border-dashed border-border bg-transparent p-4 text-muted hover:text-text hover:border-borderlt flex items-center justify-center gap-2 min-h-[148px]">' +
-        '<i class="ph ph-plus-circle text-[18px]"></i> <span class="text-[13px]">Add project</span></button>');
+        '<i class="ph ph-plus-circle text-[19px]"></i> <span class="text-[14px]">Add project</span></button>');
     }).catch(function () { heading.textContent = 'Failed to load projects'; });
   })();
 </script>

@@ -16,47 +16,47 @@
   <div class="w-full max-w-[400px]">
     <!-- brand -->
     <div class="flex items-center gap-2.5 mb-6 justify-center">
-      <span class="grid place-items-center w-9 h-9 rounded-md bg-accent/15 text-accent"><i class="ph-fill ph-kanban text-[20px]"></i></span>
+      <span class="grid place-items-center w-9 h-9 rounded-md bg-accent/15 text-accent"><i class="ph-fill ph-kanban text-[21px]"></i></span>
       <div class="leading-tight">
-        <div class="text-[15px] font-semibold tracking-tight">Agentic Kanban</div>
-        <div class="text-[10.5px] text-muted mono">mission control</div>
+        <div class="text-[16px] font-semibold tracking-tight">Agentic Kanban</div>
+        <div class="text-[13px] text-muted mono">mission control</div>
       </div>
     </div>
 
     <div class="rounded-xl border border-border bg-panel p-6">
-      <h1 class="text-[16px] font-semibold">Operator access</h1>
-      <p class="mt-1 text-[12.5px] text-muted leading-relaxed">Paste your operator token to open the board. Single-user server on localhost / LAN.</p>
+      <h1 class="text-[17px] font-semibold">Operator access</h1>
+      <p class="mt-1 text-[13px] text-muted leading-relaxed">Paste your operator token to open the board. Single-user server on localhost / LAN.</p>
 
       <!-- token field -->
       <div class="mt-5 grid gap-1.5">
-        <label class="text-[12px] font-medium">Operator token</label>
+        <label class="text-[13px] font-medium">Operator token</label>
         <div class="flex items-center gap-2 rounded-md border border-border bg-panel2 px-3 h-11 focus-within:border-accent/60">
-          <i class="ph ph-key text-muted text-[15px]"></i>
-          <input id="tok" type="password" placeholder="akb_live_…" class="flex-1 bg-transparent mono text-[13px] outline-none" />
-          <button onclick="const t=document.getElementById('tok'); t.type = t.type==='password'?'text':'password'; this.firstElementChild.classList.toggle('ph-eye'); this.firstElementChild.classList.toggle('ph-eye-slash')" class="text-muted hover:text-text"><i class="ph ph-eye text-[15px]"></i></button>
+          <i class="ph ph-key text-muted text-[16px]"></i>
+          <input id="tok" type="password" placeholder="akb_live_…" class="flex-1 bg-transparent mono text-[14px] outline-none" />
+          <button onclick="const t=document.getElementById('tok'); t.type = t.type==='password'?'text':'password'; this.firstElementChild.classList.toggle('ph-eye'); this.firstElementChild.classList.toggle('ph-eye-slash')" class="text-muted hover:text-text"><i class="ph ph-eye text-[16px]"></i></button>
         </div>
       </div>
 
       <!-- remember -->
-      <label class="mt-3 flex items-center gap-2 text-[12.5px] text-muted cursor-pointer select-none">
+      <label class="mt-3 flex items-center gap-2 text-[13px] text-muted cursor-pointer select-none">
         <input type="checkbox" checked class="accent-accent w-3.5 h-3.5" /> Remember on this device
       </label>
 
-      <button id="unlock-btn" class="mt-5 w-full flex items-center justify-center gap-2 rounded-md bg-accent h-11 text-[13px] font-semibold text-white hover:bg-accent/90 active:translate-y-px">
-        <i class="ph-fill ph-lock-key-open text-[15px]"></i> Unlock board
+      <button id="unlock-btn" class="mt-5 w-full flex items-center justify-center gap-2 rounded-md bg-accent h-11 text-[14px] font-semibold text-white hover:bg-accent/90 active:translate-y-px">
+        <i class="ph-fill ph-lock-key-open text-[16px]"></i> Unlock board
       </button>
 
       <!-- error state (shown on failure) -->
       <div id="signin-error" class="mt-4 hidden items-start gap-2 rounded-md border border-ev_fail/30 bg-ev_fail/8 px-3 py-2.5">
-        <i class="ph-fill ph-warning-circle text-ev_fail text-[15px] mt-px"></i>
-        <div class="text-[12px] leading-snug">
+        <i class="ph-fill ph-warning-circle text-ev_fail text-[16px] mt-px"></i>
+        <div class="text-[13px] leading-snug">
           <p class="text-ev_fail font-medium">Token rejected</p>
           <p id="signin-error-msg" class="text-muted mt-0.5">Invalid or expired token. Ask the operator to mint a new <span class="mono">human</span> token in Tokens.</p>
         </div>
       </div>
     </div>
 
-    <p class="mt-4 text-center mono text-[10.5px] text-muted">bearer auth, localhost / LAN only. Not for public internet at v1.</p>
+    <p class="mt-4 text-center mono text-[13px] text-muted">bearer auth, localhost / LAN only. Not for public internet at v1.</p>
   </div>
 
 <script src="api.js"></script>
@@ -91,7 +91,7 @@
         return;
       }
       btn.disabled = true;
-      btn.innerHTML = '<i class="ph ph-spinner animate-spin text-[15px]"></i> Verifying…';
+      btn.innerHTML = '<i class="ph ph-spinner animate-spin text-[16px]"></i> Verifying…';
       errBox.classList.add('hidden'); errBox.classList.remove('flex');
 
       // Store token temporarily to test it
@@ -110,7 +110,7 @@
               ? 'Token rejected. Check the token and try again.'
               : 'Server error (' + res.status + '). Try again.';
             btn.disabled = false;
-            btn.innerHTML = '<i class="ph-fill ph-lock-key-open text-[15px]"></i> Unlock board';
+            btn.innerHTML = '<i class="ph-fill ph-lock-key-open text-[16px]"></i> Unlock board';
           }
         })
         .catch(function () {
@@ -118,7 +118,7 @@
           errBox.classList.remove('hidden'); errBox.classList.add('flex');
           errMsg.textContent = 'Cannot reach server. Is it running?';
           btn.disabled = false;
-          btn.innerHTML = '<i class="ph-fill ph-lock-key-open text-[15px]"></i> Unlock board';
+          btn.innerHTML = '<i class="ph-fill ph-lock-key-open text-[16px]"></i> Unlock board';
         });
     }
 

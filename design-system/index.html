@@ -24,43 +24,43 @@
 
     <!-- top bar -->
     <header class="h-14 shrink-0 border-b border-border bg-panel/80 backdrop-blur flex items-center gap-3 px-4">
-      <button class="lg:hidden grid place-items-center w-8 h-8 rounded-md text-muted hover:bg-white/5"><i class="ph ph-list text-[18px]"></i></button>
+      <button class="lg:hidden grid place-items-center w-8 h-8 rounded-md text-muted hover:bg-white/5"><i class="ph ph-list text-[19px]"></i></button>
       <div class="flex items-center gap-2 min-w-0">
-        <span class="text-[14px] font-semibold tracking-tight">opf-hub</span>
-        <span class="text-muted text-[12px] hidden sm:inline">Board</span>
+        <span class="text-[15px] font-semibold tracking-tight">opf-hub</span>
+        <span class="text-muted text-[13px] hidden sm:inline">Board</span>
       </div>
 
       <div class="ml-auto flex items-center gap-2">
         <div class="hidden md:flex items-center gap-2 rounded-md border border-border bg-panel2 px-2.5 h-9 w-64 text-muted focus-within:border-accent/60">
-          <i class="ph ph-magnifying-glass text-[15px]"></i>
-          <input placeholder="Search tasks, keys, SHAs" class="bg-transparent text-[12.5px] text-text placeholder:text-muted outline-none w-full" />
-          <kbd class="mono text-[10px] text-muted border border-border rounded px-1">/</kbd>
+          <i class="ph ph-magnifying-glass text-[16px]"></i>
+          <input placeholder="Search tasks, keys, SHAs" class="bg-transparent text-[13px] text-text placeholder:text-muted outline-none w-full" />
+          <kbd class="mono text-[13px] text-muted border border-border rounded px-1">/</kbd>
         </div>
 
         <!-- filters -->
-        <button class="hidden sm:flex items-center gap-1.5 rounded-md border border-border bg-panel2 px-2.5 h-9 text-[12.5px] text-muted hover:text-text hover:border-borderlt">
-          <i class="ph ph-funnel text-[14px]"></i> Filter
+        <button class="hidden sm:flex items-center gap-1.5 rounded-md border border-border bg-panel2 px-2.5 h-9 text-[13px] text-muted hover:text-text hover:border-borderlt">
+          <i class="ph ph-funnel text-[15px]"></i> Filter
         </button>
 
         <button class="grid place-items-center w-9 h-9 rounded-md border border-border bg-panel2 text-muted hover:text-text" title="Toggle theme">
-          <i class="ph ph-moon text-[15px]"></i>
+          <i class="ph ph-moon text-[16px]"></i>
         </button>
 
-        <button class="flex items-center gap-1.5 rounded-md bg-accent px-3 h-9 text-[12.5px] font-medium text-white hover:bg-accent/90 active:translate-y-px">
-          <i class="ph ph-plus text-[14px]"></i> New Task
+        <button class="flex items-center gap-1.5 rounded-md bg-accent px-3 h-9 text-[13px] font-medium text-white hover:bg-accent/90 active:translate-y-px">
+          <i class="ph ph-plus text-[15px]"></i> New Task
         </button>
       </div>
     </header>
 
     <!-- across-projects strip (populated by live data) -->
-    <div id="board-strip" class="shrink-0 border-b border-border bg-panel/40 px-4 py-2 flex items-center gap-3 text-[12px]">
-      <span class="flex items-center gap-1.5 text-muted"><i class="ph ph-spinner text-[13px] animate-spin"></i> Loading&hellip;</span>
+    <div id="board-strip" class="shrink-0 border-b border-border bg-panel/40 px-4 py-2 flex items-center gap-3 text-[13px]">
+      <span class="flex items-center gap-1.5 text-muted"><i class="ph ph-spinner text-[14px] animate-spin"></i> Loading&hellip;</span>
     </div>
 
     <!-- ============ KANBAN BOARD ============ -->
-    <div id="board-loading" class="flex-1 grid place-items-center text-muted text-[13px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[16px]"></i> Loading board&hellip;</span></div>
-    <div id="board-error" class="flex-1 grid place-items-center hidden"><div class="text-center"><p class="text-ev_fail text-[14px] font-medium">Failed to load board</p><p class="text-muted text-[12.5px] mt-1" id="board-error-msg"></p><button onclick="loadBoard()" class="mt-3 text-accent text-[12.5px] hover:underline">Retry</button></div></div>
-    <div id="board-empty" class="flex-1 grid place-items-center hidden"><div class="text-center"><p class="text-muted text-[14px]">No tasks yet</p><p class="text-muted text-[12.5px] mt-1">Create a task to get started.</p></div></div>
+    <div id="board-loading" class="flex-1 grid place-items-center text-muted text-[14px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[17px]"></i> Loading board&hellip;</span></div>
+    <div id="board-error" class="flex-1 grid place-items-center hidden"><div class="text-center"><p class="text-ev_fail text-[15px] font-medium">Failed to load board</p><p class="text-muted text-[13px] mt-1" id="board-error-msg"></p><button onclick="loadBoard()" class="mt-3 text-accent text-[13px] hover:underline">Retry</button></div></div>
+    <div id="board-empty" class="flex-1 grid place-items-center hidden"><div class="text-center"><p class="text-muted text-[15px]">No tasks yet</p><p class="text-muted text-[13px] mt-1">Create a task to get started.</p></div></div>
     <div id="board-columns" class="flex-1 overflow-x-auto overflow-y-hidden console-grid hidden">
       <div class="flex gap-3 h-full p-3 min-w-max">
 
@@ -69,10 +69,10 @@
           <div class="flex items-center justify-between px-1 pb-2 border-b-2 border-st_todo/50">
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_todo"></span>
-              <h2 class="text-[12.5px] font-semibold">Backlog</h2>
-              <span id="count-todo" class="mono text-[11px] text-muted">0</span>
+              <h2 class="text-[13px] font-semibold">Backlog</h2>
+              <span id="count-todo" class="mono text-[13px] text-muted">0</span>
             </div>
-            <span class="mono text-[10px] text-muted uppercase tracking-wider">TODO</span>
+            <span class="mono text-[13px] text-muted uppercase tracking-wider">TODO</span>
           </div>
           <div id="col-todo" class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5"></div>
         </section>
@@ -82,10 +82,10 @@
           <div class="flex items-center justify-between px-1 pb-2 border-b-2 border-st_prog/50">
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_prog"></span>
-              <h2 class="text-[12.5px] font-semibold">In Progress</h2>
-              <span id="count-in_progress" class="mono text-[11px] text-muted">0</span>
+              <h2 class="text-[13px] font-semibold">In Progress</h2>
+              <span id="count-in_progress" class="mono text-[13px] text-muted">0</span>
             </div>
-            <span class="mono text-[10px] text-muted uppercase tracking-wider">IN_PROGRESS</span>
+            <span class="mono text-[13px] text-muted uppercase tracking-wider">IN_PROGRESS</span>
           </div>
           <div id="col-in_progress" class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5"></div>
         </section>
@@ -95,10 +95,10 @@
           <div class="flex items-center justify-between px-1 pb-2 border-b-2 border-st_self/50">
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_self"></span>
-              <h2 class="text-[12.5px] font-semibold">Self-Check</h2>
-              <span id="count-evidence" class="mono text-[11px] text-muted">0</span>
+              <h2 class="text-[13px] font-semibold">Self-Check</h2>
+              <span id="count-evidence" class="mono text-[13px] text-muted">0</span>
             </div>
-            <span class="mono text-[10px] text-muted uppercase tracking-wider">EVIDENCE</span>
+            <span class="mono text-[13px] text-muted uppercase tracking-wider">EVIDENCE</span>
           </div>
           <div id="col-evidence" class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5"></div>
         </section>
@@ -108,10 +108,10 @@
           <div class="flex items-center justify-between px-1 pb-2 border-b-2 border-st_reject/50">
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_reject"></span>
-              <h2 class="text-[12.5px] font-semibold">Judge Review</h2>
-              <span id="count-verdict" class="mono text-[11px] text-muted">0</span>
+              <h2 class="text-[13px] font-semibold">Judge Review</h2>
+              <span id="count-verdict" class="mono text-[13px] text-muted">0</span>
             </div>
-            <span class="mono text-[10px] text-muted uppercase tracking-wider">VERDICT</span>
+            <span class="mono text-[13px] text-muted uppercase tracking-wider">VERDICT</span>
           </div>
           <div id="col-verdict" class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5"></div>
         </section>
@@ -121,10 +121,10 @@
           <div class="flex items-center justify-between px-1 pb-2 border-b-2 border-st_human">
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_human heartbeat"></span>
-              <h2 class="text-[12.5px] font-semibold text-st_human">Awaiting Human</h2>
-              <span id="count-human" class="mono text-[11px] px-1.5 rounded bg-st_human/15 text-st_human">0</span>
+              <h2 class="text-[13px] font-semibold text-st_human">Awaiting Human</h2>
+              <span id="count-human" class="mono text-[13px] px-1.5 rounded bg-st_human/15 text-st_human">0</span>
             </div>
-            <span class="mono text-[10px] text-st_human/80 uppercase tracking-wider">NEEDS YOU</span>
+            <span class="mono text-[13px] text-st_human/80 uppercase tracking-wider">NEEDS YOU</span>
           </div>
           <div id="col-judge_passed" class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5 rounded-lg"></div>
         </section>
@@ -134,10 +134,10 @@
           <div class="flex items-center justify-between px-1 pb-2 border-b-2 border-st_done/50">
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_done"></span>
-              <h2 class="text-[12.5px] font-semibold">Done</h2>
-              <span id="count-done" class="mono text-[11px] text-muted">0</span>
+              <h2 class="text-[13px] font-semibold">Done</h2>
+              <span id="count-done" class="mono text-[13px] text-muted">0</span>
             </div>
-            <span class="mono text-[10px] text-muted uppercase tracking-wider">DONE</span>
+            <span class="mono text-[13px] text-muted uppercase tracking-wider">DONE</span>
           </div>
           <div id="col-done" class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5"></div>
         </section>
@@ -157,32 +157,32 @@
     <div class="flex items-start gap-3 px-5 pt-4">
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-2">
-          <span id="drawer-key" class="mono text-[12px] text-muted"></span>
-          <span id="drawer-state-badge" class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded"></span>
+          <span id="drawer-key" class="mono text-[13px] text-muted"></span>
+          <span id="drawer-state-badge" class="inline-flex items-center gap-1 mono text-[13px] px-1.5 py-0.5 rounded"></span>
         </div>
-        <h2 id="drawer-title" class="mt-1.5 text-[17px] font-semibold leading-tight tracking-tight"></h2>
-        <p class="mt-1 text-[11.5px] text-muted">in <span id="drawer-project" class="text-text"></span> &middot; updated <span id="drawer-updated" class="mono"></span></p>
+        <h2 id="drawer-title" class="mt-1.5 text-[18px] font-semibold leading-tight tracking-tight"></h2>
+        <p class="mt-1 text-[13px] text-muted">in <span id="drawer-project" class="text-text"></span> &middot; updated <span id="drawer-updated" class="mono"></span></p>
       </div>
-      <button onclick="closeDrawer()" class="grid place-items-center w-8 h-8 rounded-md text-muted hover:bg-white/5 shrink-0"><i class="ph ph-x text-[16px]"></i></button>
+      <button onclick="closeDrawer()" class="grid place-items-center w-8 h-8 rounded-md text-muted hover:bg-white/5 shrink-0"><i class="ph ph-x text-[17px]"></i></button>
     </div>
 
     <!-- primary action: state-driven -->
     <div class="flex items-center gap-2 px-5 py-3">
-      <button id="btn-approve" onclick="confirmApprove()" class="hidden flex items-center gap-2 rounded-md bg-st_human px-3.5 h-9 text-[13px] font-semibold text-white hover:brightness-110 active:translate-y-px glow-human">
-        <i class="ph-fill ph-check-circle text-[15px]"></i> Approve &rarr; Done
+      <button id="btn-approve" onclick="confirmApprove()" class="hidden flex items-center gap-2 rounded-md bg-st_human px-3.5 h-9 text-[14px] font-semibold text-white hover:brightness-110 active:translate-y-px glow-human">
+        <i class="ph-fill ph-check-circle text-[16px]"></i> Approve &rarr; Done
       </button>
-      <button id="btn-reset" onclick="doReset()" class="hidden flex items-center gap-1.5 rounded-md border border-border bg-panel2 px-3 h-9 text-[12.5px] text-muted hover:text-text hover:border-borderlt">
-        <i class="ph ph-arrow-counter-clockwise text-[14px]"></i> Reset
+      <button id="btn-reset" onclick="doReset()" class="hidden flex items-center gap-1.5 rounded-md border border-border bg-panel2 px-3 h-9 text-[13px] text-muted hover:text-text hover:border-borderlt">
+        <i class="ph ph-arrow-counter-clockwise text-[15px]"></i> Reset
       </button>
       <button id="btn-remove" onclick="doRemove()" class="hidden ml-auto grid place-items-center w-9 h-9 rounded-md border border-border bg-panel2 text-muted hover:text-st_reject hover:border-st_reject/40" title="Remove (guarded)">
-        <i class="ph ph-trash text-[14px]"></i>
+        <i class="ph ph-trash text-[15px]"></i>
       </button>
     </div>
   </div>
 
   <!-- drawer body (scroll) -->
-  <div id="drawer-body" class="flex-1 overflow-y-auto px-5 py-4 space-y-5 text-[13px]">
-    <div class="grid place-items-center py-8 text-muted text-[13px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[16px]"></i> Loading&hellip;</span></div>
+  <div id="drawer-body" class="flex-1 overflow-y-auto px-5 py-4 space-y-5 text-[14px]">
+    <div class="grid place-items-center py-8 text-muted text-[14px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[17px]"></i> Loading&hellip;</span></div>
   </div>
 </aside>
 
@@ -190,28 +190,28 @@
 <div id="confirm" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/60 p-4">
   <div class="w-full max-w-sm rounded-xl border border-st_human/30 bg-panel glow-human-soft p-5">
     <div class="flex items-center gap-2.5">
-      <span class="grid place-items-center w-9 h-9 rounded-lg bg-st_human/15 text-st_human"><i class="ph-fill ph-check-circle text-[18px]"></i></span>
-      <h3 id="confirm-title" class="text-[15px] font-semibold">Approve task?</h3>
+      <span class="grid place-items-center w-9 h-9 rounded-lg bg-st_human/15 text-st_human"><i class="ph-fill ph-check-circle text-[19px]"></i></span>
+      <h3 id="confirm-title" class="text-[16px] font-semibold">Approve task?</h3>
     </div>
-    <p class="mt-3 text-[12.5px] text-muted leading-relaxed">
+    <p class="mt-3 text-[13px] text-muted leading-relaxed">
       This marks the task <span class="text-text font-medium">DONE</span>. It does <span class="text-text font-medium">not</span> merge the MR. You open and merge each repo's branch yourself.
     </p>
     <div class="mt-3">
-      <label class="text-[11px] text-muted">Review note (optional)</label>
-      <textarea id="confirm-note" rows="2" class="mt-1 w-full rounded-md border border-border bg-panel2 px-2.5 py-2 text-[12.5px] text-text placeholder:text-muted outline-none focus:border-accent/60" placeholder="Looks good, merging after release window."></textarea>
+      <label class="text-[13px] text-muted">Review note (optional)</label>
+      <textarea id="confirm-note" rows="2" class="mt-1 w-full rounded-md border border-border bg-panel2 px-2.5 py-2 text-[13px] text-text placeholder:text-muted outline-none focus:border-accent/60" placeholder="Looks good, merging after release window."></textarea>
     </div>
     <div class="mt-4 flex items-center justify-end gap-2">
-      <button onclick="closeConfirm()" class="rounded-md border border-border bg-panel2 px-3 h-9 text-[12.5px] text-muted hover:text-text">Cancel</button>
-      <button onclick="doApprove()" class="flex items-center gap-1.5 rounded-md bg-st_human px-3.5 h-9 text-[12.5px] font-semibold text-white hover:brightness-110">
-        <i class="ph-fill ph-check text-[14px]"></i> Confirm Approve
+      <button onclick="closeConfirm()" class="rounded-md border border-border bg-panel2 px-3 h-9 text-[13px] text-muted hover:text-text">Cancel</button>
+      <button onclick="doApprove()" class="flex items-center gap-1.5 rounded-md bg-st_human px-3.5 h-9 text-[13px] font-semibold text-white hover:brightness-110">
+        <i class="ph-fill ph-check text-[15px]"></i> Confirm Approve
       </button>
     </div>
   </div>
 </div>
 
 <!-- ============ TOAST ============ -->
-<div id="toast" class="fixed bottom-4 right-4 z-[70] hidden items-center gap-2 rounded-lg border border-st_done/30 bg-panel px-3.5 py-2.5 text-[12.5px] shadow-lg">
-  <i id="toast-icon" class="ph-fill ph-check-circle text-st_done text-[16px]"></i>
+<div id="toast" class="fixed bottom-4 right-4 z-[70] hidden items-center gap-2 rounded-lg border border-st_done/30 bg-panel px-3.5 py-2.5 text-[13px] shadow-lg">
+  <i id="toast-icon" class="ph-fill ph-check-circle text-st_done text-[17px]"></i>
   <span id="toast-msg">Done.</span>
 </div>
 
@@ -287,13 +287,13 @@
       var lease = '';
       if (t.state === 'IN_PROGRESS' && t.lease_until) {
         var left = Math.max(0, Math.floor((new Date(t.lease_until) - new Date()) / 60000));
-        lease = '<div class="mt-2.5 flex items-center justify-between rounded-md bg-st_prog/8 border border-st_prog/20 px-2 py-1.5"><span class="flex items-center gap-1.5 text-[11px] text-st_prog"><span class="w-1.5 h-1.5 rounded-full bg-st_prog heartbeat"></span><i class="ph ph-robot text-[13px]"></i> agent</span><span class="mono text-[11px] text-muted">lease ' + left + 'm</span></div>';
+        lease = '<div class="mt-2.5 flex items-center justify-between rounded-md bg-st_prog/8 border border-st_prog/20 px-2 py-1.5"><span class="flex items-center gap-1.5 text-[13px] text-st_prog"><span class="w-1.5 h-1.5 rounded-full bg-st_prog heartbeat"></span><i class="ph ph-robot text-[14px]"></i> agent</span><span class="mono text-[13px] text-muted">lease ' + left + 'm</span></div>';
       }
       return '<article onclick="window.__openDrawer(\'' + esc(projectSlug) + '\',\'' + esc(t.key) + '\')" class="cursor-pointer rounded-lg border border-border border-l-2 ' + border + ' bg-panel' + extra + ' p-3' + opacity + '">' +
-        '<div class="flex items-center justify-between"><span class="mono text-[11px] text-muted">' + esc(t.key) + '</span>' +
-        '<span class="inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded ' + st.cls + '"><i class="ph' + fill + ' ' + st.icon + ' text-[9px]"></i>' + esc(st.text) + '</span></div>' +
-        '<h3 class="mt-1.5 text-[13px] font-medium leading-snug">' + esc(t.title) + '</h3>' +
-        '<div class="mt-2.5 flex items-center gap-1.5"><span class="mono text-[10px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">' + esc(projectSlug) + '</span></div>' +
+        '<div class="flex items-center justify-between"><span class="mono text-[13px] text-muted">' + esc(t.key) + '</span>' +
+        '<span class="inline-flex items-center gap-1 mono text-[13px] px-1.5 py-0.5 rounded ' + st.cls + '"><i class="ph' + fill + ' ' + st.icon + ' text-[13px]"></i>' + esc(st.text) + '</span></div>' +
+        '<h3 class="mt-1.5 text-[14px] font-medium leading-snug">' + esc(t.title) + '</h3>' +
+        '<div class="mt-2.5 flex items-center gap-1.5"><span class="mono text-[13px] px-1.5 py-0.5 rounded bg-panel2 border border-border text-muted">' + esc(projectSlug) + '</span></div>' +
         lease + '</article>';
     }
 
@@ -377,7 +377,7 @@
       var strip = document.getElementById('board-strip');
       var projName = projects.length === 1 ? (projects[0].slug || projects[0].name) : projects.length + ' projects';
       strip.innerHTML =
-        '<span class="flex items-center gap-1.5 text-st_human font-medium"><i class="ph-fill ph-hand-tap text-[14px]"></i> ' + humanCount + ' tasks awaiting you</span>' +
+        '<span class="flex items-center gap-1.5 text-st_human font-medium"><i class="ph-fill ph-hand-tap text-[15px]"></i> ' + humanCount + ' tasks awaiting you</span>' +
         '<span class="text-border">|</span>' +
         '<span class="text-muted">' + totalActive + ' active across <span class="text-text">' + esc(projName) + '</span></span>' +
         '<span class="ml-auto flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-full bg-ev_pass heartbeat"></span> live</span>';
@@ -398,12 +398,12 @@
       document.getElementById('btn-approve').classList.add('hidden');
       document.getElementById('btn-reset').classList.add('hidden');
       document.getElementById('btn-remove').classList.add('hidden');
-      document.getElementById('drawer-body').innerHTML = '<div class="grid place-items-center py-8 text-muted text-[13px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[16px]"></i> Loading…</span></div>';
+      document.getElementById('drawer-body').innerHTML = '<div class="grid place-items-center py-8 text-muted text-[14px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[17px]"></i> Loading…</span></div>';
 
       if (!api) return;
       api.getTask(project, key).then(function (res) {
         if (!res || !res.task) {
-          document.getElementById('drawer-body').innerHTML = '<p class="text-ev_fail text-[13px]">Task not found.</p>';
+          document.getElementById('drawer-body').innerHTML = '<p class="text-ev_fail text-[14px]">Task not found.</p>';
           return;
         }
         var t = res.task;
@@ -412,8 +412,8 @@
         document.getElementById('drawer-updated').textContent = relTime(t.updated_at);
         // State badge
         var st = STATE_LABEL[t.state] || { text: t.state, icon: 'ph-circle', cls: 'bg-white/5 text-muted' };
-        document.getElementById('drawer-state-badge').className = 'inline-flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded ' + st.cls;
-        document.getElementById('drawer-state-badge').innerHTML = '<i class="ph' + (st.fill ? '-fill' : '') + ' ' + st.icon + ' text-[10px]"></i>' + esc(st.text);
+        document.getElementById('drawer-state-badge').className = 'inline-flex items-center gap-1 mono text-[13px] px-1.5 py-0.5 rounded ' + st.cls;
+        document.getElementById('drawer-state-badge').innerHTML = '<i class="ph' + (st.fill ? '-fill' : '') + ' ' + st.icon + ' text-[13px]"></i>' + esc(st.text);
 
         // Show action buttons based on state
         if (t.state === 'JUDGE_PASSED') document.getElementById('btn-approve').classList.remove('hidden');
@@ -423,16 +423,16 @@
         // Render body
         var html = '';
         // Spec section
-        html += '<section><h3 class="text-[11px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-file-text text-[13px]"></i> Spec</h3>';
-        html += '<div class="text-text/90 leading-relaxed text-[12.5px] whitespace-pre-wrap">' + esc(t.body_md || '(no spec)') + '</div></section>';
+        html += '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-file-text text-[14px]"></i> Spec</h3>';
+        html += '<div class="text-text/90 leading-relaxed text-[13px] whitespace-pre-wrap">' + esc(t.body_md || '(no spec)') + '</div></section>';
 
         // Gitrefs
         if (res.gitrefs && res.gitrefs.length > 0) {
-          html += '<section><h3 class="text-[11px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-git-branch text-[13px]"></i> Repos &amp; MR</h3><div class="space-y-2">';
+          html += '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-git-branch text-[14px]"></i> Repos &amp; MR</h3><div class="space-y-2">';
           res.gitrefs.forEach(function (g) {
-            html += '<div class="rounded-lg border border-border bg-panel2 p-2.5"><span class="mono text-[12px] font-medium">' + esc(g.repo || '') + '</span>';
-            if (g.branch) html += '<div class="mt-1 mono text-[11px] text-muted">' + esc(g.branch) + '</div>';
-            if (g.head_sha) html += '<div class="mt-0.5 mono text-[10.5px] text-muted">' + esc(g.head_sha.substring(0, 7)) + '</div>';
+            html += '<div class="rounded-lg border border-border bg-panel2 p-2.5"><span class="mono text-[13px] font-medium">' + esc(g.repo || '') + '</span>';
+            if (g.branch) html += '<div class="mt-1 mono text-[13px] text-muted">' + esc(g.branch) + '</div>';
+            if (g.head_sha) html += '<div class="mt-0.5 mono text-[13px] text-muted">' + esc(g.head_sha.substring(0, 7)) + '</div>';
             html += '</div>';
           });
           html += '</div></section>';
@@ -440,27 +440,27 @@
 
         // Evidence
         if (res.evidence) {
-          html += '<section><h3 class="text-[11px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-seal-check text-[13px]"></i> Evidence</h3>';
+          html += '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-seal-check text-[14px]"></i> Evidence</h3>';
           html += '<div class="rounded-lg border border-border bg-panel2 divide-y divide-border">';
           var ev = res.evidence;
-          if (ev.build_exit !== undefined) html += '<div class="flex items-center justify-between px-3 py-2"><span class="flex items-center gap-1.5 text-[12px] text-muted"><i class="ph-fill ph-hammer text-[13px]"></i> build</span><span class="mono text-[12px] ' + (ev.build_exit === 0 ? 'text-ev_pass' : 'text-ev_fail') + '">exit ' + ev.build_exit + '</span></div>';
-          if (ev.test_exit !== undefined) html += '<div class="flex items-center justify-between px-3 py-2"><span class="flex items-center gap-1.5 text-[12px] text-muted"><i class="ph-fill ph-test-tube text-[13px]"></i> test</span><span class="mono text-[12px] ' + (ev.test_exit === 0 ? 'text-ev_pass' : 'text-ev_fail') + '">exit ' + ev.test_exit + '</span></div>';
+          if (ev.build_exit !== undefined) html += '<div class="flex items-center justify-between px-3 py-2"><span class="flex items-center gap-1.5 text-[13px] text-muted"><i class="ph-fill ph-hammer text-[14px]"></i> build</span><span class="mono text-[13px] ' + (ev.build_exit === 0 ? 'text-ev_pass' : 'text-ev_fail') + '">exit ' + ev.build_exit + '</span></div>';
+          if (ev.test_exit !== undefined) html += '<div class="flex items-center justify-between px-3 py-2"><span class="flex items-center gap-1.5 text-[13px] text-muted"><i class="ph-fill ph-test-tube text-[14px]"></i> test</span><span class="mono text-[13px] ' + (ev.test_exit === 0 ? 'text-ev_pass' : 'text-ev_fail') + '">exit ' + ev.test_exit + '</span></div>';
           html += '</div>';
-          html += '<a href="evidence.html" class="mt-2 flex items-center gap-1.5 text-[11.5px] text-accent hover:underline"><i class="ph ph-caret-right text-[12px]"></i> View full evidence</a>';
+          html += '<a href="evidence.html" class="mt-2 flex items-center gap-1.5 text-[13px] text-accent hover:underline"><i class="ph ph-caret-right text-[13px]"></i> View full evidence</a>';
           html += '</section>';
         }
 
         // Timeline
         if (res.timeline && res.timeline.length > 0) {
-          html += '<section><h3 class="text-[11px] uppercase tracking-wider text-muted mb-3 flex items-center gap-1.5"><i class="ph ph-clock-counter-clockwise text-[13px]"></i> Timeline</h3>';
+          html += '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-3 flex items-center gap-1.5"><i class="ph ph-clock-counter-clockwise text-[14px]"></i> Timeline</h3>';
           html += '<ol class="relative border-l border-border ml-1.5 space-y-4 pl-4">';
           res.timeline.forEach(function (tr) {
             var dotColor = tr.to_state === 'DONE' ? 'bg-st_done' : tr.to_state === 'JUDGE_PASSED' ? 'bg-st_human' : tr.actor_role === 'judge' ? 'bg-st_self' : 'bg-border';
             html += '<li class="relative"><span class="absolute -left-[22px] top-1 w-3 h-3 rounded-full ' + dotColor + ' ring-4 ring-panel"></span>';
-            html += '<p class="text-[12px]"><span class="mono px-1.5 py-0.5 rounded bg-white/5 text-text/70">' + esc(tr.actor_role || '') + '</span> ';
+            html += '<p class="text-[13px]"><span class="mono px-1.5 py-0.5 rounded bg-white/5 text-text/70">' + esc(tr.actor_role || '') + '</span> ';
             html += '<span class="mono text-text/70">' + esc(tr.from_state || '') + '</span> &rarr; <span class="mono text-text">' + esc(tr.to_state || '') + '</span></p>';
-            if (tr.note) html += '<p class="mt-0.5 text-[12px] text-text/80">' + esc(tr.note) + '</p>';
-            html += '<p class="mt-0.5 mono text-[10.5px] text-muted">' + relTime(tr.at) + ' ago</p>';
+            if (tr.note) html += '<p class="mt-0.5 text-[13px] text-text/80">' + esc(tr.note) + '</p>';
+            html += '<p class="mt-0.5 mono text-[13px] text-muted">' + relTime(tr.at) + ' ago</p>';
             html += '</li>';
           });
           html += '</ol></section>';
@@ -468,7 +468,7 @@
 
         document.getElementById('drawer-body').innerHTML = html;
       }).catch(function (err) {
-        document.getElementById('drawer-body').innerHTML = '<p class="text-ev_fail text-[13px]">Failed to load task: ' + esc(String(err)) + '</p>';
+        document.getElementById('drawer-body').innerHTML = '<p class="text-ev_fail text-[14px]">Failed to load task: ' + esc(String(err)) + '</p>';
       });
     };
 
