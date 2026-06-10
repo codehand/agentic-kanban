@@ -39,7 +39,7 @@
 
       <nav class="px-2 pt-3 space-y-0.5 text-[14px]">
         ${nav('board', 'index.html', 'squares-four', 'Board')}
-        ${nav('tasks', 'index.html', 'list-checks', 'Tasks')}
+        ${nav('tasks', 'tasks.html', 'list-checks', 'Tasks')}
         ${nav('projects', 'projects.html', 'folders', 'Projects')}
         ${nav('tokens', 'tokens.html', 'key', 'Tokens')}
       </nav>
