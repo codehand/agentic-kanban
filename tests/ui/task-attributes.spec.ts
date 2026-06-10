@@ -3,79 +3,112 @@
  *
  * Verifies that the 5 task attributes (priority, complexity, estimate_hours,
  * tags, link_document) are present in the create form, displayed in the
- * detail drawer, and rendered as badges on board cards.
+ * detail drawer, and rendered as badges on board cards — and that editing
+ * them in the drawer persists through PATCH /api/tasks/:key.
  *
- * Uses file:// protocol with window.__kanban_api mocks (no live server needed).
+ * The form test loads new-task.html via file:// (static markup assertions).
+ * The board/drawer tests spawn a REAL server (node dev-server.mjs, requires
+ * `pnpm build` first) on a dedicated port with a throwaway DB and seed a task
+ * with all 5 attributes via POST /api/tasks — no API mocks.
+ *
  * Screenshots are captured to docs/ui/TASK-021/.
  */
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { spawn, type ChildProcess } from 'node:child_process';
+import Database from 'better-sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
+import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DS_DIR = path.resolve(__dirname, '../../design-system');
-const OUT_DIR = path.resolve(__dirname, '../../docs/ui/TASK-021');
+const ROOT = path.resolve(__dirname, '../..');
+const DS_DIR = path.join(ROOT, 'design-system');
+const OUT_DIR = path.join(ROOT, 'docs/ui/TASK-021');
+
+const PORT = 4621;
+const BASE = `http://127.0.0.1:${PORT}`;
+const TOKEN = 'e2e-task021-token';
+const PROJECT = 'attr-proj';
+const KEY = 'TASK-ATTR-DEMO';
+
+let server: ChildProcess;
+let dbPath: string;
 
 function pageUrl(file: string): string {
   return `file://${path.join(DS_DIR, file)}`;
 }
 
-// Mock task with all attributes set — used for board + drawer views
-const MOCK_TASK = {
-  id: 'task_attr_demo',
-  key: 'TASK-ATTR-DEMO',
-  title: 'Demonstrate task attributes',
-  state: 'IN_PROGRESS',
-  project: 'opf-hub',
-  priority: 'P1',
-  complexity: 'L',
-  estimate_hours: 16,
-  tags: ['feature', 'search', 'backend'],
-  link_document: 'https://docs.example.com/search-spec',
-  body_md: '## Purpose\nDemo task to show all 5 attributes.\n',
-  created_at: '2026-06-10T10:00:00Z',
-  updated_at: '2026-06-10T12:30:00Z',
-};
+async function api(method: string, p: string, body?: unknown): Promise<Response> {
+  return fetch(`${BASE}${p}`, {
+    method,
+    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
 
-/**
- * Inject mock __kanban_api via addInitScript so the board and drawer
- * render with mock data instead of hitting a real API server.
- */
-async function injectMockApi(page: Page) {
-  await page.addInitScript((task) => {
-    // Set token so api.js won't redirect to signin
-    localStorage.setItem('kanban_token', 'mock-human-token');
-    // Override the api object once api.js sets it
-    const origDescriptor = Object.getOwnPropertyDescriptor(window, '__kanban_api');
-    let _api: any = null;
-    Object.defineProperty(window, '__kanban_api', {
-      get() { return _api; },
-      set(v: any) {
-        _api = v;
-        // Replace methods with mocks
-        if (v) {
-          v.listProjects = () => Promise.resolve({ projects: [{ id: 'proj_1', slug: 'opf-hub', name: 'opf-hub' }] });
-          v.listTasks = (_proj: string, _state?: string) => Promise.resolve({ tasks: [task] });
-          v.getTask = (_proj: string, _key: string) => Promise.resolve({
-            task,
-            gitrefs: [{ repo: '.', branch: 'fix/TASK-021', mr_url: 'https://github.com/example/repo/pull/42' }],
-            comments: [],
-            evidence: [],
-            timeline: [],
-          });
-          v.updateTask = (_proj: string, _key: string, patch: any) => Promise.resolve({ task: { ...task, ...patch } });
-        }
-      },
-      configurable: true,
-    });
-  }, MOCK_TASK);
+async function waitForServer(): Promise<void> {
+  for (let i = 0; i < 50; i++) {
+    try {
+      const res = await fetch(`${BASE}/healthz`);
+      if (res.ok) return;
+    } catch { /* not up yet */ }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error('dev server did not come up on ' + BASE);
 }
 
 test.describe('TASK-021: Task Attributes UI', () => {
-  test.beforeAll(() => {
+  test.beforeAll(async () => {
     fs.mkdirSync(OUT_DIR, { recursive: true });
+    // tsc does not copy .sql migrations into dist/ — dev-server needs them.
+    fs.cpSync(path.join(ROOT, 'server/src/db/migrations'), path.join(ROOT, 'dist/db/migrations'), { recursive: true });
+    dbPath = path.join(os.tmpdir(), `task021-e2e-${Date.now()}.db`);
+    server = spawn('node', ['dev-server.mjs'], {
+      cwd: ROOT,
+      env: { ...process.env, PORT: String(PORT), DB_PATH: dbPath, ADMIN_TOKEN: TOKEN },
+      stdio: 'inherit',
+    });
+    await waitForServer();
+
+    // Seed: a project and ONE task carrying all 5 attributes (real POSTs).
+    await api('POST', '/api/projects', { slug: PROJECT, name: 'Attribute Project' });
+    const created = await api('POST', '/api/tasks', {
+      project: PROJECT,
+      key: KEY,
+      title: 'Demonstrate task attributes',
+      body_md: '## Purpose\nDemo task to show all 5 attributes.\n',
+      priority: 'P1',
+      complexity: 'L',
+      estimate_hours: 16,
+      tags: ['feature', 'search', 'backend'],
+      link_document: 'https://docs.example.com/search-spec',
+    });
+    expect(created.status).toBe(201);
+
+    // Seed a gitref with an MR URL directly in the throwaway DB so the drawer
+    // can show the PR link sourced from gitref.mr_url (no HTTP write endpoint
+    // for gitrefs — that is an MCP tool).
+    const db = new Database(dbPath);
+    const task = db.prepare(`SELECT id FROM task WHERE key = ?`).get(KEY) as { id: string };
+    db.prepare(`
+      INSERT INTO gitref (id, task_id, repo, branch, base_sha, head_sha, mr_url, mr_state)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run('ref_e2e_021', task.id, '.', 'fix/TASK-021', 'a'.repeat(40), 'b'.repeat(40),
+      'https://github.com/example/repo/pull/42', 'open');
+    db.close();
+  });
+
+  test.afterAll(async () => {
+    if (server) server.kill('SIGTERM');
+    if (dbPath) { try { fs.unlinkSync(dbPath); } catch { /* ignore */ } }
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript((tok) => {
+      localStorage.setItem('kanban_token', tok);
+    }, TOKEN);
   });
 
   test('new-task form has all attribute fields with correct options', async ({ page }) => {
@@ -125,38 +158,28 @@ test.describe('TASK-021: Task Attributes UI', () => {
     await page.screenshot({ path: path.join(OUT_DIR, 'form-attributes.png'), fullPage: true });
   });
 
-  test('board card renders priority badge and tags from task data', async ({ page }) => {
-    await injectMockApi(page);
-    await page.goto(pageUrl('index.html'));
+  test('board card renders priority badge and tags from real task data', async ({ page }) => {
+    await page.goto(`${BASE}/${PROJECT}/index.html`);
 
-    // Wait for the mock task card to appear on the board (rendered by loadBoard)
-    await page.waitForFunction(
-      () => document.body.innerHTML.includes('TASK-ATTR-DEMO'),
-      { timeout: 15000 },
-    );
+    // The seeded task card appears on the real board.
+    const card = page.locator('article', { hasText: KEY }).first();
+    await expect(card).toBeVisible();
 
     // Priority badge is rendered on the card
-    await expect(page.locator('article span', { hasText: /^P1$/ }).first()).toBeVisible();
+    await expect(card.locator('span', { hasText: /^P1$/ }).first()).toBeVisible();
 
     // Tag badges are rendered on the card
-    await expect(page.locator('article span', { hasText: /^feature$/ }).first()).toBeVisible();
-    await expect(page.locator('article span', { hasText: /^search$/ }).first()).toBeVisible();
+    await expect(card.locator('span', { hasText: /^feature$/ }).first()).toBeVisible();
+    await expect(card.locator('span', { hasText: /^search$/ }).first()).toBeVisible();
 
     await page.screenshot({ path: path.join(OUT_DIR, 'board-card-badges.png'), fullPage: true });
   });
 
   test('detail drawer shows all attributes with correct values', async ({ page }) => {
-    await injectMockApi(page);
-    await page.goto(pageUrl('index.html'));
-
-    // Wait for board to render mock task
-    await page.waitForFunction(
-      () => document.body.innerHTML.includes('TASK-ATTR-DEMO'),
-      { timeout: 15000 },
-    );
+    await page.goto(`${BASE}/${PROJECT}/index.html`);
 
     // Click the task card to open the drawer
-    await page.locator('article', { hasText: 'TASK-ATTR-DEMO' }).first().click();
+    await page.locator('article', { hasText: KEY }).first().click();
 
     // Wait for drawer to open and show the task title
     await page.waitForFunction(
@@ -188,21 +211,17 @@ test.describe('TASK-021: Task Attributes UI', () => {
     // Link document link displayed
     await expect(drawerBody.locator('a[href="https://docs.example.com/search-spec"]').first()).toBeVisible();
 
+    // PR link sourced from gitref.mr_url (no separate PR column)
+    await expect(drawerBody.locator('a[href="https://github.com/example/repo/pull/42"]').first()).toBeVisible();
+
     await page.screenshot({ path: path.join(OUT_DIR, 'detail-attributes-view.png'), fullPage: true });
   });
 
-  test('detail drawer edit form has attribute fields with current values populated', async ({ page }) => {
-    await injectMockApi(page);
-    await page.goto(pageUrl('index.html'));
-
-    // Wait for board to render mock task
-    await page.waitForFunction(
-      () => document.body.innerHTML.includes('TASK-ATTR-DEMO'),
-      { timeout: 15000 },
-    );
+  test('detail drawer edit form is populated and saving persists via PATCH', async ({ page }) => {
+    await page.goto(`${BASE}/${PROJECT}/index.html`);
 
     // Click card to open drawer
-    await page.locator('article', { hasText: 'TASK-ATTR-DEMO' }).first().click();
+    await page.locator('article', { hasText: KEY }).first().click();
 
     // Wait for drawer to open
     await page.waitForFunction(
@@ -235,7 +254,7 @@ test.describe('TASK-021: Task Attributes UI', () => {
     await expect(page.locator('#edit-tags')).toBeVisible();
     await expect(page.locator('#edit-link_document')).toBeVisible();
 
-    // Verify current values are populated
+    // Verify current values are populated from the real task
     expect(await page.locator('#edit-priority').inputValue()).toBe('P1');
     expect(await page.locator('#edit-complexity').inputValue()).toBe('L');
     expect(await page.locator('#edit-estimate_hours').inputValue()).toBe('16');
@@ -243,5 +262,25 @@ test.describe('TASK-021: Task Attributes UI', () => {
     expect(await page.locator('#edit-link_document').inputValue()).toBe('https://docs.example.com/search-spec');
 
     await page.screenshot({ path: path.join(OUT_DIR, 'detail-drawer-priority-tags.png'), fullPage: true });
+
+    // Edit priority + estimate and save (real PATCH /api/tasks/:key)
+    await page.locator('#edit-priority').selectOption('P0');
+    await page.locator('#edit-estimate_hours').fill('24');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.locator('#edit-attrs-msg')).toHaveText('Saved!');
+
+    // The drawer reloads (~600ms) and the display section shows the new values.
+    await expect(page.locator('#drawer-body span', { hasText: /^P0$/ }).first()).toBeVisible();
+    await expect(page.locator('#drawer-body span', { hasText: /^24h$/ }).first()).toBeVisible();
+
+    // And the change is persisted server-side (real GET, not the UI's echo).
+    const res = await api('GET', `/api/tasks/${KEY}?project=${PROJECT}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { task: { priority: string; estimate_hours: number; complexity: string; tags: string[] } };
+    expect(body.task.priority).toBe('P0');
+    expect(body.task.estimate_hours).toBe(24);
+    // Untouched fields preserved
+    expect(body.task.complexity).toBe('L');
+    expect(body.task.tags).toEqual(['feature', 'search', 'backend']);
   });
 });

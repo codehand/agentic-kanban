@@ -165,7 +165,7 @@ describe('TASK-021 AC12: task attributes via real MCP client (task.create + task
         },
       })
       expect(res.isError).toBeFalsy()
-      const created = JSON.parse((res.content as any)[0].text) as Record<string, unknown>
+      const created = JSON.parse((res.content as Array<{ text: string }>)[0].text) as Record<string, unknown>
       expect(created.priority).toBe('P1')
       expect(created.complexity).toBe('L')
       expect(created.estimate_hours).toBe(16)
@@ -219,7 +219,7 @@ describe('TASK-021 AC12: task attributes via real MCP client (task.create + task
         },
       })
       expect(updateRes.isError).toBeFalsy()
-      const updated = JSON.parse((updateRes.content as any)[0].text) as Record<string, unknown>
+      const updated = JSON.parse((updateRes.content as Array<{ text: string }>)[0].text) as Record<string, unknown>
       expect(updated.priority).toBe('P0')
       expect(JSON.parse(updated.tags as string)).toEqual(['urgent', 'initial'])
 

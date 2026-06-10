@@ -50,46 +50,56 @@ Full test suite output:
 
 ---
 
-## 2. Playwright — UI attribute display tests
+## 2. Playwright — UI attribute tests against a REAL server (no API mocks)
 
 **Command**: `npx playwright test tests/ui/task-attributes.spec.ts --reporter=line`
 **Result**: 4 tests passed. Real 1440x900 screenshots saved to `docs/ui/TASK-021/`.
 
+The spec spawns the real server (`node dev-server.mjs`, port 4621, throwaway
+SQLite DB) and seeds project `attr-proj` + task `TASK-ATTR-DEMO` carrying all
+5 attributes via a real `POST /api/tasks`, plus a gitref row with `mr_url`
+(direct DB insert — gitref writes are MCP-only).
+
 ```
-4 passed (3.9s)
+4 passed (5.3s)
 ```
 
 ### Test 1: new-task form has all attribute fields
-- Loads `new-task.html` via `file://` protocol
+- Loads `new-task.html` via `file://` protocol (static markup assertions)
 - Asserts `#field-priority` visible with options P0–P3
 - Asserts `#field-complexity` visible with options XS–XL
 - Asserts `#field-estimate_hours` visible (type=number, min=0)
 - Asserts `#field-tags` visible
 - Asserts `#field-link_document` visible (type=url)
 - Fills values (P1, M, 8, "backend, api", URL) and verifies they persist
-- **Screenshot**: `docs/ui/TASK-021/form-attributes.png` (108KB, 1440x900)
+- **Screenshot**: `docs/ui/TASK-021/form-attributes.png` (1440x900)
 
-### Test 2: board card renders priority badge and tags
-- Loads `index.html` with mock API injected via `__kanban_api`
-- Mock task: priority=P1, complexity=L, estimate=16h, tags=[feature,search,backend]
+### Test 2: board card renders priority badge and tags from real task data
+- Loads the real project board at `/attr-proj/index.html`
+- Seeded task: priority=P1, complexity=L, estimate=16h, tags=[feature,search,backend]
 - Asserts P1 priority badge visible on card
 - Asserts "feature" and "search" tag badges visible
-- **Screenshot**: `docs/ui/TASK-021/board-card-badges.png` (68KB, 1440x900)
+- **Screenshot**: `docs/ui/TASK-021/board-card-badges.png` (1440x900)
 
 ### Test 3: detail drawer shows all attributes
-- Opens drawer by clicking the task card
+- Opens drawer by clicking the task card (real `GET /api/tasks/:key`)
 - Asserts P1 priority badge displayed in drawer
 - Asserts complexity "L" displayed
 - Asserts estimate "16h" displayed
 - Asserts tags "feature", "search", "backend" displayed
 - Asserts link to `https://docs.example.com/search-spec` present
-- **Screenshot**: `docs/ui/TASK-021/detail-attributes-view.png` (99KB, 1440x900)
+- Asserts PR/MR link `https://github.com/example/repo/pull/42` from `gitref.mr_url`
+- **Screenshot**: `docs/ui/TASK-021/detail-attributes-view.png` (1440x900)
 
-### Test 4: detail drawer edit form has populated values
+### Test 4: detail drawer edit form is populated and saving persists via PATCH
 - Clicks "Edit" button to toggle edit mode
 - Asserts `#edit-priority`, `#edit-complexity`, `#edit-estimate_hours`, `#edit-tags`, `#edit-link_document` visible
 - Asserts current values populated: P1, L, 16, "feature, search, backend", URL
-- **Screenshot**: `docs/ui/TASK-021/detail-drawer-priority-tags.png` (101KB, 1440x900)
+- **Screenshot**: `docs/ui/TASK-021/detail-drawer-priority-tags.png` (1440x900)
+- Then edits priority→P0 and estimate→24, clicks Save (real `PATCH /api/tasks/:key`),
+  asserts "Saved!", asserts the reloaded drawer shows P0 / 24h, and re-fetches the
+  task via `GET /api/tasks/:key` asserting priority=P0, estimate=24 persisted with
+  complexity/tags unchanged
 
 ---
 
