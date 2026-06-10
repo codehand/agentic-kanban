@@ -294,7 +294,7 @@
       var badges = '';
       var prioColors = { P0: 'bg-ev_fail/15 text-ev_fail', P1: 'bg-orange-500/15 text-orange-400', P2: 'bg-yellow-500/15 text-yellow-400', P3: 'bg-blue-500/15 text-blue-400' };
       if (t.priority && prioColors[t.priority]) {
-        badges += '<span class="mono text-[11px] px-1.5 py-0.5 rounded ' + prioColors[t.priority] + '">' + esc(t.priority) + '</span>';
+        badges += '<span role="img" aria-label="Priority ' + esc(t.priority) + '" class="mono text-[11px] px-1.5 py-0.5 rounded ' + prioColors[t.priority] + '">' + esc(t.priority) + '</span>';
       }
       var tags = Array.isArray(t.tags) ? t.tags : [];
       tags.slice(0, 3).forEach(function (tag) {
@@ -417,7 +417,7 @@
     function renderAttributesDisplay(t) {
       var tags = Array.isArray(t.tags) ? t.tags : [];
       var rows = '';
-      rows += '<div class="flex items-center gap-2 py-1"><span class="text-[13px] text-muted w-24 shrink-0">Priority</span>' + (t.priority ? '<span class="mono text-[12px] px-1.5 py-0.5 rounded ' + (PRIO_COLORS[t.priority] || 'bg-white/5 text-muted') + '">' + esc(t.priority) + '</span>' : '<span class="text-[13px] text-muted">—</span>') + '</div>';
+      rows += '<div class="flex items-center gap-2 py-1"><span class="text-[13px] text-muted w-24 shrink-0">Priority</span>' + (t.priority ? '<span role="img" aria-label="Priority ' + esc(t.priority) + '" class="mono text-[12px] px-1.5 py-0.5 rounded ' + (PRIO_COLORS[t.priority] || 'bg-white/5 text-muted') + '">' + esc(t.priority) + '</span>' : '<span class="text-[13px] text-muted">—</span>') + '</div>';
       rows += '<div class="flex items-center gap-2 py-1"><span class="text-[13px] text-muted w-24 shrink-0">Complexity</span><span class="text-[13px]">' + esc(t.complexity || '—') + '</span></div>';
       rows += '<div class="flex items-center gap-2 py-1"><span class="text-[13px] text-muted w-24 shrink-0">Estimate</span><span class="text-[13px]">' + (t.estimate_hours != null ? esc(String(t.estimate_hours)) + 'h' : '—') + '</span></div>';
       rows += '<div class="flex items-center gap-2 py-1 flex-wrap"><span class="text-[13px] text-muted w-24 shrink-0">Tags</span>';
@@ -443,10 +443,26 @@
       h += '<div><label class="text-[12px] text-muted block mb-1">Link Document (URL)</label><input id="edit-link_document" type="url" class="w-full rounded-md border border-border bg-panel px-2 h-8 text-[13px] outline-none" /></div>';
       h += '<div class="flex items-center gap-2 pt-1"><button onclick="window.__saveAttributes()" class="rounded-md bg-accent px-3 h-8 text-[13px] font-medium text-white hover:bg-accent/90">Save</button><button onclick="window.__toggleEditAttributes()" class="rounded-md border border-border px-3 h-8 text-[13px] text-muted hover:text-text">Cancel</button><span id="edit-attrs-msg" class="text-[12px] text-muted"></span></div>';
       h += '</div>';
-      // Set initial values via a script that runs after insertion
-      h += '<script>document.getElementById("edit-priority").value="' + esc(t.priority || '') + '";document.getElementById("edit-complexity").value="' + esc(t.complexity || '') + '";document.getElementById("edit-estimate_hours").value="' + (t.estimate_hours != null ? t.estimate_hours : '') + '";document.getElementById("edit-tags").value="' + esc(tags.join(', ')) + '";document.getElementById("edit-link_document").value="' + esc(t.link_document || '') + '";<\/script>';
+      // Store initial values in data attributes so they can be applied after innerHTML insertion
+      // (inline <script> tags don't execute when set via innerHTML)
+      h += '<div id="attrs-edit-data" style="display:none" data-priority="' + esc(t.priority || '') + '" data-complexity="' + esc(t.complexity || '') + '" data-estimate="' + (t.estimate_hours != null ? t.estimate_hours : '') + '" data-tags="' + esc(tags.join(', ')) + '" data-link="' + esc(t.link_document || '') + '"></div>';
       return h;
     }
+
+    window.__populateEditForm = function () {
+      var data = document.getElementById('attrs-edit-data');
+      if (!data) return;
+      var ep = document.getElementById('edit-priority');
+      var ec = document.getElementById('edit-complexity');
+      var ee = document.getElementById('edit-estimate_hours');
+      var et = document.getElementById('edit-tags');
+      var el = document.getElementById('edit-link_document');
+      if (ep) ep.value = data.dataset.priority || '';
+      if (ec) ec.value = data.dataset.complexity || '';
+      if (ee) ee.value = data.dataset.estimate || '';
+      if (et) et.value = data.dataset.tags || '';
+      if (el) el.value = data.dataset.link || '';
+    };
 
     window.__toggleEditAttributes = function () {
       var display = document.getElementById('attrs-display');
@@ -576,6 +592,8 @@
         }
 
         document.getElementById('drawer-body').innerHTML = html;
+        // Populate edit form values (inline <script> tags don't execute via innerHTML)
+        if (typeof window.__populateEditForm === 'function') window.__populateEditForm();
       }).catch(function (err) {
         document.getElementById('drawer-body').innerHTML = '<p class="text-ev_fail text-[14px]">Failed to load task: ' + esc(String(err)) + '</p>';
       });
