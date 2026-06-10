@@ -40,36 +40,36 @@ describe('AC4: UI wiring — pages invoke API methods', () => {
 
   it('index.html includes api.js', () => {
     const src = read('index.html')
-    expect(src).toContain('src="api.js"')
+    expect(src).toContain('src="/api.js"')
   })
 
   it('signin.html includes api.js and implements token gate', () => {
     const src = read('signin.html')
-    expect(src).toContain('src="api.js"')
+    expect(src).toContain('src="/api.js"')
     expect(src).toContain('__kanban_setToken')
     expect(src).toContain('kanban_token')
   })
 
   it('projects.html includes api.js and calls listProjects', () => {
     const src = read('projects.html')
-    expect(src).toContain('src="api.js"')
+    expect(src).toContain('src="/api.js"')
     expect(src).toContain('listProjects')
   })
 
   it('tokens.html includes api.js and calls listTokens', () => {
     const src = read('tokens.html')
-    expect(src).toContain('src="api.js"')
+    expect(src).toContain('src="/api.js"')
     expect(src).toContain('listTokens')
   })
 
   it('evidence.html includes api.js and calls getEvidence', () => {
     const src = read('evidence.html')
-    expect(src).toContain('src="api.js"')
+    expect(src).toContain('src="/api.js"')
     expect(src).toContain('getEvidence')
   })
 
   it('new-task.html includes api.js', () => {
     const src = read('new-task.html')
-    expect(src).toContain('src="api.js"')
+    expect(src).toContain('src="/api.js"')
   })
 })

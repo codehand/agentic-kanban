@@ -3,6 +3,11 @@
  *
  * Mounts the design-system/ directory at /. Maps common extensions to
  * Content-Type. Falls through to next router for non-matching paths.
+ *
+ * Path-based project routing: '/<project-id>/<file>' serves
+ * 'design-system/<file>' when the first segment is not a real file
+ * (the segment is the project id; pages read it from the URL path).
+ * '/<project-id>' and '/<project-id>/' map to index.html.
  */
 import { readFileSync, statSync, existsSync } from 'node:fs'
 import { join, extname } from 'node:path'
@@ -18,6 +23,25 @@ const MIME: Record<string, string> = {
   '.ico':  'image/x-icon',
 }
 
+function serveFile(abs: string, res: ServerResponse): boolean {
+  if (!existsSync(abs)) return false
+  try {
+    const stat = statSync(abs)
+    if (!stat.isFile()) return false
+    const ext = extname(abs)
+    const contentType = MIME[ext] ?? 'application/octet-stream'
+    const data = readFileSync(abs)
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Content-Length': data.length,
+    })
+    res.end(data)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /**
  * Mount static file serving for design-system/ onto the existing router.
  * Requests that don't resolve to a file fall through to the original handle.
@@ -29,38 +53,30 @@ export function mountStatic(
   return (req: IncomingMessage, res: ServerResponse) => {
     const url = (req.url ?? '/').split('?')[0]
 
-    // Skip API and MCP routes — let them be handled by other mounts.
-    if (url.startsWith('/api/') || url.startsWith('/mcp')) {
+    // Skip API, MCP and health routes — let them be handled by other mounts.
+    if (url.startsWith('/api/') || url.startsWith('/mcp') || url === '/healthz' || url.startsWith('/healthz/')) {
       handle(req, res)
       return
     }
 
     // Map "/" -> "/index.html"
-    let relPath = url === '/' ? '/index.html' : url
+    const relPath = url === '/' ? '/index.html' : url
     // Prevent path traversal
     if (relPath.includes('..')) {
       handle(req, res)
       return
     }
-    const abs = join(staticDir, relPath)
 
-    if (existsSync(abs)) {
-      try {
-        const stat = statSync(abs)
-        if (stat.isFile()) {
-          const ext = extname(abs)
-          const contentType = MIME[ext] ?? 'application/octet-stream'
-          const data = readFileSync(abs)
-          res.writeHead(200, {
-            'Content-Type': contentType,
-            'Content-Length': data.length,
-          })
-          res.end(data)
-          return
-        }
-      } catch {
-        // Fall through to next handler
-      }
+    // 1. Direct file match (e.g. /index.html, /theme.css).
+    if (serveFile(join(staticDir, relPath), res)) return
+
+    // 2. Project-prefixed path: strip the first segment when it is not a
+    //    real file and has no extension (project ids never contain dots).
+    //    '/<project>/index.html' -> 'index.html', '/<project>/' -> 'index.html'.
+    const segments = relPath.split('/').filter(Boolean)
+    if (segments.length >= 1 && !extname(segments[0]!)) {
+      const rest = segments.slice(1).join('/') || 'index.html'
+      if (serveFile(join(staticDir, rest), res)) return
     }
 
     handle(req, res)

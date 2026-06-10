@@ -5,8 +5,19 @@
 (function () {
   const body = document.body;
   const active = body.dataset.active || '';
-  const project = body.dataset.project || 'opf-hub';
   const awaiting = body.dataset.awaiting ?? '2';
+
+  /* projectFromPath() — current project read from the URL path.
+   * '/<project-id>/index.html' -> '<project-id>'. Page files at the root
+   * ('/index.html', '/tasks.html', …) have no project prefix -> ''. */
+  function projectFromPath() {
+    const seg = location.pathname.split('/').filter(Boolean)[0] || '';
+    if (!seg || seg.indexOf('.') !== -1) return '';
+    return decodeURIComponent(seg);
+  }
+  window.projectFromPath = projectFromPath;
+
+  const project = projectFromPath() || body.dataset.project || '—';
 
   const nav = (key, href, icon, label) => {
     const on = key === active;
@@ -27,14 +38,19 @@
         </div>
       </div>
 
-      <div class="px-3 pt-3">
-        <button class="w-full flex items-center justify-between gap-2 rounded-md border border-border bg-panel2 px-2.5 py-2 text-left hover:border-borderlt">
+      <div class="px-3 pt-3 relative">
+        <button id="project-switcher" aria-haspopup="menu" aria-expanded="false" aria-label="Switch project"
+          class="w-full flex items-center justify-between gap-2 rounded-md border border-border bg-panel2 px-2.5 py-2 text-left hover:border-borderlt">
           <span class="flex items-center gap-2 min-w-0">
             <span class="w-2 h-2 rounded-sm bg-accent shrink-0"></span>
-            <span class="text-[13px] font-medium truncate">${project}</span>
+            <span id="project-switcher-label" class="text-[13px] font-medium truncate">${project}</span>
           </span>
           <i class="ph ph-caret-up-down text-muted text-[15px]"></i>
         </button>
+        <div id="project-menu" role="menu" aria-label="Projects"
+          class="hidden absolute left-3 right-3 top-full mt-1 z-50 rounded-md border border-border bg-panel2 shadow-lg py-1 max-h-64 overflow-y-auto">
+          <span class="block px-2.5 py-2 text-[13px] text-muted">Loading projects&hellip;</span>
+        </div>
       </div>
 
       <nav class="px-2 pt-3 space-y-0.5 text-[14px]">
@@ -66,5 +82,58 @@
           </div>
         </div>
       </div>`;
+
+    /* Project switcher: real dropdown backed by GET /api/projects. */
+    const btn = document.getElementById('project-switcher');
+    const menu = document.getElementById('project-menu');
+    const current = projectFromPath();
+
+    function closeMenu() {
+      menu.classList.add('hidden');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+    function openMenu() {
+      menu.classList.remove('hidden');
+      btn.setAttribute('aria-expanded', 'true');
+      const first = menu.querySelector('a');
+      if (first) first.focus();
+    }
+    btn.addEventListener('click', () => {
+      menu.classList.contains('hidden') ? openMenu() : closeMenu();
+    });
+    document.addEventListener('click', (e) => {
+      if (!btn.contains(e.target) && !menu.contains(e.target)) closeMenu();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeMenu();
+    });
+
+    function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    function renderMenu(projects) {
+      if (!projects.length) {
+        menu.innerHTML = '<a href="/first-run.html" role="menuitem" class="flex items-center gap-2 px-2.5 py-2 text-[13px] text-accent hover:bg-white/5"><i class="ph ph-plus text-[14px]"></i> Create first project</a>';
+        return;
+      }
+      menu.innerHTML = projects.map((p) => {
+        const slug = p.slug || p.id;
+        const on = slug === current;
+        return `<a href="/${encodeURIComponent(slug)}/index.html" role="menuitem" ${on ? 'aria-current="true"' : ''}
+          class="flex items-center justify-between gap-2 px-2.5 py-2 text-[13px] ${on ? 'text-text font-medium bg-accent/12' : 'text-muted hover:bg-white/5 hover:text-text'}">
+          <span class="flex items-center gap-2 min-w-0"><span class="w-2 h-2 rounded-sm ${on ? 'bg-accent' : 'bg-border'} shrink-0"></span><span class="truncate">${escHtml(slug)}</span></span>
+          ${on ? '<i class="ph-fill ph-check text-accent text-[14px]"></i>' : ''}
+        </a>`;
+      }).join('');
+    }
+
+    if (window.__kanban_api && window.__kanban_api.listProjects) {
+      window.__kanban_api.listProjects().then((res) => {
+        const projects = (res && res.projects) || [];
+        renderMenu(projects);
+        // No project prefix in the URL yet: show the first real project name.
+        const label = document.getElementById('project-switcher-label');
+        if (!current && projects.length && label) label.textContent = projects[0].slug || projects[0].id;
+      }).catch(() => {});
+    }
   }
 })();
