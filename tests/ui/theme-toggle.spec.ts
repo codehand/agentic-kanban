@@ -10,13 +10,16 @@
  *   npx playwright test tests/ui/theme-toggle.spec.ts
  */
 import { test, expect } from '@playwright/test';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const PAGE_URL = 'about:blank';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /** Serve the design-system directory via a local static file. */
-function designSystemUrl(page: import('@playwright/test').Page, file: string): string {
+function designSystemUrl(_page: import('@playwright/test').Page, file: string): string {
   // Use file:// protocol — Playwright supports it natively.
-  const path = require('path');
   const abs = path.resolve(__dirname, '../../design-system', file);
   return 'file://' + abs;
 }
@@ -107,5 +110,39 @@ test.describe('Theme toggle CTA', () => {
     } else {
       expect(clsAfter).toContain('ph-moon');
     }
+  });
+
+  test('first run follows OS: light OS → no dark class', async ({ browser }) => {
+    // Emulate light color scheme at context level so it applies before any script runs.
+    const context = await browser.newContext({ colorScheme: 'light' });
+    const page = await context.newPage();
+    // Ensure no stored preference.
+    await page.addInitScript(() => {
+      try { localStorage.removeItem('ak-theme'); } catch (_) { /* noop */ }
+    });
+
+    await page.goto(designSystemUrl(page, 'index.html'));
+    await page.waitForFunction(() => document.documentElement != null);
+
+    const hasDark = await page.evaluate(() => document.documentElement.classList.contains('dark'));
+    expect(hasDark).toBe(false);
+
+    await context.close();
+  });
+
+  test('first run follows OS: dark OS → dark class', async ({ browser }) => {
+    const context = await browser.newContext({ colorScheme: 'dark' });
+    const page = await context.newPage();
+    await page.addInitScript(() => {
+      try { localStorage.removeItem('ak-theme'); } catch (_) { /* noop */ }
+    });
+
+    await page.goto(designSystemUrl(page, 'index.html'));
+    await page.waitForFunction(() => document.documentElement != null);
+
+    const hasDark = await page.evaluate(() => document.documentElement.classList.contains('dark'));
+    expect(hasDark).toBe(true);
+
+    await context.close();
   });
 });

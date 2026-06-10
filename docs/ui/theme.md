@@ -109,7 +109,7 @@ rendering:
 (function () {
   var stored = localStorage.getItem('ak-theme');
   var prefersDark = matchMedia('(prefers-color-scheme: dark)').matches;
-  var theme = stored || (prefersDark ? 'dark' : 'dark'); // default dark
+  var theme = stored || (prefersDark ? 'dark' : 'light'); // default dark
   if (theme === 'dark') document.documentElement.classList.add('dark');
   else document.documentElement.classList.remove('dark');
 })();
@@ -118,8 +118,8 @@ rendering:
 Resolution order:
 
 1. **`localStorage`** — explicit user choice (highest priority).
-2. **`prefers-color-scheme`** — OS preference.
-3. **`'dark'`** — hard default.
+2. **`prefers-color-scheme`** — OS preference (dark → `'dark'`, otherwise → `'light'`).
+3. **`'light'`** — fallback when OS preference is not dark.
 
 Because this runs in a blocking `<script>` inside `<head>`, it executes
 before the browser paints, eliminating the "flash of wrong theme" (FOUT).
