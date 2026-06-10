@@ -19,13 +19,13 @@ test.describe('Mint token flow', () => {
   test.skip(!HUMAN_TOKEN, 'KANBAN_HUMAN_TOKEN not set — skipping live UI test')
 
   test.beforeEach(async ({ context }) => {
-    // Seed the sign-in token so the page loads as authenticated human.
-    await context.addCookies([
-      { name: 'kanban_token', value: HUMAN_TOKEN, url: BASE },
-    ])
+    // Seed the sign-in token in localStorage so api.js can authenticate.
+    await context.addInitScript((tok) => {
+      localStorage.setItem('kanban_token', tok);
+    }, HUMAN_TOKEN);
   })
 
-  test('mint CTA → form → banner with secret + guidance + copy', async ({ page }) => {
+  test('mint CTA → form → banner with secret + guidance + copy', async ({ page, context }) => {
     await page.goto(`${BASE}/tokens.html`)
 
     // The banner must be hidden before any mint.
