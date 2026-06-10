@@ -17,6 +17,7 @@ import { EventEmitter } from 'node:events'
 
 export interface TransitionEvent {
   task_id: string
+  project: string
   from_state: string
   to_state: string
   actor_role: string
@@ -26,6 +27,7 @@ export interface TransitionEvent {
 export interface CreatedEvent {
   task_id: string
   project_id: string
+  project: string
   key: string
   title: string
   at: string

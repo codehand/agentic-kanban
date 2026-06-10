@@ -282,6 +282,7 @@ async function handleCreateTask(db: Db, query: Record<string, string>, auth: Res
   broadcastCreated({
     task_id: task.id,
     project_id: proj.id,
+    project: proj.slug,
     key: task.key,
     title: task.title,
     at: task.created_at,
@@ -332,6 +333,7 @@ async function handleApprove(db: Db, key: string, query: Record<string, string>,
   // Broadcast SSE event
   broadcastTransition({
     task_id: task.id,
+    project: proj.slug,
     from_state: 'JUDGE_PASSED',
     to_state: 'DONE',
     actor_role: 'human',

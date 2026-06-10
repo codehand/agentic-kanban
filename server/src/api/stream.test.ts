@@ -39,6 +39,7 @@ describe('broadcastCreated', () => {
     const evt: CreatedEvent = {
       task_id: 'task_t1',
       project_id: 'proj_p1',
+      project: 'test-project',
       key: 'T-1',
       title: 'New Task',
       at: '2026-06-10T00:00:00Z',
@@ -57,6 +58,7 @@ describe('broadcastCreated', () => {
     broadcastCreated({
       task_id: 'task_x',
       project_id: 'proj_x',
+      project: 'test-project',
       key: 'X-1',
       title: 'Hello',
       at: '2026-06-10T00:00:00Z',
@@ -69,6 +71,25 @@ describe('broadcastCreated', () => {
     expect(createdFrame).toContain('"task_id":"task_x"')
     expect(createdFrame).toContain('"key":"X-1"')
   })
+
+  it('includes project slug in SSE frame for UI project-scoping (AC11)', () => {
+    const res = makeFakeRes()
+    const fakeReq: any = { on: vi.fn() }
+    handleSseStream(fakeReq, res)
+
+    broadcastCreated({
+      task_id: 'task_z',
+      project_id: 'proj_z',
+      project: 'opf-hub',
+      key: 'Z-1',
+      title: 'Scoped',
+      at: '2026-06-10T00:00:00Z',
+    })
+
+    const writes = (res.write as any).mock.calls.map((c: any[]) => c[0] as string)
+    const createdFrame = writes.find((w: string) => w.startsWith('event: created'))
+    expect(createdFrame).toContain('"project":"opf-hub"')
+  })
 })
 
 describe('broadcastTransition', () => {
@@ -77,6 +98,7 @@ describe('broadcastTransition', () => {
     sseBus.on('transition', listener)
     const evt: TransitionEvent = {
       task_id: 'task_t2',
+      project: 'test-project',
       from_state: 'TODO',
       to_state: 'IN_PROGRESS',
       actor_role: 'implementer',
@@ -94,6 +116,7 @@ describe('broadcastTransition', () => {
 
     broadcastTransition({
       task_id: 'task_y',
+      project: 'test-project',
       from_state: 'TODO',
       to_state: 'DONE',
       actor_role: 'human',
@@ -105,5 +128,24 @@ describe('broadcastTransition', () => {
     expect(transitionFrame).toBeDefined()
     expect(transitionFrame).toContain('"task_id":"task_y"')
     expect(transitionFrame).toContain('"to_state":"DONE"')
+  })
+
+  it('includes project slug in transition SSE frame for UI project-scoping (AC11)', () => {
+    const res = makeFakeRes()
+    const fakeReq: any = { on: vi.fn() }
+    handleSseStream(fakeReq, res)
+
+    broadcastTransition({
+      task_id: 'task_w',
+      project: 'other-proj',
+      from_state: 'TODO',
+      to_state: 'IN_PROGRESS',
+      actor_role: 'implementer',
+      at: '2026-06-10T00:00:00Z',
+    })
+
+    const writes = (res.write as any).mock.calls.map((c: any[]) => c[0] as string)
+    const transitionFrame = writes.find((w: string) => w.startsWith('event: transition'))
+    expect(transitionFrame).toContain('"project":"other-proj"')
   })
 })

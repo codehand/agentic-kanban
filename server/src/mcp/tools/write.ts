@@ -124,6 +124,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
     broadcastCreated({
       task_id: task.id,
       project_id: proj.id,
+      project: proj.slug,
       key: task.key,
       title: task.title,
       at: task.created_at,
@@ -196,7 +197,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       note: z.string().optional(),
     },
   }, async ({ project, key, from, to, note }) => {
-    const { task } = resolveTask(ctx, project, key)
+    const { proj, task } = resolveTask(ctx, project, key)
     const currentState = task.state as TaskState
     if (currentState !== from) {
       throw new Error(
@@ -250,6 +251,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
     // Broadcast SSE 'transition' event so live UI updates.
     broadcastTransition({
       task_id: task.id,
+      project: proj.slug,
       from_state: from,
       to_state: to,
       actor_role: ctx.auth.role as string,
@@ -363,7 +365,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
     },
   }, async ({ project, key }) => {
     assertAuthorized(ctx.auth.role as Role, 'task.transition.self_check')
-    const { task } = resolveTask(ctx, project, key)
+    const { proj, task } = resolveTask(ctx, project, key)
     const taskRepo = {
       getCurrentState: (_id: string): TaskState => task.state as TaskState,
       setCurrentState: (id: string, state: TaskState) => {
@@ -379,6 +381,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
         baseTransitionRepo.append(record)
         broadcastTransition({
           task_id: record.task_id,
+          project: proj.slug,
           from_state: record.from_state,
           to_state: record.to_state,
           actor_role: record.actor_role,
@@ -410,7 +413,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
     },
   }, async ({ project, key }) => {
     assertAuthorized(ctx.auth.role as Role, 'task.transition.approve')
-    const { task } = resolveTask(ctx, project, key)
+    const { proj, task } = resolveTask(ctx, project, key)
     const repo = makeTransitionRepo(ctx)
     const result = propose(
       {
@@ -427,6 +430,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
     // Broadcast SSE 'transition' event so live UI updates.
     broadcastTransition({
       task_id: task.id,
+      project: proj.slug,
       from_state: 'JUDGE_PASSED',
       to_state: 'DONE',
       actor_role: ctx.auth.role as string,
