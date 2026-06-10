@@ -22,7 +22,7 @@ import { parseBearerHeader } from '../auth/parse.js'
 import { resolveBearer, type ResolvedToken } from '../auth/resolve.js'
 import { authorize, type Role } from '../auth/authorize.js'
 import { listProjects, getProjectBySlug, getProjectById } from '../db/repositories/project.js'
-import { listTasksByProject, getTaskByKey, getTaskById } from '../db/repositories/task.js'
+import { listTasksByProject, getTaskByKey, getTaskById, insertTask } from '../db/repositories/task.js'
 import { listCommentsByTask } from '../db/repositories/comment.js'
 import { getLatestEvidenceByTask, listEvidenceByTask } from '../db/repositories/evidence.js'
 import { listGitRefsByTask } from '../db/repositories/gitref.js'
@@ -244,6 +244,43 @@ async function handleMintToken(db: Db, _query: Record<string, string>, auth: Res
   })
 }
 
+async function handleCreateTask(db: Db, query: Record<string, string>, auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (!authorize(auth.role as Role, 'task.create')) {
+    sendJson(res, 403, { error: 'Forbidden' }); return
+  }
+  const body = await readJsonBody(req)
+  const projectRef = (typeof body?.['project'] === 'string' ? body['project'] : '') || query['project']
+  if (!projectRef) {
+    sendJson(res, 400, { error: 'project is required' }); return
+  }
+  const proj = resolveProject(db, projectRef)
+  if (!proj) {
+    sendJson(res, 404, { error: `Project not found: ${projectRef}` }); return
+  }
+  const key = typeof body?.['key'] === 'string' ? body['key'] : ''
+  const title = typeof body?.['title'] === 'string' ? body['title'] : ''
+  if (!key || !title) {
+    sendJson(res, 400, { error: 'key and title are required' }); return
+  }
+  const bodyMd = typeof body?.['body_md'] === 'string' ? body['body_md'] : ''
+  const allowNoCodeChange = body?.['allow_no_code_change'] === true
+  const existing = getTaskByKey(db, proj.id, key)
+  if (existing) {
+    sendJson(res, 409, { error: `Task ${key} already exists in project ${projectRef}` }); return
+  }
+  const id = `task_${key}_${Date.now().toString(36)}`
+  const task = insertTask(db, {
+    id,
+    project_id: proj.id,
+    key,
+    title,
+    body_md: bodyMd,
+    state: 'TODO',
+    allow_no_code_change: allowNoCodeChange,
+  })
+  sendJson(res, 201, { task: taskToResult(task) })
+}
+
 async function handleApprove(db: Db, key: string, query: Record<string, string>, auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (auth.role !== 'human') {
     sendJson(res, 403, { error: 'Only human role can approve tasks' }); return
@@ -423,6 +460,9 @@ export function mountApiRoutes(
 
       // POST write endpoints (human only)
       if (method === 'POST') {
+        if (path === '/api/tasks') {
+          await handleCreateTask(db, query, auth, req, res); return
+        }
         if (path === '/api/tokens') {
           await handleMintToken(db, query, auth, req, res); return
         }
