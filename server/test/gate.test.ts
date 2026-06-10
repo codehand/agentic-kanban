@@ -3,9 +3,9 @@
  * Covers every reject branch + happy path per AC3–AC7.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { ALLOWED, isAllowed, allowedRole } from '../src/domain/statemachine.js'
-import type { TaskState, ActorRole } from '../src/domain/statemachine.js'
+import type { TaskState } from '../src/domain/statemachine.js'
 import { guardImplemented, guardVerdict, guardChecksum } from '../src/domain/guards.js'
 import { propose } from '../src/domain/gate.js'
 import type { TransitionRepository, TransitionRecord } from '../src/domain/gate.js'
@@ -65,6 +65,9 @@ describe('statemachine ALLOWED table', () => {
     expect(isAllowed('SELF_CHECK_PASSED', 'JUDGE_REJECTED', 'judge')).toBe(true)
     expect(isAllowed('JUDGE_REJECTED', 'IN_PROGRESS', 'implementer')).toBe(true)
     expect(isAllowed('JUDGE_PASSED', 'DONE', 'human')).toBe(true)
+    // Human reset (TASK-025): design §3 grants human reset of failed/rejected tasks.
+    expect(isAllowed('SELF_CHECK_FAILED', 'IN_PROGRESS', 'human')).toBe(true)
+    expect(isAllowed('JUDGE_REJECTED', 'IN_PROGRESS', 'human')).toBe(true)
   })
 
   it('isAllowed returns false for invalid role on valid transition', () => {

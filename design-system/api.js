@@ -164,6 +164,16 @@
       }
     });
 
+    es.addEventListener('removed', function (evt) {
+      try {
+        var data = JSON.parse(evt.data);
+        console.log('[sse] removed', data);
+        window.dispatchEvent(new CustomEvent('kanban:removed', { detail: data }));
+      } catch (e) {
+        console.error('[sse] parse error', e);
+      }
+    });
+
     es.onerror = function () {
       var dot = document.querySelector('.heartbeat');
       if (dot) dot.style.opacity = '0.4';

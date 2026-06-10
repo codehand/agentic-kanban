@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { createServer, type Server } from 'node:http'
+import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http'
 import { openMemoryDb, type Db } from '../src/db/connection.js'
 import { runMigrations } from '../src/db/migrate.js'
 import { mintToken } from '../src/auth/mint.js'
@@ -71,7 +71,7 @@ beforeAll(async () => {
   ).run(PROJECT_ID)
 
   // Mount MCP router on a bare http server (same as production)
-  const baseRouter = (_req: any, res: any) => { res.writeHead(404); res.end() }
+  const baseRouter = (_req: IncomingMessage, res: ServerResponse) => { res.writeHead(404); res.end() }
   const router = mountMcpRoute(baseRouter, db)
   server = createServer(router)
   await new Promise<void>((resolve) => server.listen(0, () => resolve()))
@@ -105,7 +105,7 @@ describe('engine thin-client → server integration', () => {
         },
       })
       expect(res.isError).toBeFalsy()
-      const created = JSON.parse((res.content as any)[0].text) as Record<string, unknown>
+      const created = JSON.parse((res.content as Array<{ text: string }>)[0].text) as Record<string, unknown>
       expect(created).toHaveProperty('id')
       expect(created).toHaveProperty('state', 'TODO')
       expect(created.key).toBe(TASK_KEY)
@@ -137,13 +137,13 @@ describe('engine thin-client → server integration', () => {
         },
       })
       expect(trRes.isError).toBeFalsy()
-      const tr = JSON.parse((trRes.content as any)[0].text) as { to_state: string }
+      const tr = JSON.parse((trRes.content as Array<{ text: string }>)[0].text) as { to_state: string }
       expect(tr.to_state).toBe('IN_PROGRESS')
 
       // Verify server state
-      const task: any = db.prepare(
+      const task = db.prepare(
         `SELECT state FROM task WHERE project_id = ? AND key = ?`
-      ).get(PROJECT_ID, TASK_KEY)
+      ).get(PROJECT_ID, TASK_KEY) as { state: string }
       expect(task.state).toBe('IN_PROGRESS')
     } finally {
       await closeClient({ client, transport })
@@ -167,7 +167,7 @@ describe('engine thin-client → server integration', () => {
         },
       })
       expect(refRes.isError).toBeFalsy()
-      const ref = JSON.parse((refRes.content as any)[0].text) as Record<string, unknown>
+      const ref = JSON.parse((refRes.content as Array<{ text: string }>)[0].text) as Record<string, unknown>
       expect(ref).toHaveProperty('head_sha', 'b'.repeat(40))
       expect(ref).toHaveProperty('branch', 'fix/TASK-ENG-001-test')
 
@@ -183,7 +183,7 @@ describe('engine thin-client → server integration', () => {
         },
       })
       expect(implRes.isError).toBeFalsy()
-      const tr = JSON.parse((implRes.content as any)[0].text) as { to_state: string }
+      const tr = JSON.parse((implRes.content as Array<{ text: string }>)[0].text) as { to_state: string }
       expect(tr.to_state).toBe('IMPLEMENTED')
     } finally {
       await closeClient({ client, transport })
@@ -213,14 +213,14 @@ describe('engine thin-client → server integration', () => {
         },
       })
       expect(res.isError).toBeFalsy()
-      const ev = JSON.parse((res.content as any)[0].text) as Record<string, unknown>
+      const ev = JSON.parse((res.content as Array<{ text: string }>)[0].text) as Record<string, unknown>
       expect(ev).toHaveProperty('id')
       expect(ev).toHaveProperty('manifest_checksum')
 
       // Verify evidence was persisted
-      const evRow: any = db.prepare(
+      const evRow = db.prepare(
         `SELECT manifest_json FROM evidence WHERE task_id = (SELECT id FROM task WHERE project_id = ? AND key = ?) ORDER BY id DESC LIMIT 1`
-      ).get(PROJECT_ID, TASK_KEY)
+      ).get(PROJECT_ID, TASK_KEY) as { manifest_json: string }
       expect(evRow.manifest_json).toContain('build_exit')
     } finally {
       await closeClient({ client, transport })
@@ -264,13 +264,13 @@ describe('engine thin-client → server integration', () => {
         },
       })
       expect(res.isError).toBeFalsy()
-      const result = JSON.parse((res.content as any)[0].text) as { success: boolean }
+      const result = JSON.parse((res.content as Array<{ text: string }>)[0].text) as { success: boolean }
       expect(result.success).toBe(true)
 
       // Verify server state
-      const task: any = db.prepare(
+      const task = db.prepare(
         `SELECT state FROM task WHERE project_id = ? AND key = ?`
-      ).get(PROJECT_ID, TASK_KEY)
+      ).get(PROJECT_ID, TASK_KEY) as { state: string }
       expect(task.state).toBe('SELF_CHECK_PASSED')
     } finally {
       await closeClient({ client, transport })
@@ -321,9 +321,9 @@ describe('engine thin-client → server integration', () => {
       expect(res.isError).toBeFalsy()
 
       // Verify server state is DONE
-      const task: any = db.prepare(
+      const task = db.prepare(
         `SELECT state FROM task WHERE project_id = ? AND key = ?`
-      ).get(PROJECT_ID, TASK_KEY)
+      ).get(PROJECT_ID, TASK_KEY) as { state: string }
       expect(task.state).toBe('DONE')
     } finally {
       await closeClient({ client, transport })
@@ -333,16 +333,16 @@ describe('engine thin-client → server integration', () => {
   // ----- Full lifecycle: verify end-to-end thin-client flow -----
   it('full lifecycle: create → transition → evidence → selfcheck → judge → approve', async () => {
     // Verify the task reached DONE state through the entire thin-client flow
-    const task: any = db.prepare(
+    const task = db.prepare(
       `SELECT state, key FROM task WHERE project_id = ? AND key = ?`
-    ).get(PROJECT_ID, TASK_KEY)
+    ).get(PROJECT_ID, TASK_KEY) as { state: string; key: string }
     expect(task.state).toBe('DONE')
     expect(task.key).toBe(TASK_KEY)
 
     // Verify transitions were recorded (append-only)
-    const transitions: any[] = db.prepare(
+    const transitions = db.prepare(
       `SELECT from_state, to_state, actor_role FROM transition WHERE task_id = (SELECT id FROM task WHERE project_id = ? AND key = ?) ORDER BY at ASC`
-    ).all(PROJECT_ID, TASK_KEY)
+    ).all(PROJECT_ID, TASK_KEY) as Array<{ from_state: string; to_state: string; actor_role: string }>
     expect(transitions.length).toBeGreaterThanOrEqual(4)
     const stateSequence = transitions.map(t => t.to_state)
     expect(stateSequence).toContain('IN_PROGRESS')
@@ -351,9 +351,9 @@ describe('engine thin-client → server integration', () => {
     expect(stateSequence).toContain('DONE')
 
     // Verify gitref was mapped (single-repo flow)
-    const gitrefs: any[] = db.prepare(
+    const gitrefs = db.prepare(
       `SELECT repo, branch, head_sha FROM gitref WHERE task_id = (SELECT id FROM task WHERE project_id = ? AND key = ?)`
-    ).all(PROJECT_ID, TASK_KEY)
+    ).all(PROJECT_ID, TASK_KEY) as Array<{ repo: string; branch: string; head_sha: string }>
     expect(gitrefs.length).toBeGreaterThanOrEqual(1)
     expect(gitrefs[0].branch).toBe('fix/TASK-ENG-001-test')
     expect(gitrefs[0].head_sha).toBe('b'.repeat(40))

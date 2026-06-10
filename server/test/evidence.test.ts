@@ -7,11 +7,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { submit, selfcheck } from '../src/domain/evidence.js';
 import { verifyManifestChecksum, computeSha256 } from '../src/domain/checksum.js';
-import { openMemoryDb } from '../src/db/connection.js';
+import { openMemoryDb, type Db } from '../src/db/connection.js';
 import { runMigrations } from '../src/db/migrate.js';
-import { type Evidence, listEvidenceByTask } from '../src/db/repositories/evidence.js';
+import { listEvidenceByTask } from '../src/db/repositories/evidence.js';
 import type { TaskState } from '../domain/statemachine.js';
-import { type ProposeInput, type TransitionRepository } from '../domain/gate.js';
 
 // Mock repositories
 interface MockTaskRepo {
@@ -20,14 +19,22 @@ interface MockTaskRepo {
   setCurrentState(task_id: string, state: TaskState): void;
 }
 
+interface MockTransitionRecord {
+  task_id: string;
+  from_state: string;
+  to_state: string;
+  actor_role: string;
+  [k: string]: unknown;
+}
+
 interface MockTransitionRepo {
-  transitions: Array<any>;
-  append(record: any): void;
+  transitions: Array<MockTransitionRecord>;
+  append(record: MockTransitionRecord): void;
   setTaskState(task_id: string, state: TaskState): void;
 }
 
 describe('Evidence Subsystem', () => {
-  let db: any;
+  let db: Db;
   let mockTaskRepo: MockTaskRepo;
   let mockTransitionRepo: MockTransitionRepo;
 
@@ -54,7 +61,7 @@ describe('Evidence Subsystem', () => {
     // Initialize mock transition repository
     mockTransitionRepo = {
       transitions: [],
-      append(record: any) {
+      append(record: MockTransitionRecord) {
         this.transitions.push(record);
       },
       setTaskState(task_id: string, state: TaskState) {

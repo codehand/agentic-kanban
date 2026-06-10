@@ -3,7 +3,7 @@
 **Agent**: Claude (implementer)
 **Date**: 2026-06-10
 **Scenario**: docs/mcp/live-update-scenario.md Scenario 3
-**Script**: `node capture-screenshots.mjs` (real Playwright + server execution)
+**Script**: `node scripts/capture-screenshots.mjs` (real Playwright + server execution)
 
 ## Setup
 

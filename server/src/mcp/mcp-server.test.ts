@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
-import { createServer, type Server } from 'node:http'
+import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http'
 import { openMemoryDb, type Db } from '../db/connection.js'
 import { runMigrations } from '../db/migrate.js'
 import { mintToken } from '../auth/mint.js'
@@ -48,9 +48,9 @@ async function makeClient(secret: string): Promise<{ client: Client; transport: 
 }
 
 /** Close a Client + transport pair cleanly. */
-async function closeClient(c: { client: Client; transport: StreamableHTTPClientTransport }) {
+async function closeClient(c: { client: Client; transport: StreamableHTTPClientTransport | null }) {
   try { await c.client.close() } catch { /* already closed */ }
-  try { await c.transport.close() } catch { /* already closed */ }
+  try { if (c.transport) await c.transport.close() } catch { /* already closed */ }
 }
 
 beforeAll(async () => {
@@ -73,7 +73,7 @@ beforeAll(async () => {
   ).run(projectId)
 
   // Mount the MCP router onto a bare node:http server.
-  const baseRouter = (_req: any, res: any) => {
+  const baseRouter = (_req: IncomingMessage, res: ServerResponse) => {
     res.writeHead(404)
     res.end()
   }
@@ -102,7 +102,7 @@ describe('AC8: MCP SDK client connects over Streamable HTTP with bearer token', 
       expect(names).toContain('task.transition')
       expect(names).toContain('evidence.submit')
     } finally {
-      await closeClient({ client, transport: null as any })
+      await closeClient({ client, transport: null })
     }
   })
 
@@ -135,7 +135,7 @@ describe('AC10: implementer calling evidence.submit returns role error', () => {
         .join(' ')
       expect(text).toMatch(/forbidden|not permitted|role/i)
     } finally {
-      await closeClient({ client, transport: null as any })
+      await closeClient({ client, transport: null })
     }
   })
 })
@@ -169,7 +169,7 @@ describe('AC9: full happy-path lifecycle through tools', () => {
         },
       })
       expect(createRes.isError).toBeFalsy()
-      const created = JSON.parse((createRes.content as any)[0].text) as { state: string }
+      const created = JSON.parse((createRes.content as Array<{ text: string }>)[0].text) as { state: string }
       expect(created.state).toBe('TODO')
     } finally {
       await closeClient(human1)
@@ -200,7 +200,7 @@ describe('AC9: full happy-path lifecycle through tools', () => {
         },
       })
       expect(trRes.isError).toBeFalsy()
-      const transition = JSON.parse((trRes.content as any)[0].text) as { to_state: string }
+      const transition = JSON.parse((trRes.content as Array<{ text: string }>)[0].text) as { to_state: string }
       expect(transition.to_state).toBe('IN_PROGRESS')
     } finally {
       await closeClient(impl2)
@@ -233,7 +233,7 @@ describe('AC9: full happy-path lifecycle through tools', () => {
         },
       })
       expect(implRes.isError).toBeFalsy()
-      const tr = JSON.parse((implRes.content as any)[0].text) as { to_state: string }
+      const tr = JSON.parse((implRes.content as Array<{ text: string }>)[0].text) as { to_state: string }
       expect(tr.to_state).toBe('IMPLEMENTED')
     } finally {
       await closeClient(impl3)
@@ -269,7 +269,7 @@ describe('AC9: full happy-path lifecycle through tools', () => {
         },
       })
       expect(scRes.isError).toBeFalsy()
-      const scResult = JSON.parse((scRes.content as any)[0].text) as { success: boolean }
+      const scResult = JSON.parse((scRes.content as Array<{ text: string }>)[0].text) as { success: boolean }
       expect(scResult.success).toBe(true)
     } finally {
       await closeClient(scClient)
@@ -307,7 +307,7 @@ describe('AC9: full happy-path lifecycle through tools', () => {
         },
       })
       expect(judgeRes.isError).toBeFalsy()
-      const jt = JSON.parse((judgeRes.content as any)[0].text) as { to_state: string }
+      const jt = JSON.parse((judgeRes.content as Array<{ text: string }>)[0].text) as { to_state: string }
       expect(jt.to_state).toBe('JUDGE_PASSED')
     } finally {
       await closeClient(judgeClient)

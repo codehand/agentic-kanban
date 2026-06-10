@@ -8,7 +8,7 @@
  *   - 401: missing or invalid token returns 401
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
-import { createServer, Server } from 'node:http'
+import { Server } from 'node:http'
 import { openMemoryDb } from '../src/db/connection.js'
 import { runMigrations } from '../src/db/migrate.js'
 import { createHttpServer } from '../src/http/server.js'
@@ -223,7 +223,7 @@ describe('AC5: SSE stream emits events', () => {
   it('SSE clients receive transition events', async () => {
     // Connect an SSE client
     const controller = new AbortController()
-    const res = await fetch(`${baseUrl}/api/stream`, {
+    await fetch(`${baseUrl}/api/stream`, {
       headers: { 'Accept': 'text/event-stream' },
       signal: controller.signal,
     })
@@ -232,7 +232,7 @@ describe('AC5: SSE stream emits events', () => {
     expect(getClientCount()).toBeGreaterThanOrEqual(1)
 
     // Listen for the event via the bus
-    const evtPromise = new Promise<{ task_id: string; to_state: string }>((resolve) => {
+    const evtPromise = new Promise<{ task_id: string; key: string; to_state: string }>((resolve) => {
       sseBus.once('transition', resolve)
     })
 
@@ -240,6 +240,8 @@ describe('AC5: SSE stream emits events', () => {
     const { broadcastTransition } = await import('../src/api/stream.js')
     broadcastTransition({
       task_id: 'test-task',
+      project: 'test-proj',
+      key: 'TEST-1',
       from_state: 'TODO',
       to_state: 'IN_PROGRESS',
       actor_role: 'implementer',
@@ -248,9 +250,70 @@ describe('AC5: SSE stream emits events', () => {
 
     const evt = await evtPromise
     expect(evt.task_id).toBe('test-task')
+    expect(evt.key).toBe('TEST-1')
     expect(evt.to_state).toBe('IN_PROGRESS')
 
     controller.abort()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// TASK-025: reset/remove broadcast SSE events (human actions go live)
+// ---------------------------------------------------------------------------
+
+describe('TASK-025: reset and remove broadcast SSE events', () => {
+  it('POST /api/tasks/:key/reset broadcasts a transition event with key and to_state IN_PROGRESS', async () => {
+    insertTask(db, {
+      id: 'task_reset_sse',
+      project_id: PROJECT_ID,
+      key: 'TASK-RESET-1',
+      title: 'Reset broadcast test',
+      body_md: '',
+      state: 'JUDGE_REJECTED',
+    })
+
+    const evtPromise = new Promise<{ task_id: string; key: string; from_state: string; to_state: string }>((resolve) => {
+      sseBus.once('transition', resolve)
+    })
+
+    const res = await fetch(`${baseUrl}/api/tasks/TASK-RESET-1/reset?project=test-proj`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${humanSecret}` },
+    })
+    expect(res.status).toBe(200)
+
+    const evt = await evtPromise
+    expect(evt.task_id).toBe('task_reset_sse')
+    expect(evt.key).toBe('TASK-RESET-1')
+    expect(evt.from_state).toBe('JUDGE_REJECTED')
+    expect(evt.to_state).toBe('IN_PROGRESS')
+  })
+
+  it('POST /api/tasks/:key/remove broadcasts a removed event with project and key', async () => {
+    insertTask(db, {
+      id: 'task_remove_sse',
+      project_id: PROJECT_ID,
+      key: 'TASK-REMOVE-1',
+      title: 'Remove broadcast test',
+      body_md: '',
+      state: 'TODO',
+    })
+
+    const evtPromise = new Promise<{ task_id: string; project: string; key: string; at: string }>((resolve) => {
+      sseBus.once('removed', resolve)
+    })
+
+    const res = await fetch(`${baseUrl}/api/tasks/TASK-REMOVE-1/remove?project=test-proj`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${humanSecret}` },
+    })
+    expect(res.status).toBe(200)
+
+    const evt = await evtPromise
+    expect(evt.task_id).toBe('task_remove_sse')
+    expect(evt.project).toBe('test-proj')
+    expect(evt.key).toBe('TASK-REMOVE-1')
+    expect(typeof evt.at).toBe('string')
   })
 })
 

@@ -393,6 +393,9 @@
         '<span class="text-muted">' + totalActive + ' active across <span class="text-text">' + esc(projName) + '</span></span>' +
         '<span class="ml-auto flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-full bg-ev_pass heartbeat"></span> live</span>';
       document.body.dataset.awaiting = String(humanCount);
+      // Keep the rail "Awaiting You" badge in sync with the real count.
+      var railAwaiting = document.getElementById('rail-awaiting');
+      if (railAwaiting) railAwaiting.textContent = String(humanCount);
     }
 
     // --- Drawer ---
@@ -551,13 +554,19 @@
     window.addEventListener('kanban:created', function (e) {
       var d = e.detail || {};
       if (d.project && d.project !== currentProject()) return;
-      showToast('TASK', 'Task mới: ' + (d.key || ''));
+      showToast('TASK', 'New task: ' + (d.key || ''));
       loadBoard();
     });
     window.addEventListener('kanban:transition', function (e) {
       var d = e.detail || {};
       if (d.project && d.project !== currentProject()) return;
-      showToast('TASK', (d.task_id || '').substring(0, 12) + ': ' + (d.from_state || '') + '→' + (d.to_state || ''));
+      showToast('TASK', (d.key || d.task_id || '') + ': ' + (d.from_state || '') + '→' + (d.to_state || ''));
+      loadBoard();
+    });
+    window.addEventListener('kanban:removed', function (e) {
+      var d = e.detail || {};
+      if (d.project && d.project !== currentProject()) return;
+      showToast('TASK', 'Task removed: ' + (d.key || d.task_id || ''));
       loadBoard();
     });
 

@@ -38,6 +38,11 @@ export const ALLOWED: AllowedTransition[] = [
   { from: 'SELF_CHECK_PASSED',  to: 'JUDGE_REJECTED',     role: 'judge'       },
   { from: 'JUDGE_REJECTED',     to: 'IN_PROGRESS',        role: 'implementer' },
   { from: 'JUDGE_PASSED',       to: 'DONE',               role: 'human'       },
+  // §3 role table (TASK_HUB_DESIGN.md): human may also reset a failed/rejected
+  // task back to IN_PROGRESS (UI "Reset" / POST /api/tasks/:key/reset).
+  // Same edges as the implementer rework rows above — only the actor differs.
+  { from: 'SELF_CHECK_FAILED',  to: 'IN_PROGRESS',        role: 'human'       },
+  { from: 'JUDGE_REJECTED',     to: 'IN_PROGRESS',        role: 'human'       },
 ]
 
 /** Lookup: returns the required role for a given from→to pair, or null if not allowed. */

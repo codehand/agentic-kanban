@@ -252,6 +252,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
     broadcastTransition({
       task_id: task.id,
       project: proj.slug,
+      key: task.key,
       from_state: from,
       to_state: to,
       actor_role: ctx.auth.role as string,
@@ -382,6 +383,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
         broadcastTransition({
           task_id: record.task_id,
           project: proj.slug,
+          key: task.key,
           from_state: record.from_state,
           to_state: record.to_state,
           actor_role: record.actor_role,
@@ -431,6 +433,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
     broadcastTransition({
       task_id: task.id,
       project: proj.slug,
+      key: task.key,
       from_state: 'JUDGE_PASSED',
       to_state: 'DONE',
       actor_role: ctx.auth.role as string,

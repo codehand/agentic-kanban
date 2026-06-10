@@ -526,7 +526,7 @@ describe('AC7: transaction semantics', () => {
     expect(r2.error).toContain('already leased')
 
     // Verify the DB state: token1 still holds the lease
-    const dbTask = db.prepare('SELECT assignee_token_id, lease_until FROM task WHERE id = ?').get('task1') as any
+    const dbTask = db.prepare('SELECT assignee_token_id, lease_until FROM task WHERE id = ?').get('task1') as { assignee_token_id: string | null; lease_until: string | null }
     expect(dbTask.assignee_token_id).toBe('token1')
     expect(dbTask.lease_until).not.toBeNull()
 
@@ -537,7 +537,7 @@ describe('AC7: transaction semantics', () => {
       UPDATE task SET assignee_token_id = 'token2', lease_until = '2026-06-09T10:15:00.000Z'
       WHERE id = 'task1'
     `).run()
-    const afterUnconditional = db.prepare('SELECT assignee_token_id FROM task WHERE id = ?').get('task1') as any
+    const afterUnconditional = db.prepare('SELECT assignee_token_id FROM task WHERE id = ?').get('task1') as { assignee_token_id: string | null }
     expect(afterUnconditional.assignee_token_id).toBe('token2') // unconditional UPDATE overwrites
 
     db.close()
@@ -589,7 +589,7 @@ describe('AC7: transaction semantics', () => {
     expect(r2.error).toContain('already leased')
 
     // DB state must still show token1 as the assignee
-    const dbTask = db.prepare('SELECT assignee_token_id, lease_until FROM task WHERE id = ?').get('task1') as any
+    const dbTask = db.prepare('SELECT assignee_token_id, lease_until FROM task WHERE id = ?').get('task1') as { assignee_token_id: string | null; lease_until: string | null }
     expect(dbTask.assignee_token_id).toBe('token1')
     expect(dbTask.lease_until).toBe('2026-06-09T10:15:00.000Z')
 
@@ -655,7 +655,7 @@ describe('AC7: transaction semantics', () => {
     expect(result.changes).toBe(0)
 
     // Task should still be leased to token1
-    const task = db.prepare('SELECT assignee_token_id FROM task WHERE id = ?').get('task1') as any
+    const task = db.prepare('SELECT assignee_token_id FROM task WHERE id = ?').get('task1') as { assignee_token_id: string | null }
     expect(task.assignee_token_id).toBe('token1')
 
     db.close()
@@ -687,7 +687,7 @@ describe('AC7: transaction semantics', () => {
     // Should match 1 row — lease is expired, new claim wins
     expect(result.changes).toBe(1)
 
-    const task = db.prepare('SELECT assignee_token_id, lease_until FROM task WHERE id = ?').get('task1') as any
+    const task = db.prepare('SELECT assignee_token_id, lease_until FROM task WHERE id = ?').get('task1') as { assignee_token_id: string | null; lease_until: string | null }
     expect(task.assignee_token_id).toBe('token2')
     expect(task.lease_until).toBe(nowISO)
 
@@ -720,7 +720,7 @@ describe('AC7: transaction semantics', () => {
     // Same token can re-claim (extend)
     expect(result.changes).toBe(1)
 
-    const task = db.prepare('SELECT assignee_token_id, lease_until FROM task WHERE id = ?').get('task1') as any
+    const task = db.prepare('SELECT assignee_token_id, lease_until FROM task WHERE id = ?').get('task1') as { assignee_token_id: string | null; lease_until: string | null }
     expect(task.assignee_token_id).toBe('token1')
     expect(task.lease_until).toBe(newLease)
 

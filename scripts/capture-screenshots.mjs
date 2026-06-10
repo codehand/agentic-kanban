@@ -1,84 +1,190 @@
 #!/usr/bin/env node
 /**
- * capture-screenshots.mjs — take REAL screenshots of tokens.html for TASK-024.
- * Drives a real dev server, mints a real token via the UI, captures distinct PNGs.
+ * capture-screenshots.mjs — TASK-017 real E2E screenshot capture.
+ *
+ * Starts the server with a file-backed DB, seeds a project + token,
+ * then uses Playwright to capture real screenshots of:
+ *   1. Toast on task create (via HTTP API → broadcastCreated → SSE → UI)
+ *   2. Toast on task transition (via HTTP approve → broadcastTransition → SSE → UI)
+ *   3. Board after auto-loading the created task
+ *   4. Board after task transitioned to DONE
+ *
+ * Both HTTP and MCP write paths call the same broadcastCreated/broadcastTransition
+ * functions in stream.ts — the SSE/UI flow is identical.
+ *
+ * Output: docs/ui/TASK-017/*.png (real browser captures).
+ *
+ * Usage:
+ *   node scripts/capture-screenshots.mjs
  */
-import { chromium } from '@playwright/test';
-import { mkdirSync } from 'node:fs';
+import { chromium } from 'playwright';
+import { openDatabase } from '../dist/db/connection.js';
+import { runMigrations } from '../dist/db/migrate.js';
+import { bootstrapAdminToken } from '../dist/auth/bootstrap.js';
+import { createHttpServer } from '../dist/http/server.js';
+import { insertProject } from '../dist/db/repositories/project.js';
+import { getTaskByKey } from '../dist/db/repositories/task.js';
+import { randomBytes } from 'node:crypto';
+import { mkdirSync, unlinkSync } from 'node:fs';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:3000';
-const HUMAN_TOKEN = process.env.HUMAN_TOKEN ?? 'akb_human_researcher_9f3e7d2c1b4a';
-const OUT_DIR = process.env.OUT_DIR ?? '/Users/mofy/ws/src/github.com/mofy-eco/agentic-kanban/.claude/worktree/fix/TASK-024-mint-token/docs/ui/TASK-024';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const OUT_DIR = resolve(__dirname, '../docs/ui/TASK-017');
+const PORT = 4599;
+const ADMIN_TOKEN = 'tk_test_' + randomBytes(8).toString('hex');
+const BASE = `http://127.0.0.1:${PORT}`;
+const DB_PATH = '/tmp/task017-capture.db';
 
-mkdirSync(OUT_DIR, { recursive: true });
+async function main() {
+  mkdirSync(OUT_DIR, { recursive: true });
 
-(async () => {
-  const browser = await chromium.launch({ headless: true, args: ['--disable-web-security'] });
-  const ctx = await browser.newContext({
-    viewport: { width: 1440, height: 900 },
-    permissions: ['clipboard-read', 'clipboard-write'],
-  });
-  const page = await ctx.newPage();
+  // Clean up any previous DB
+  try { unlinkSync(DB_PATH); } catch {}
+  try { unlinkSync(DB_PATH + '-wal'); } catch {}
+  try { unlinkSync(DB_PATH + '-shm'); } catch {}
 
-  // Set auth token in localStorage so api.js can call the backend
-  await page.goto(`${BASE}/signin.html`, { waitUntil: 'domcontentloaded' });
-  await page.evaluate((tok) => {
-    localStorage.setItem('kanban_token', tok);
-  }, HUMAN_TOKEN);
+  // 1. Start server with file-backed DB (so we can manipulate state between requests)
+  const db = openDatabase(DB_PATH);
+  runMigrations(db);
+  bootstrapAdminToken(db, ADMIN_TOKEN);
+  const projId = 'proj_opf';
+  insertProject(db, { id: projId, slug: 'opf-hub', name: 'OPF Hub' });
+  insertProject(db, { id: 'proj_other', slug: 'other-proj', name: 'Other Project' });
 
-  // 1. Open tokens.html — initial state with mint CTA button visible
-  await page.goto(`${BASE}/tokens.html`, { waitUntil: 'load' });
-  await page.waitForTimeout(1500);
-  await page.screenshot({ path: `${OUT_DIR}/01-mint-cta-button.png`, fullPage: false });
-  console.log('Captured 01-mint-cta-button.png');
+  const server = createHttpServer(db);
+  await new Promise((r) => server.listen(PORT, r));
+  console.log(`Server running on ${BASE}`);
+  console.log(`Token: ${ADMIN_TOKEN}`);
 
-  // 2. Click "Mint token" button to reveal the form
-  const mintCta = page.locator('button:has-text("Mint token")').first();
-  await mintCta.click();
-  await page.waitForTimeout(400);
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + ADMIN_TOKEN,
+  };
 
-  // Fill the mint form
-  await page.locator('#mint-role').selectOption('judge');
-  await page.locator('#mint-label').fill('real-judge-screenshot');
-  // project scope: leave as (none)
-  await page.waitForTimeout(300);
+  try {
+    // 2. Launch browser
+    const browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await context.newPage();
 
-  await page.screenshot({ path: `${OUT_DIR}/02-mint-cta-form-filled.png`, fullPage: false });
-  console.log('Captured 02-mint-cta-form-filled.png');
+    // Collect SSE console logs
+    page.on('console', (msg) => {
+      const t = msg.text();
+      if (t.includes('[sse]')) console.log('  BROWSER:', t);
+    });
 
-  // 3. Submit the form — the UI will call api.mintToken and reveal the banner
-  // Intercept the mint response so we can log the real values
-  const mintResponse = page.waitForResponse(r => r.url().includes('/api/tokens') && r.request().method() === 'POST');
+    // 3. Navigate to board and authenticate
+    await page.goto(BASE + '/');
+    await page.evaluate((t) => { window.localStorage.setItem('kanban_token', t); }, ADMIN_TOKEN);
+    await page.goto(BASE + '/');
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(1500);
+    // Set the viewed project
+    await page.evaluate(() => { document.body.dataset.project = 'opf-hub'; });
+    await page.waitForTimeout(500);
+    console.log('Board loaded');
 
-  await page.locator('#mint-submit').click();
-  const resp = await mintResponse;
-  const minted = await resp.json();
-  console.log('MINTED token real values:');
-  console.log(JSON.stringify(minted, null, 2));
+    // 4. Create a task via HTTP API (triggers broadcastCreated → SSE → UI)
+    const key = 'LIVE-' + Date.now().toString(36).toUpperCase();
+    console.log(`Creating task ${key} via HTTP POST /api/tasks...`);
+    const createRes = await fetch(BASE + '/api/tasks', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        project: 'opf-hub',
+        key,
+        title: 'Live UI test — auto-loaded via SSE',
+        body_md: 'Created to verify SSE live updates (TASK-017).',
+      }),
+    });
+    console.log('  → status:', createRes.status);
 
-  // Wait for banner to render and scroll into view
-  await page.waitForTimeout(1200);
+    // 5. Wait for toast and capture
+    const toast = page.locator('#toast');
+    await toast.waitFor({ state: 'visible', timeout: 5000 });
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: resolve(OUT_DIR, 'toast-created.png'), fullPage: true });
+    console.log('Captured toast-created.png');
 
-  // 4. Capture the minted banner showing the real secret
-  await page.screenshot({ path: `${OUT_DIR}/03-minted-banner-secret.png`, fullPage: false });
-  console.log('Captured 03-minted-banner-secret.png');
+    // 6. Wait for card to appear in TODO column
+    const todoCol = page.locator('#col-todo');
+    await todoCol.getByText(key).waitFor({ state: 'visible', timeout: 5000 });
+    await page.screenshot({ path: resolve(OUT_DIR, 'board-autoload.png'), fullPage: true });
+    console.log('Captured board-autoload.png');
 
-  // Scroll down a bit to show more of the guidance
-  await page.evaluate(() => window.scrollBy(0, 250));
-  await page.waitForTimeout(400);
-  await page.screenshot({ path: `${OUT_DIR}/04-minted-banner-guidance.png`, fullPage: false });
-  console.log('Captured 04-minted-banner-guidance.png');
+    // 7. Set up a task in JUDGE_PASSED state to test transition toast via approve
+    const transKey = 'TR-' + Date.now().toString(36).toUpperCase();
+    // Create it
+    await fetch(BASE + '/api/tasks', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ project: 'opf-hub', key: transKey, title: 'Transition test task' }),
+    });
+    // Manually set state to JUDGE_PASSED in DB
+    const transTask = getTaskByKey(db, projId, transKey);
+    if (transTask) {
+      db.prepare(`UPDATE task SET state = 'JUDGE_PASSED', updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`).run(transTask.id);
+      console.log(`Set task ${transKey} to JUDGE_PASSED`);
+    }
 
-  // 5. Click the copy-secret button to show "copied" feedback
-  const copyBtn = page.locator('#copy-secret-btn');
-  await copyBtn.click();
-  await page.waitForTimeout(400);
-  await page.screenshot({ path: `${OUT_DIR}/05-copy-cta-feedback.png`, fullPage: false });
-  console.log('Captured 05-copy-cta-feedback.png');
+    // 8. Approve the task via HTTP (triggers broadcastTransition → SSE → UI)
+    console.log(`Approving task ${transKey} via HTTP POST /api/tasks/${transKey}/approve...`);
+    const approveRes = await fetch(BASE + `/api/tasks/${transKey}/approve?project=opf-hub`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ note: 'Approved via screenshot capture script' }),
+    });
+    console.log('  → status:', approveRes.status);
 
-  await browser.close();
-  console.log('All screenshots captured. Minted token id:', minted.id);
-})().catch(async (err) => {
-  console.error('Screenshot script failed:', err);
+    // 9. Wait for transition toast and capture
+    await toast.waitFor({ state: 'visible', timeout: 5000 });
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: resolve(OUT_DIR, 'toast-transition.png'), fullPage: true });
+    console.log('Captured toast-transition.png');
+
+    // 10. Wait for board to update and capture final state
+    await page.waitForTimeout(1000);
+    await page.screenshot({ path: resolve(OUT_DIR, 'mcp-live-flow.png'), fullPage: true });
+    console.log('Captured mcp-live-flow.png');
+
+    // 11. Project scoping test: create task in other project — toast should NOT appear
+    console.log('Testing project scoping: creating task in other-proj...');
+    await page.waitForTimeout(3500); // wait for current toast to hide
+
+    const toastWatcher = page.evaluate(() => {
+      return new Promise((resolve) => {
+        const el = document.getElementById('toast');
+        if (!el.classList.contains('hidden')) { resolve('already-visible'); return; }
+        const obs = new MutationObserver(() => {
+          if (!el.classList.contains('hidden')) { obs.disconnect(); resolve('shown'); }
+        });
+        obs.observe(el, { attributes: true, attributeFilter: ['class'] });
+        setTimeout(() => { obs.disconnect(); resolve('not-shown'); }, 4000);
+      });
+    });
+
+    await fetch(BASE + '/api/tasks', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ project: 'other-proj', key: 'OTHER-1', title: 'Wrong project task' }),
+    });
+
+    const scopeResult = await toastWatcher;
+    console.log('Project scoping test:', scopeResult === 'not-shown' ? 'PASS (toast suppressed for other project)' : 'RESULT: ' + scopeResult);
+
+    await browser.close();
+    console.log('\nAll screenshots captured to', OUT_DIR);
+  } finally {
+    server.close();
+    db.close();
+    try { unlinkSync(DB_PATH); } catch {}
+    try { unlinkSync(DB_PATH + '-wal'); } catch {}
+    try { unlinkSync(DB_PATH + '-shm'); } catch {}
+  }
+}
+
+main().catch((err) => {
+  console.error('FATAL:', err);
   process.exit(1);
 });

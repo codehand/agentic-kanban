@@ -1,11 +1,11 @@
 /* Agentic Kanban - shared app shell. Injects the left rail (consistent everywhere).
  * Each page sets:
- *   <body data-active="board|projects|tokens" data-project="opf-hub" data-awaiting="2">
- * and provides <aside id="rail"></aside> as the mount point.  */
+ *   <body data-active="board|projects|tokens">
+ * and provides <aside id="rail"></aside> as the mount point. The current
+ * project comes from the URL path (projectFromPath), never a hardcoded attr. */
 (function () {
   const body = document.body;
   const active = body.dataset.active || '';
-  const awaiting = body.dataset.awaiting ?? '2';
 
   /* projectFromPath() — current project read from the URL path.
    * '/<project-id>/index.html' -> '<project-id>'. Page files at the root
@@ -17,7 +17,7 @@
   }
   window.projectFromPath = projectFromPath;
 
-  const project = projectFromPath() || body.dataset.project || '—';
+  const project = projectFromPath() || '—';
 
   const nav = (key, href, icon, label) => {
     const on = key === active;
@@ -64,7 +64,7 @@
         <a href="index.html#col-human" class="block w-full rounded-lg border border-st_human/40 bg-st_human/10 glow-human-soft px-3 py-2.5 text-left hover:bg-st_human/15">
           <div class="flex items-center justify-between">
             <span class="flex items-center gap-2 text-[13px] font-medium text-st_human"><i class="ph-fill ph-hand-tap text-[16px]"></i> Awaiting You</span>
-            <span class="mono text-[14px] font-semibold text-st_human">${awaiting}</span>
+            <span id="rail-awaiting" class="mono text-[14px] font-semibold text-st_human"></span>
           </div>
           <p class="mt-1 text-[13px] text-muted leading-snug">Tasks the gate cleared and only you can mark Done.</p>
         </a>
@@ -133,6 +133,15 @@
         // No project prefix in the URL yet: show the first real project name.
         const label = document.getElementById('project-switcher-label');
         if (!current && projects.length && label) label.textContent = projects[0].slug || projects[0].id;
+      }).catch(() => {});
+    }
+
+    /* "Awaiting You" badge: real JUDGE_PASSED count for the current project.
+     * Stays empty (no mock number) until live data arrives. */
+    if (current && window.__kanban_api && window.__kanban_api.listTasks) {
+      window.__kanban_api.listTasks(current, 'JUDGE_PASSED').then((res) => {
+        const el = document.getElementById('rail-awaiting');
+        if (el && res && res.tasks) el.textContent = String(res.tasks.length);
       }).catch(() => {});
     }
   }

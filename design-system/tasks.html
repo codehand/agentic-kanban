@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="/theme.css" />
 </head>
 
-<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="tasks" data-project="opf-hub" data-awaiting="0">
+<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="tasks">
 <div class="flex h-full">
   <aside id="rail"></aside>
 
@@ -100,7 +100,24 @@
 </aside>
 
 <script src="/api.js"></script>
-<script src="/tasks.js"></script>
 <script src="/shell.js"></script>
+<script>
+  /* Project scoping: under /<project>/tasks.html only that project's tasks are
+   * listed (same pattern as the board). No project prefix in the URL ->
+   * redirect to the first project's tasks page, mirroring index.html. */
+  (function () {
+    'use strict';
+    if (window.projectFromPath && !window.projectFromPath() && window.__kanban_api) {
+      window.__kanban_api.listProjects().then(function (res) {
+        var projects = (res && res.projects) || [];
+        if (projects.length) {
+          var first = projects[0].slug || projects[0].id;
+          location.replace('/' + encodeURIComponent(first) + '/tasks.html');
+        }
+      }).catch(function () {});
+    }
+  })();
+</script>
+<script src="/tasks.js"></script>
 </body>
 </html>
