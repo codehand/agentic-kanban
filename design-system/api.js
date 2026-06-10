@@ -114,6 +114,14 @@
         headers: authHeaders(),
       }).then(function (r) { return r ? r.json() : null; });
     },
+
+    createTask: function (payload) {
+      return apiFetch('/tasks', {
+        method: 'POST',
+        headers: Object.assign(authHeaders(), { 'Content-Type': 'application/json' }),
+        body: JSON.stringify(payload),
+      }).then(function (r) { return r ? r.json() : null; });
+    },
   };
 
   // --- SSE connection ---

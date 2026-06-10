@@ -46,9 +46,9 @@
           <i class="ph ph-moon text-[16px]"></i>
         </button>
 
-        <button class="flex items-center gap-1.5 rounded-md bg-accent px-3 h-9 text-[13px] font-medium text-white hover:bg-accent/90 active:translate-y-px">
+        <a href="new-task.html" id="btn-new-task" class="flex items-center gap-1.5 rounded-md bg-accent px-3 h-9 text-[13px] font-medium text-white hover:bg-accent/90 active:translate-y-px">
           <i class="ph ph-plus text-[15px]"></i> New Task
-        </button>
+        </a>
       </div>
     </header>
 
@@ -537,6 +537,20 @@
 
     // Init
     loadBoard();
+
+    // Show toast if redirected from new-task creation
+    (function () {
+      var params = new URLSearchParams(window.location.search);
+      var created = params.get('created');
+      if (created) {
+        var toast = document.getElementById('toast');
+        document.getElementById('toast-msg').textContent = 'Task ' + created + ' created.';
+        toast.classList.remove('hidden'); toast.classList.add('flex');
+        setTimeout(function () { toast.classList.add('hidden'); toast.classList.remove('flex'); }, 3200);
+        // Clean URL
+        history.replaceState(null, '', 'index.html');
+      }
+    })();
   })();
 </script>
 <script src="shell.js"></script>
