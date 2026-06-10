@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { createServer, Server, IncomingMessage } from 'node:http'
+import { Server } from 'node:http'
 import { createHttpServer } from '../src/http/server.js'
 
 describe('GET /healthz', () => {

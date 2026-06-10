@@ -33,14 +33,6 @@ function loadYamlConfig(configPath: string): Record<string, unknown> {
   }
 }
 
-function requireEnv(name: string): string {
-  const val = process.env[name]
-  if (!val) {
-    throw new Error(`Required environment variable ${name} is not set`)
-  }
-  return val
-}
-
 export function loadConfig(configYmlPath?: string): AppConfig {
   // Env vars
   const PORT = parseInt(process.env['PORT'] ?? '3000', 10)

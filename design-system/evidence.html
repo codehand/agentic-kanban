@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="/theme.css" />
 </head>
 
-<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="board" data-project="opf-hub" data-awaiting="2">
+<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="board">
 <div class="flex h-full">
   <aside id="rail"></aside>
 
@@ -171,21 +171,22 @@ PASS</pre>
   </main>
 </div>
 <script src="/api.js"></script>
+<script src="/shell.js"></script>
 <script>
   /* evidence.js — Live data wiring for evidence page. Fetches from /api/evidence. */
   (function () {
     'use strict';
     var api = window.__kanban_api;
     if (!api) return;
-    // Read task key and project from URL hash or data attributes
-    var project = document.body.dataset.project || 'opf-hub';
-    var taskKey = (location.hash || '').replace('#', '') || 'TASK-002';
+    // Project comes from the URL path (/<project>/evidence.html), task key from the hash.
+    var project = window.projectFromPath ? window.projectFromPath() : '';
+    var taskKey = (location.hash || '').replace('#', '');
+    if (!project || !taskKey) return;
     api.getEvidence(project, taskKey).then(function (res) {
       if (!res || !res.evidence) return;
       console.log('[evidence] loaded', res.evidence);
     }).catch(function () {});
   })();
 </script>
-<script src="/shell.js"></script>
 </body>
 </html>

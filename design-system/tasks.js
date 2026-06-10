@@ -77,21 +77,33 @@
     showOnly('tasks-loading');
     allItems = [];
 
+    // Scope to the project in the URL path (/<project>/tasks.html), same
+    // pattern as the board. tasks.html redirects when there is no prefix.
+    var fromPath = window.projectFromPath ? window.projectFromPath() : '';
+
     api.listProjects().then(function (res) {
       if (!res || !res.projects) { showOnly('tasks-empty'); return; }
       var projects = res.projects;
       if (projects.length === 0) { showOnly('tasks-empty'); return; }
-      var pending = projects.length;
+      if (!fromPath) return; // tasks.html inline script is redirecting to /<first>/tasks.html
+      var proj = null;
       projects.forEach(function (p) {
-        var slug = p.slug || p.id;
-        api.listTasks(slug).then(function (tres) {
-          if (tres && tres.tasks) {
-            tres.tasks.forEach(function (t) { allItems.push({ task: t, project: slug }); });
-          }
-        }).catch(function () {}).then(function () {
-          pending--;
-          if (pending <= 0) render();
-        });
+        if (p.slug === fromPath || p.id === fromPath) proj = p;
+      });
+      if (!proj) {
+        showOnly('tasks-error');
+        document.getElementById('tasks-error-msg').textContent = 'Project not found: ' + fromPath;
+        return;
+      }
+      var slug = proj.slug || proj.id;
+      api.listTasks(slug).then(function (tres) {
+        if (tres && tres.tasks) {
+          tres.tasks.forEach(function (t) { allItems.push({ task: t, project: slug }); });
+        }
+        render();
+      }).catch(function (err) {
+        showOnly('tasks-error');
+        document.getElementById('tasks-error-msg').textContent = String(err);
       });
     }).catch(function (err) {
       showOnly('tasks-error');

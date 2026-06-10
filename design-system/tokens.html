@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="/theme.css" />
 </head>
 
-<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="tokens" data-project="opf-hub" data-awaiting="2">
+<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="tokens">
 <div class="flex h-full">
   <aside id="rail"></aside>
 
@@ -87,7 +87,7 @@
                 <label for="mint-project" class="text-[13px] font-medium">Project scope <span class="text-muted font-normal text-[13px]">optional</span></label>
                 <div class="relative">
                   <select id="mint-project" name="project" class="appearance-none w-full rounded-md border border-border bg-panel2 px-3 h-10 text-[14px] outline-none focus:border-accent/60">
-                    <option value="">(none)</option><option value="opf-hub">opf-hub</option><option value="api-marketplace">api-marketplace</option>
+                    <option value="">All projects</option>
                   </select>
                   <i class="ph ph-caret-down text-muted text-[14px] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
                 </div>
@@ -145,6 +145,22 @@
       'judge': { icon: 'ph-gavel', fill: true, cls: 'bg-st_human/12 text-st_human' },
       'runner': { icon: 'ph-cpu', fill: false, cls: 'bg-white/5 text-muted' },
     };
+
+    // "Project scope" dropdown: real projects from the API ("All projects" = no scope).
+    (function () {
+      var sel = document.getElementById('mint-project');
+      if (!sel) return;
+      api.listProjects().then(function (res) {
+        var projects = (res && res.projects) || [];
+        projects.forEach(function (p) {
+          var slug = p.slug || p.id;
+          var opt = document.createElement('option');
+          opt.value = slug;
+          opt.textContent = slug;
+          sel.appendChild(opt);
+        });
+      }).catch(function () {});
+    })();
 
     function reloadTokens() {
       api.listTokens().then(function (res) {

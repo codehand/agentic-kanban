@@ -128,7 +128,7 @@ describe('task repository', () => {
   it('update state via gate only — updateTaskState is no longer public', () => {
     taskRepo.insertTask(db, { id: 't1', project_id: 'p1', key: 'TASK-001', title: 'T1' })
     // updateTaskState is internal; state must be written through the gate.
-    expect((taskRepo as any).updateTaskState).toBeUndefined()
+    expect((taskRepo as Record<string, unknown>).updateTaskState).toBeUndefined()
   })
 })
 

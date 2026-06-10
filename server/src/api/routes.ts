@@ -33,7 +33,7 @@ import { insertTransition } from '../db/repositories/transition.js'
 import { mintToken as mintTokenFn, type Role as MintRole } from '../auth/mint.js'
 import { propose, type TransitionRepository } from '../domain/gate.js'
 import type { TaskState } from '../domain/statemachine.js'
-import { handleSseStream, broadcastCreated, broadcastTransition } from './stream.js'
+import { handleSseStream, broadcastCreated, broadcastTransition, broadcastRemoved } from './stream.js'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -361,6 +361,7 @@ async function handleApprove(db: Db, key: string, query: Record<string, string>,
   broadcastTransition({
     task_id: task.id,
     project: proj.slug,
+    key: task.key,
     from_state: 'JUDGE_PASSED',
     to_state: 'DONE',
     actor_role: 'human',
@@ -407,6 +408,16 @@ async function handleReset(db: Db, key: string, query: Record<string, string>, a
   if (!result.ok) {
     sendJson(res, 422, { error: result.error }); return
   }
+  // Broadcast SSE event so other clients see the reset live.
+  broadcastTransition({
+    task_id: task.id,
+    project: proj.slug,
+    key: task.key,
+    from_state: from,
+    to_state: 'IN_PROGRESS',
+    actor_role: 'human',
+    at: result.transition!.at,
+  })
   const updated = getTaskById(db, task.id)
   sendJson(res, 200, { task: updated ? taskToResult(updated) : null })
 }
@@ -428,6 +439,8 @@ async function handleRemove(db: Db, key: string, query: Record<string, string>, 
     sendJson(res, 404, { error: `Task not found: ${key}` }); return
   }
   db.prepare(`DELETE FROM task WHERE id = ?`).run(task.id)
+  // Broadcast SSE 'removed' event so live UIs drop the card without reload.
+  broadcastRemoved(proj.slug, task.id, task.key)
   sendJson(res, 200, { removed: true, key })
 }
 

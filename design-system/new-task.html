@@ -11,12 +11,12 @@
 <link rel="stylesheet" href="/theme.css" />
 </head>
 
-<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="board" data-project="opf-hub" data-awaiting="2">
+<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="board">
 <div class="flex h-full">
   <aside id="rail"></aside>
   <main class="flex-1 min-w-0 flex flex-col">
     <header class="h-14 shrink-0 border-b border-border bg-panel/80 backdrop-blur flex items-center gap-3 px-4">
-      <span class="text-[15px] font-semibold tracking-tight">opf-hub</span>
+      <span id="header-project" class="text-[15px] font-semibold tracking-tight">&hellip;</span>
       <span class="text-muted text-[13px]">Board</span>
     </header>
     <!-- dimmed board behind the modal -->
@@ -42,7 +42,7 @@
             <!-- title -->
             <div class="grid gap-1.5">
               <label class="text-[13px] font-medium" for="field-title">Title</label>
-              <input id="field-title" name="title" value="Wire FREE subscribe e2e flow"
+              <input id="field-title" name="title" placeholder="Short imperative summary"
                 class="rounded-md border border-border bg-panel2 px-3 h-10 text-[14px] outline-none focus:border-accent/60" />
             </div>
 
@@ -52,14 +52,14 @@
                 <label class="text-[13px] font-medium" for="field-project">Project</label>
                 <div class="relative">
                   <select id="field-project" name="project" class="appearance-none w-full rounded-md border border-border bg-panel2 px-3 h-10 text-[14px] outline-none focus:border-accent/60">
-                    <option value="opf-hub">opf-hub</option><option value="api-marketplace">api-marketplace</option><option value="opf-auto-e2e">opf-auto-e2e</option>
+                    <option value="" disabled selected>Loading projects&hellip;</option>
                   </select>
                   <i class="ph ph-caret-down text-muted text-[14px] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
                 </div>
               </div>
               <div class="grid gap-1.5">
                 <label class="text-[13px] font-medium flex items-center gap-1.5" for="field-branch">Branch <span class="mono text-[13px] text-muted font-normal">auto from title</span></label>
-                <input id="field-branch" name="branch" value="fix/TASK-012-free-subscribe"
+                <input id="field-branch" name="branch" placeholder="fix/TASK-XXX-slug"
                   class="rounded-md border border-border bg-panel2 px-3 h-10 mono text-[13px] outline-none focus:border-accent/60" />
               </div>
             </div>
@@ -68,8 +68,6 @@
             <div class="grid gap-1.5">
               <label class="text-[13px] font-medium flex items-center gap-1.5" for="field-repos">Repos <span class="text-[13px] text-muted font-normal">one branch + worktree created per repo</span></label>
               <div class="flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-panel2 px-2 py-2 min-h-10">
-                <span class="inline-flex items-center gap-1 mono text-[13px] px-1.5 py-1 rounded bg-bg border border-border">opf-auto-e2e <i class="ph ph-x text-[13px] text-muted cursor-pointer"></i></span>
-                <span class="inline-flex items-center gap-1 mono text-[13px] px-1.5 py-1 rounded bg-bg border border-border">api-marketplace <i class="ph ph-x text-[13px] text-muted cursor-pointer"></i></span>
                 <input id="field-repos" name="repos" placeholder="add repo + Enter" class="flex-1 min-w-[120px] bg-transparent mono text-[13px] placeholder:text-muted outline-none px-1" />
               </div>
               <p class="text-[13px] text-muted">Default <span class="mono">.</span> (single repo). Paths are relative to the engine root.</p>
@@ -83,15 +81,14 @@
               </div>
               <textarea id="field-description" name="body_md" rows="9" spellcheck="false"
                 class="rounded-md border border-border bg-panel2 px-3 py-2.5 mono text-[13px] leading-relaxed text-text/90 outline-none focus:border-accent/60 resize-y">## Purpose
-Prove a new account can subscribe to the FREE plan end to end.
 
 ## Scope
+
 ## Acceptance Criteria
 ### Machine-verifiable
-- [ ] AC1: `go test ./subscribe/...` passes
-- [ ] AC2: coverage subscribe/ >= 80%
+- [ ] AC1:
 ### Human / semantic
-- [ ] AC3: entitlement returns FREE tier with correct quota
+- [ ] AC2:
 
 ## Definition of Done</textarea>
             </div>
@@ -133,6 +130,32 @@ Prove a new account can subscribe to the FREE plan end to end.
   'use strict';
   var api = window.__kanban_api;
   var btn = document.getElementById('btn-create-task');
+
+  // Project dropdown: real projects from the API, preselect the one in the URL
+  // path (/<project>/new-task.html via projectFromPath). No hardcoded options.
+  (function () {
+    var sel = document.getElementById('field-project');
+    var headerProject = document.getElementById('header-project');
+    var current = window.projectFromPath ? window.projectFromPath() : '';
+    if (headerProject && current) headerProject.textContent = current;
+    if (!api || !sel) return;
+    api.listProjects().then(function (res) {
+      var projects = (res && res.projects) || [];
+      sel.innerHTML = '';
+      projects.forEach(function (p) {
+        var slug = p.slug || p.id;
+        var opt = document.createElement('option');
+        opt.value = slug;
+        opt.textContent = slug;
+        if (slug === current) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      if (headerProject && !current && projects.length) {
+        headerProject.textContent = projects[0].slug || projects[0].id;
+      }
+    }).catch(function () {});
+  })();
+
   var form = document.getElementById('new-task-form');
   var errorMsg = document.createElement('p');
   errorMsg.className = 'text-ev_fail text-[13px] mt-2 px-5';

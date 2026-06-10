@@ -7,7 +7,7 @@
   var stored = null;
   try { stored = localStorage.getItem(KEY); } catch (_) {}
   var prefersDark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
-  var theme = stored || (prefersDark ? 'dark' : 'light'); // default dark
+  var theme = stored || (prefersDark ? 'dark' : 'light'); // no stored choice: follow the OS preference
   if (theme === 'dark') {
     document.documentElement.classList.add('dark');
   } else {

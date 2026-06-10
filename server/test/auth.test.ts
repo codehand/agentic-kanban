@@ -3,7 +3,7 @@
  *
  * All tests run against an in-memory SQLite database.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import Database from 'better-sqlite3';
 import { openMemoryDb } from '../src/db/connection.js';
 import { runMigrations } from '../src/db/migrate.js';

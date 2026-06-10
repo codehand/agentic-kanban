@@ -8,7 +8,9 @@
  *   event: created    — a new task was inserted
  *     data: {"task_id":"...","project_id":"...","key":"...","title":"...","at":"..."}
  *   event: transition — a task changed state
- *     data: {"task_id":"...","from_state":"...","to_state":"...","actor_role":"...","at":"..."}
+ *     data: {"task_id":"...","key":"...","from_state":"...","to_state":"...","actor_role":"...","at":"..."}
+ *   event: removed    — a task was deleted
+ *     data: {"task_id":"...","project":"...","key":"...","at":"..."}
  *
  * Also emits heartbeat pings to keep the connection alive.
  */
@@ -18,9 +20,17 @@ import { EventEmitter } from 'node:events'
 export interface TransitionEvent {
   task_id: string
   project: string
+  key: string
   from_state: string
   to_state: string
   actor_role: string
+  at: string
+}
+
+export interface RemovedEvent {
+  task_id: string
+  project: string
+  key: string
   at: string
 }
 
@@ -77,19 +87,21 @@ export function broadcastTransition(evt: TransitionEvent): void {
 }
 
 /**
- * Read the full JSON body from a request.
+ * Broadcast a removed-task event to all connected SSE clients so live UIs
+ * drop the card without a reload. Mirrors broadcastCreated/broadcastTransition.
  */
-function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown> | null> {
-  return new Promise((resolve) => {
-    const chunks: Buffer[] = []
-    req.on('data', (c: Buffer) => chunks.push(c))
-    req.on('end', () => {
-      const raw = Buffer.concat(chunks).toString('utf8')
-      if (!raw) { resolve(null); return }
-      try { resolve(JSON.parse(raw)) } catch { resolve(null) }
-    })
-    req.on('error', () => resolve(null))
-  })
+export function broadcastRemoved(project: string, task_id: string, key: string): void {
+  const evt: RemovedEvent = { task_id, project, key, at: new Date().toISOString() }
+  const data = `event: removed\ndata: ${JSON.stringify(evt)}\n\n`
+  for (const res of clients) {
+    try {
+      res.write(data)
+    } catch {
+      clients.delete(res)
+    }
+  }
+  // Also emit on the bus for test listeners
+  sseBus.emit('removed', evt)
 }
 
 /**
