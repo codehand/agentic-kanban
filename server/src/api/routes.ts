@@ -29,6 +29,7 @@ import { listGitRefsByTask } from '../db/repositories/gitref.js'
 import { listTransitionsByTask } from '../db/repositories/transition.js'
 import { listActiveTokens } from '../db/repositories/token.js'
 import { insertTransition } from '../db/repositories/transition.js'
+import { mintToken as mintTokenFn, type Role as MintRole } from '../auth/mint.js'
 import { propose, type TransitionRepository } from '../domain/gate.js'
 import type { TaskState } from '../domain/statemachine.js'
 import { handleSseStream, broadcastTransition } from './stream.js'
@@ -213,6 +214,36 @@ function handleGetTokens(db: Db, _query: Record<string, string>, auth: ResolvedT
   sendJson(res, 200, { tokens })
 }
 
+const VALID_MINT_ROLES: ReadonlySet<string> = new Set<MintRole>([
+  'human', 'implementer', 'self-check', 'judge', 'runner',
+])
+
+async function handleMintToken(db: Db, _query: Record<string, string>, auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  // Human-only endpoint.
+  if (auth.role !== 'human') {
+    sendJson(res, 403, { error: 'Only human role can mint tokens' }); return
+  }
+  if (!authorize(auth.role as Role, 'token.mint')) {
+    sendJson(res, 403, { error: 'Forbidden' }); return
+  }
+  const body = await readJsonBody(req)
+  const role = typeof body?.['role'] === 'string' ? body['role'] : ''
+  const label = typeof body?.['label'] === 'string' ? body['label'] : ''
+  const project = typeof body?.['project'] === 'string' ? body['project'] : undefined
+  if (!role || !VALID_MINT_ROLES.has(role)) {
+    sendJson(res, 400, { error: `Invalid role. Must be one of: ${[...VALID_MINT_ROLES].join(', ')}` }); return
+  }
+  const result = mintTokenFn(db, role as MintRole, label, project ?? null)
+  // SECURITY: secret is returned exactly once. Never log it.
+  sendJson(res, 200, {
+    id: result.tokenId,
+    role,
+    label,
+    project: project ?? null,
+    secret: result.secret,
+  })
+}
+
 async function handleApprove(db: Db, key: string, query: Record<string, string>, auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (auth.role !== 'human') {
     sendJson(res, 403, { error: 'Only human role can approve tasks' }); return
@@ -392,6 +423,9 @@ export function mountApiRoutes(
 
       // POST write endpoints (human only)
       if (method === 'POST') {
+        if (path === '/api/tokens') {
+          await handleMintToken(db, query, auth, req, res); return
+        }
         const approveMatch = path.match(/^\/api\/tasks\/([^/]+)\/approve$/)
         if (approveMatch) {
           await handleApprove(db, decodeURIComponent(approveMatch[1]!), query, auth, req, res); return
