@@ -7,5 +7,6 @@ export default defineConfig({
   use: {
     screenshot: 'off',
     viewport: { width: 1440, height: 900 },
+    actionTimeout: 10_000,
   },
 });
