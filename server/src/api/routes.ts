@@ -23,7 +23,7 @@ import { parseBearerHeader } from '../auth/parse.js'
 import { resolveBearer, type ResolvedToken } from '../auth/resolve.js'
 import { authorize, type Role } from '../auth/authorize.js'
 import { listProjects, getProjectBySlug, getProjectById, insertProject } from '../db/repositories/project.js'
-import { listTasksByProject, getTaskByKey, getTaskById, insertTask } from '../db/repositories/task.js'
+import { listTasksByProject, getTaskByKey, getTaskById, insertTask, updateTaskAttributes } from '../db/repositories/task.js'
 import { listCommentsByTask } from '../db/repositories/comment.js'
 import { getLatestEvidenceByTask, listEvidenceByTask } from '../db/repositories/evidence.js'
 import { listGitRefsByTask } from '../db/repositories/gitref.js'
@@ -106,7 +106,63 @@ function resolveProject(db: Db, ref: string) {
   return null
 }
 
-function taskToResult(t: { id: string; project_id: string; key: string; title: string; body_md: string; state: string; allow_no_code_change: number; assignee_token_id: string | null; lease_until: string | null; created_at: string; updated_at: string }) {
+const VALID_PRIORITIES = new Set(['P0', 'P1', 'P2', 'P3'])
+const VALID_COMPLEXITIES = new Set(['XS', 'S', 'M', 'L', 'XL'])
+
+interface TaskAttributesPatch {
+  priority?: string | null
+  complexity?: string | null
+  estimate_hours?: number | null
+  tags?: string[]
+  link_document?: string | null
+}
+
+function validateTaskAttributesPatch(body: Record<string, unknown>): { ok: true; patch: TaskAttributesPatch } | { ok: false; error: string } {
+  const patch: TaskAttributesPatch = {}
+
+  if ('priority' in body) {
+    const v = body['priority']
+    if (v !== null && (typeof v !== 'string' || !VALID_PRIORITIES.has(v))) {
+      return { ok: false, error: `Invalid priority. Must be one of: P0, P1, P2, P3` }
+    }
+    patch.priority = v as string | null
+  }
+  if ('complexity' in body) {
+    const v = body['complexity']
+    if (v !== null && (typeof v !== 'string' || !VALID_COMPLEXITIES.has(v))) {
+      return { ok: false, error: `Invalid complexity. Must be one of: XS, S, M, L, XL` }
+    }
+    patch.complexity = v as string | null
+  }
+  if ('estimate_hours' in body) {
+    const v = body['estimate_hours']
+    if (v !== null && (typeof v !== 'number' || v < 0)) {
+      return { ok: false, error: `Invalid estimate_hours. Must be a non-negative number` }
+    }
+    patch.estimate_hours = v as number | null
+  }
+  if ('tags' in body) {
+    const v = body['tags']
+    if (!Array.isArray(v) || !v.every((t) => typeof t === 'string')) {
+      return { ok: false, error: `Invalid tags. Must be an array of strings` }
+    }
+    patch.tags = v as string[]
+  }
+  if ('link_document' in body) {
+    const v = body['link_document']
+    if (v !== null) {
+      if (typeof v !== 'string') return { ok: false, error: `Invalid link_document. Must be a URL string` }
+      try { new URL(v) } catch { return { ok: false, error: `Invalid link_document. Must be a valid URL` } }
+    }
+    patch.link_document = v as string | null
+  }
+
+  return { ok: true, patch }
+}
+
+function taskToResult(t: { id: string; project_id: string; key: string; title: string; body_md: string; state: string; allow_no_code_change: number; assignee_token_id: string | null; lease_until: string | null; priority: string | null; complexity: string | null; estimate_hours: number | null; tags: string; link_document: string | null; created_at: string; updated_at: string }) {
+  let tagsParsed: string[] = []
+  try { tagsParsed = JSON.parse(t.tags || '[]') } catch { tagsParsed = [] }
   return {
     id: t.id,
     project_id: t.project_id,
@@ -117,6 +173,11 @@ function taskToResult(t: { id: string; project_id: string; key: string; title: s
     allow_no_code_change: t.allow_no_code_change === 1,
     assignee_token_id: t.assignee_token_id,
     lease_until: t.lease_until,
+    priority: t.priority,
+    complexity: t.complexity,
+    estimate_hours: t.estimate_hours,
+    tags: tagsParsed,
+    link_document: t.link_document,
     created_at: t.created_at,
     updated_at: t.updated_at,
   }
@@ -291,6 +352,13 @@ async function handleCreateTask(db: Db, query: Record<string, string>, auth: Res
   }
   const bodyMd = typeof body?.['body_md'] === 'string' ? body['body_md'] : ''
   const allowNoCodeChange = body?.['allow_no_code_change'] === true
+
+  // Validate optional task attributes
+  const attrValidation = validateTaskAttributesPatch(body ?? {})
+  if (!attrValidation.ok) {
+    sendJson(res, 400, { error: attrValidation.error }); return
+  }
+
   const existing = getTaskByKey(db, proj.id, key)
   if (existing) {
     sendJson(res, 409, { error: `Task ${key} already exists in project ${projectRef}` }); return
@@ -304,6 +372,11 @@ async function handleCreateTask(db: Db, query: Record<string, string>, auth: Res
     body_md: bodyMd,
     state: 'TODO',
     allow_no_code_change: allowNoCodeChange,
+    priority: attrValidation.patch.priority ?? null,
+    complexity: attrValidation.patch.complexity ?? null,
+    estimate_hours: attrValidation.patch.estimate_hours ?? null,
+    tags: attrValidation.patch.tags ?? [],
+    link_document: attrValidation.patch.link_document ?? null,
   })
   // Broadcast SSE 'created' event so live UI picks up the new task.
   broadcastCreated({
@@ -315,6 +388,34 @@ async function handleCreateTask(db: Db, query: Record<string, string>, auth: Res
     at: task.created_at,
   })
   sendJson(res, 201, { task: taskToResult(task) })
+}
+
+async function handleUpdateTask(db: Db, key: string, query: Record<string, string>, auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (!authorize(auth.role as Role, 'task.update')) {
+    sendJson(res, 403, { error: 'Forbidden' }); return
+  }
+  const projectRef = query['project']
+  if (!projectRef) {
+    sendJson(res, 400, { error: 'project query param is required' }); return
+  }
+  const proj = resolveProject(db, projectRef)
+  if (!proj) {
+    sendJson(res, 404, { error: `Project not found: ${projectRef}` }); return
+  }
+  const task = getTaskByKey(db, proj.id, key)
+  if (!task) {
+    sendJson(res, 404, { error: `Task not found: ${key}` }); return
+  }
+  const body = await readJsonBody(req)
+  if (!body) {
+    sendJson(res, 400, { error: 'Request body is required' }); return
+  }
+  const validation = validateTaskAttributesPatch(body)
+  if (!validation.ok) {
+    sendJson(res, 400, { error: validation.error }); return
+  }
+  const updated = updateTaskAttributes(db, task.id, validation.patch)
+  sendJson(res, 200, { task: updated ? taskToResult(updated) : null })
 }
 
 async function handleApprove(db: Db, key: string, query: Record<string, string>, auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -530,6 +631,14 @@ export function mountApiRoutes(
         const removeMatch = path.match(/^\/api\/tasks\/([^/]+)\/remove$/)
         if (removeMatch) {
           await handleRemove(db, decodeURIComponent(removeMatch[1]!), query, auth, req, res); return
+        }
+      }
+
+      // PATCH write endpoints
+      if (method === 'PATCH') {
+        const patchMatch = path.match(/^\/api\/tasks\/([^/]+)$/)
+        if (patchMatch) {
+          await handleUpdateTask(db, decodeURIComponent(patchMatch[1]!), query, auth, req, res); return
         }
       }
 

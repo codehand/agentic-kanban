@@ -93,6 +93,55 @@
 ## Definition of Done</textarea>
             </div>
 
+            <!-- task attributes: priority, complexity, estimate, tags, link_document -->
+            <div class="grid gap-3">
+              <p class="text-[13px] font-medium flex items-center gap-1.5"><i class="ph ph-sliders text-[14px]"></i> Attributes <span class="text-[13px] text-muted font-normal">optional</span></p>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="grid gap-1.5">
+                  <label class="text-[13px] text-muted" for="field-priority">Priority</label>
+                  <div class="relative">
+                    <select id="field-priority" name="priority" class="appearance-none w-full rounded-md border border-border bg-panel2 px-3 h-9 text-[13px] outline-none focus:border-accent/60">
+                      <option value="">— none —</option>
+                      <option value="P0">P0 — Critical</option>
+                      <option value="P1">P1 — High</option>
+                      <option value="P2">P2 — Medium</option>
+                      <option value="P3">P3 — Low</option>
+                    </select>
+                    <i class="ph ph-caret-down text-muted text-[13px] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                  </div>
+                </div>
+                <div class="grid gap-1.5">
+                  <label class="text-[13px] text-muted" for="field-complexity">Complexity</label>
+                  <div class="relative">
+                    <select id="field-complexity" name="complexity" class="appearance-none w-full rounded-md border border-border bg-panel2 px-3 h-9 text-[13px] outline-none focus:border-accent/60">
+                      <option value="">— none —</option>
+                      <option value="XS">XS</option>
+                      <option value="S">S</option>
+                      <option value="M">M</option>
+                      <option value="L">L</option>
+                      <option value="XL">XL</option>
+                    </select>
+                    <i class="ph ph-caret-down text-muted text-[13px] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+                  </div>
+                </div>
+              </div>
+              <div class="grid gap-1.5">
+                <label class="text-[13px] text-muted" for="field-estimate_hours">Estimate (hours)</label>
+                <input id="field-estimate_hours" name="estimate_hours" type="number" min="0" step="0.5" placeholder="e.g. 4"
+                  class="rounded-md border border-border bg-panel2 px-3 h-9 text-[13px] outline-none focus:border-accent/60" />
+              </div>
+              <div class="grid gap-1.5">
+                <label class="text-[13px] text-muted" for="field-tags">Tags <span class="text-[13px] text-muted font-normal">comma-separated</span></label>
+                <input id="field-tags" name="tags" placeholder="backend, api, urgent"
+                  class="rounded-md border border-border bg-panel2 px-3 h-9 text-[13px] outline-none focus:border-accent/60" />
+              </div>
+              <div class="grid gap-1.5">
+                <label class="text-[13px] text-muted" for="field-link_document">Link Document <span class="text-[13px] text-muted font-normal">URL</span></label>
+                <input id="field-link_document" name="link_document" type="url" placeholder="https://docs.example.com/spec"
+                  class="rounded-md border border-border bg-panel2 px-3 h-9 text-[13px] outline-none focus:border-accent/60" />
+              </div>
+            </div>
+
             <!-- allow-no-code-change toggle -->
             <div class="flex items-start gap-3 rounded-lg border border-border bg-panel2 px-3 py-2.5">
               <button type="button" id="field-allow-no-code-change" name="allow_no_code_change" onclick="this.dataset.on = this.dataset.on==='1'?'0':'1'; this.firstElementChild.classList.toggle('translate-x-4'); this.classList.toggle('bg-accent'); this.classList.toggle('bg-border')"
@@ -168,6 +217,17 @@
     var project = document.getElementById('field-project').value;
     var bodyMd = document.getElementById('field-description').value;
     var allowNoCodeChange = document.getElementById('field-allow-no-code-change').dataset.on === '1';
+
+    // Task attributes
+    var priority = document.getElementById('field-priority').value || undefined;
+    var complexity = document.getElementById('field-complexity').value || undefined;
+    var estimateEl = document.getElementById('field-estimate_hours');
+    var estimateHours = estimateEl.value ? parseFloat(estimateEl.value) : undefined;
+    var tagsRaw = document.getElementById('field-tags').value.trim();
+    var tags = tagsRaw ? tagsRaw.split(',').map(function (t) { return t.trim(); }).filter(Boolean) : undefined;
+    var linkDocEl = document.getElementById('field-link_document');
+    var linkDocument = linkDocEl.value.trim() || undefined;
+
     // Generate key from title
     var key = 'TASK-' + Date.now().toString(36).toUpperCase();
     if (!title) {
@@ -176,13 +236,19 @@
     }
     btn.disabled = true;
     btn.textContent = 'Creating...';
-    api.createTask({
+    var payload = {
       project: project,
       key: key,
       title: title,
       body_md: bodyMd,
       allow_no_code_change: allowNoCodeChange,
-    }).then(function (res) {
+    };
+    if (priority) payload.priority = priority;
+    if (complexity) payload.complexity = complexity;
+    if (estimateHours !== undefined && !isNaN(estimateHours)) payload.estimate_hours = estimateHours;
+    if (tags) payload.tags = tags;
+    if (linkDocument) payload.link_document = linkDocument;
+    api.createTask(payload).then(function (res) {
       if (res && res.task) {
         window.location.href = 'index.html?created=' + encodeURIComponent(res.task.key);
       } else {

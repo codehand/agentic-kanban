@@ -130,6 +130,15 @@
         body: JSON.stringify(payload),
       }).then(function (r) { return r ? r.json() : null; });
     },
+
+    updateTask: function (project, key, patch) {
+      var qs = '?project=' + encodeURIComponent(project);
+      return apiFetch('/tasks/' + encodeURIComponent(key) + qs, {
+        method: 'PATCH',
+        headers: Object.assign(authHeaders(), { 'Content-Type': 'application/json' }),
+        body: JSON.stringify(patch),
+      }).then(function (r) { return r ? r.json() : null; });
+    },
   };
 
   // --- SSE connection ---
