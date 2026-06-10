@@ -140,6 +140,153 @@ describe('AC10: implementer calling evidence.submit returns role error', () => {
   })
 })
 
+describe('TASK-021 AC12: task attributes via real MCP client (task.create + task.update)', () => {
+  const attrKey = 'TASK-ATTR-1'
+
+  beforeEach(() => {
+    // Clean slate: remove the attribute task between tests.
+    db.prepare(`DELETE FROM task WHERE key = ?`).run(attrKey)
+  })
+
+  it('task.create persists all 5 attributes (tool response + DB row)', async () => {
+    const c = await makeClient(tokens.human.secret)
+    try {
+      const res = await c.client.callTool({
+        name: 'task.create',
+        arguments: {
+          project: 'test-project',
+          key: attrKey,
+          title: 'Attribute task created via MCP',
+          priority: 'P1',
+          complexity: 'L',
+          estimate_hours: 16,
+          tags: ['feature', 'search', 'backend'],
+          link_document: 'https://docs.example.com/search-spec',
+        },
+      })
+      expect(res.isError).toBeFalsy()
+      const created = JSON.parse((res.content as any)[0].text) as Record<string, unknown>
+      expect(created.priority).toBe('P1')
+      expect(created.complexity).toBe('L')
+      expect(created.estimate_hours).toBe(16)
+      expect(JSON.parse(created.tags as string)).toEqual(['feature', 'search', 'backend'])
+      expect(created.link_document).toBe('https://docs.example.com/search-spec')
+
+      // Persistence check straight from the DB — not just the tool's echo.
+      const row = db
+        .prepare(`SELECT priority, complexity, estimate_hours, tags, link_document FROM task WHERE key = ?`)
+        .get(attrKey) as {
+          priority: string; complexity: string; estimate_hours: number
+          tags: string; link_document: string
+        }
+      expect(row.priority).toBe('P1')
+      expect(row.complexity).toBe('L')
+      expect(row.estimate_hours).toBe(16)
+      expect(JSON.parse(row.tags)).toEqual(['feature', 'search', 'backend'])
+      expect(row.link_document).toBe('https://docs.example.com/search-spec')
+    } finally {
+      await closeClient(c)
+    }
+  })
+
+  it('task.update changes attributes and leaves the others untouched', async () => {
+    const c = await makeClient(tokens.human.secret)
+    try {
+      // Seed via MCP task.create.
+      const createRes = await c.client.callTool({
+        name: 'task.create',
+        arguments: {
+          project: 'test-project',
+          key: attrKey,
+          title: 'Attribute task to update via MCP',
+          priority: 'P2',
+          complexity: 'S',
+          estimate_hours: 4,
+          tags: ['initial'],
+          link_document: 'https://docs.example.com/initial',
+        },
+      })
+      expect(createRes.isError).toBeFalsy()
+
+      // Update only priority + tags through MCP task.update.
+      const updateRes = await c.client.callTool({
+        name: 'task.update',
+        arguments: {
+          project: 'test-project',
+          key: attrKey,
+          priority: 'P0',
+          tags: ['urgent', 'initial'],
+        },
+      })
+      expect(updateRes.isError).toBeFalsy()
+      const updated = JSON.parse((updateRes.content as any)[0].text) as Record<string, unknown>
+      expect(updated.priority).toBe('P0')
+      expect(JSON.parse(updated.tags as string)).toEqual(['urgent', 'initial'])
+
+      // DB row: patched fields changed, the rest preserved.
+      const row = db
+        .prepare(`SELECT priority, complexity, estimate_hours, tags, link_document, state FROM task WHERE key = ?`)
+        .get(attrKey) as {
+          priority: string; complexity: string; estimate_hours: number
+          tags: string; link_document: string; state: string
+        }
+      expect(row.priority).toBe('P0')
+      expect(JSON.parse(row.tags)).toEqual(['urgent', 'initial'])
+      expect(row.complexity).toBe('S')
+      expect(row.estimate_hours).toBe(4)
+      expect(row.link_document).toBe('https://docs.example.com/initial')
+      // task.update must never touch state.
+      expect(row.state).toBe('TODO')
+    } finally {
+      await closeClient(c)
+    }
+  })
+
+  it('task.update rejects an invalid priority enum and persists nothing', async () => {
+    const c = await makeClient(tokens.human.secret)
+    try {
+      const createRes = await c.client.callTool({
+        name: 'task.create',
+        arguments: {
+          project: 'test-project',
+          key: attrKey,
+          title: 'Attribute task for invalid-enum test',
+          priority: 'P3',
+        },
+      })
+      expect(createRes.isError).toBeFalsy()
+
+      // Invalid enum: zod inputSchema must reject 'P9'. Depending on SDK
+      // behavior this is either a protocol InvalidParams error (callTool
+      // rejects) or an isError tool result — both count as rejection, but
+      // it must be rejected and the message must say why.
+      let rejected = false
+      let message = ''
+      try {
+        const res = await c.client.callTool({
+          name: 'task.update',
+          arguments: { project: 'test-project', key: attrKey, priority: 'P9' },
+        })
+        if (res.isError) {
+          rejected = true
+          message = (res.content as Array<{ text: string }>).map((x) => x.text).join(' ')
+        }
+      } catch (err) {
+        rejected = true
+        message = err instanceof Error ? err.message : String(err)
+      }
+      expect(rejected).toBe(true)
+      expect(message).toMatch(/invalid/i)
+
+      // Priority must be unchanged in the DB.
+      const row = db.prepare(`SELECT priority FROM task WHERE key = ?`).get(attrKey) as { priority: string }
+      expect(row.priority).toBe('P3')
+    } finally {
+      await closeClient(c)
+    }
+  })
+})
+
 describe('AC9: full happy-path lifecycle through tools', () => {
   // Each step in the lifecycle uses a fresh Client with the correct role's token.
   // The lifecycle is: TODO → IN_PROGRESS → IMPLEMENTED → SELF_CHECK_PASSED → JUDGE_PASSED.

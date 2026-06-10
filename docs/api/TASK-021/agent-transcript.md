@@ -114,16 +114,49 @@ against a live deployment for integration testing.
 
 ---
 
-## 4. MCP tool verification (via vitest)
+## 4. MCP leg — real MCP-client session via vitest
 
-The MCP `task.create` and `task.update` tools are tested through the HTTP layer
-in `task-attributes.test.ts`:
-- POST `/api/tasks` → `handleCreateTask` → `insertTask` with attributes
-- PATCH `/api/tasks/:key` → `handleUpdateTask` → `updateTaskAttributes`
+**File**: `server/src/mcp/mcp-server.test.ts`, describe block
+`TASK-021 AC12: task attributes via real MCP client (task.create + task.update)`.
 
-MCP tool registration verified in `server/src/mcp/mcp-server.test.ts`:
-- `task.create` input schema includes priority, complexity, estimate_hours, tags, link_document
-- `task.update` tool is registered and callable
+These tests spin up the real MCP server (Streamable HTTP, bearer auth) and drive
+it with the SDK's `Client` + `StreamableHTTPClientTransport` — a genuine MCP
+session, not the HTTP API:
+
+1. **`task.create persists all 5 attributes (tool response + DB row)`** —
+   calls `task.create` over MCP with priority=P1, complexity=L,
+   estimate_hours=16, tags=[feature,search,backend], link_document URL;
+   asserts the tool response fields AND the persisted DB row match.
+2. **`task.update changes attributes and leaves the others untouched`** —
+   creates via MCP, then calls `task.update` (priority→P0, tags→[urgent,initial]);
+   asserts the patched fields changed in the DB and complexity/estimate/link
+   /state are unchanged.
+3. **`task.update rejects an invalid priority enum and persists nothing`** —
+   calls `task.update` with priority=P9; asserts the MCP call is rejected with
+   an "invalid"-class error and the DB row still holds P3.
+
+**Command**: `pnpm vitest run server/src/mcp/mcp-server.test.ts --reporter=verbose`
+**Captured output** (2026-06-10, worktree `fix/TASK-021-task-attributes`):
+
+```
+ RUN  v2.1.9 .../worktree/fix/TASK-021-task-attributes
+
+ ✓ server/src/mcp/mcp-server.test.ts > AC8: MCP SDK client connects over Streamable HTTP with bearer token > connects and lists tools when given a valid bearer token
+ ✓ server/src/mcp/mcp-server.test.ts > AC8: MCP SDK client connects over Streamable HTTP with bearer token > rejects unauthenticated requests
+ ✓ server/src/mcp/mcp-server.test.ts > AC10: implementer calling evidence.submit returns role error > refuses evidence.submit from a non-runner role
+ ✓ server/src/mcp/mcp-server.test.ts > TASK-021 AC12: task attributes via real MCP client (task.create + task.update) > task.create persists all 5 attributes (tool response + DB row)
+ ✓ server/src/mcp/mcp-server.test.ts > TASK-021 AC12: task attributes via real MCP client (task.create + task.update) > task.update changes attributes and leaves the others untouched
+ ✓ server/src/mcp/mcp-server.test.ts > TASK-021 AC12: task attributes via real MCP client (task.create + task.update) > task.update rejects an invalid priority enum and persists nothing
+ ✓ server/src/mcp/mcp-server.test.ts > AC9: full happy-path lifecycle through tools > drives TODO → IN_PROGRESS → IMPLEMENTED → SELF_CHECK_PASSED → JUDGE_PASSED
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Duration  557ms
+```
+
+In addition, `examples/task-attributes/example-mcp-client.mjs` is a runnable
+MCP client (`@modelcontextprotocol/sdk`) that performs the same
+`task.create` → `task.update` flow against a live server.
 
 ---
 

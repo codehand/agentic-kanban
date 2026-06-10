@@ -8,6 +8,17 @@ attributes via the `task.create` and `task.update` tools.
 - A running agentic-kanban server with MCP endpoint.
 - A valid bearer token (obtain via the sign-in flow or `POST /api/tokens`).
 
+## Runnable script
+
+`example-mcp-client.mjs` is a complete, runnable MCP client (connects over
+Streamable HTTP, calls `task.create` with all 5 attributes, then `task.update`):
+
+```bash
+# from the repo root (so @modelcontextprotocol/sdk resolves)
+TASK_HUB_URL=http://localhost:3000 TASK_TOKEN=<bearer token> \
+  node examples/task-attributes/example-mcp-client.mjs
+```
+
 ## Example: Create a task with attributes
 
 ```javascript
