@@ -1,12 +1,14 @@
 /**
  * stream.ts — SSE (Server-Sent Events) endpoint at /api/stream.
  *
- * Pushes task transition events to connected clients. The event bus is a
- * simple in-process EventEmitter; clients connect via EventSource.
+ * Pushes task events to connected clients. The event bus is a simple
+ * in-process EventEmitter; clients connect via EventSource.
  *
- * Event format:
- *   event: transition
- *   data: {"task_id":"...","from":"...","to":"...","actor_role":"human"}
+ * Event types:
+ *   event: created    — a new task was inserted
+ *     data: {"task_id":"...","project_id":"...","key":"...","title":"...","at":"..."}
+ *   event: transition — a task changed state
+ *     data: {"task_id":"...","from_state":"...","to_state":"...","actor_role":"...","at":"..."}
  *
  * Also emits heartbeat pings to keep the connection alive.
  */
@@ -21,15 +23,40 @@ export interface TransitionEvent {
   at: string
 }
 
+export interface CreatedEvent {
+  task_id: string
+  project_id: string
+  key: string
+  title: string
+  at: string
+}
+
 /**
- * Singleton event bus for SSE broadcasts. Exported so routes.ts can emit
- * events after state changes.
+ * Singleton event bus for SSE broadcasts. Exported so routes.ts and the MCP
+ * write path can emit events after state changes. Tests can subscribe to
+ * 'created' and 'transition' to verify emissions.
  */
 export const sseBus = new EventEmitter()
 sseBus.setMaxListeners(100)
 
 /** Set of currently connected SSE clients. */
 const clients = new Set<ServerResponse>()
+
+/**
+ * Broadcast a created-task event to all connected SSE clients and emit on
+ * the bus so test listeners (and any in-process subscribers) can observe it.
+ */
+export function broadcastCreated(evt: CreatedEvent): void {
+  const data = `event: created\ndata: ${JSON.stringify(evt)}\n\n`
+  for (const res of clients) {
+    try {
+      res.write(data)
+    } catch {
+      clients.delete(res)
+    }
+  }
+  sseBus.emit('created', evt)
+}
 
 /**
  * Broadcast a transition event to all connected SSE clients.

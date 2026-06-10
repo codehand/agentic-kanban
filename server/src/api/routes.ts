@@ -32,7 +32,7 @@ import { insertTransition } from '../db/repositories/transition.js'
 import { mintToken as mintTokenFn, type Role as MintRole } from '../auth/mint.js'
 import { propose, type TransitionRepository } from '../domain/gate.js'
 import type { TaskState } from '../domain/statemachine.js'
-import { handleSseStream, broadcastTransition } from './stream.js'
+import { handleSseStream, broadcastCreated, broadcastTransition } from './stream.js'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -277,6 +277,14 @@ async function handleCreateTask(db: Db, query: Record<string, string>, auth: Res
     body_md: bodyMd,
     state: 'TODO',
     allow_no_code_change: allowNoCodeChange,
+  })
+  // Broadcast SSE 'created' event so live UI picks up the new task.
+  broadcastCreated({
+    task_id: task.id,
+    project_id: proj.id,
+    key: task.key,
+    title: task.title,
+    at: task.created_at,
   })
   sendJson(res, 201, { task: taskToResult(task) })
 }
