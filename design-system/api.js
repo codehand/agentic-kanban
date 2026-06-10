@@ -134,16 +134,23 @@
       if (dot) dot.style.opacity = '1';
     });
 
+    es.addEventListener('created', function (evt) {
+      try {
+        var data = JSON.parse(evt.data);
+        console.log('[sse] created', data);
+        window.dispatchEvent(new CustomEvent('kanban:created', { detail: data }));
+      } catch (e) {
+        console.error('[sse] parse error', e);
+      }
+    });
+
     es.addEventListener('transition', function (evt) {
       try {
         var data = JSON.parse(evt.data);
         console.log('[sse] transition', data);
-        // Dispatch a custom event so UI components can react
+        // Dispatch a custom event so UI components can react with
+        // soft-refetch + toast (no full page reload).
         window.dispatchEvent(new CustomEvent('kanban:transition', { detail: data }));
-        // Simple auto-reload: if on board view, reload page
-        if (location.pathname === '/' || location.pathname.endsWith('index.html')) {
-          location.reload();
-        }
       } catch (e) {
         console.error('[sse] parse error', e);
       }

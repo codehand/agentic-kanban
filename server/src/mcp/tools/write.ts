@@ -34,6 +34,7 @@ import { insertTransition } from '../../db/repositories/transition.js'
 import { getProjectBySlug, getProjectById } from '../../db/repositories/project.js'
 import { listCommentsByTask } from '../../db/repositories/comment.js'
 import { getLatestEvidenceByTask } from '../../db/repositories/evidence.js'
+import { broadcastCreated, broadcastTransition } from '../../api/stream.js'
 import type { McpContext } from '../context.js'
 import type { TaskState } from '../../domain/statemachine.js'
 import type { Db } from '../../db/connection.js'
@@ -119,6 +120,15 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       state: 'TODO',
       allow_no_code_change,
     })
+    // Broadcast SSE 'created' event so live UI picks up the new task.
+    broadcastCreated({
+      task_id: task.id,
+      project_id: proj.id,
+      project: proj.slug,
+      key: task.key,
+      title: task.title,
+      at: task.created_at,
+    })
     return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] }
   })
 
@@ -187,7 +197,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       note: z.string().optional(),
     },
   }, async ({ project, key, from, to, note }) => {
-    const { task } = resolveTask(ctx, project, key)
+    const { proj, task } = resolveTask(ctx, project, key)
     const currentState = task.state as TaskState
     if (currentState !== from) {
       throw new Error(
@@ -238,6 +248,15 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       repo,
     )
     if (!result.ok) throw new Error(result.error ?? 'Gate rejected transition')
+    // Broadcast SSE 'transition' event so live UI updates.
+    broadcastTransition({
+      task_id: task.id,
+      project: proj.slug,
+      from_state: from,
+      to_state: to,
+      actor_role: ctx.auth.role as string,
+      at: result.transition!.at,
+    })
     return { content: [{ type: 'text', text: JSON.stringify(result.transition, null, 2) }] }
   })
 
@@ -346,14 +365,33 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
     },
   }, async ({ project, key }) => {
     assertAuthorized(ctx.auth.role as Role, 'task.transition.self_check')
-    const { task } = resolveTask(ctx, project, key)
+    const { proj, task } = resolveTask(ctx, project, key)
     const taskRepo = {
       getCurrentState: (_id: string): TaskState => task.state as TaskState,
       setCurrentState: (id: string, state: TaskState) => {
         setTaskStateInDb(ctx.db, id, state)
       },
     }
-    const transitionRepo = makeTransitionRepo(ctx)
+    // Wrap the transition repo so we can broadcast the transition that
+    // selfcheck performs internally (avoids double-emit: propose() only
+    // appends once via this repo).
+    const baseTransitionRepo = makeTransitionRepo(ctx)
+    const transitionRepo: TransitionRepository = {
+      append(record) {
+        baseTransitionRepo.append(record)
+        broadcastTransition({
+          task_id: record.task_id,
+          project: proj.slug,
+          from_state: record.from_state,
+          to_state: record.to_state,
+          actor_role: record.actor_role,
+          at: new Date().toISOString(),
+        })
+      },
+      setTaskState(task_id, state) {
+        baseTransitionRepo.setTaskState(task_id, state)
+      },
+    }
     const result = await runSelfcheck(
       ctx.db,
       task.id,
@@ -375,7 +413,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
     },
   }, async ({ project, key }) => {
     assertAuthorized(ctx.auth.role as Role, 'task.transition.approve')
-    const { task } = resolveTask(ctx, project, key)
+    const { proj, task } = resolveTask(ctx, project, key)
     const repo = makeTransitionRepo(ctx)
     const result = propose(
       {
@@ -389,6 +427,15 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       repo,
     )
     if (!result.ok) throw new Error(result.error ?? 'Gate rejected approval')
+    // Broadcast SSE 'transition' event so live UI updates.
+    broadcastTransition({
+      task_id: task.id,
+      project: proj.slug,
+      from_state: 'JUDGE_PASSED',
+      to_state: 'DONE',
+      actor_role: ctx.auth.role as string,
+      at: result.transition!.at,
+    })
     return { content: [{ type: 'text', text: JSON.stringify(result.transition, null, 2) }] }
   })
 }

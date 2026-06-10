@@ -528,8 +528,25 @@
       setTimeout(function () { t.classList.add('hidden'); t.classList.remove('flex'); }, 3200);
     }
 
-    // SSE: reload board on transition
-    window.addEventListener('kanban:transition', function () { loadBoard(); });
+    // SSE: soft-refetch board + show toast on live events
+    // Only react to events for the currently viewed project (data-project on body).
+    // This prevents toast/refetch noise from tasks in other projects.
+    function currentProject() {
+      return document.body.dataset.project || '';
+    }
+
+    window.addEventListener('kanban:created', function (e) {
+      var d = e.detail || {};
+      if (d.project && d.project !== currentProject()) return;
+      showToast('TASK', 'Task mới: ' + (d.key || ''));
+      loadBoard();
+    });
+    window.addEventListener('kanban:transition', function (e) {
+      var d = e.detail || {};
+      if (d.project && d.project !== currentProject()) return;
+      showToast('TASK', (d.task_id || '').substring(0, 12) + ': ' + (d.from_state || '') + '→' + (d.to_state || ''));
+      loadBoard();
+    });
 
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') { closeConfirm(); closeDrawer(); }
