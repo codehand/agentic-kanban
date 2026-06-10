@@ -1,5 +1,5 @@
-/* Agentic Kanban - shared app shell. Injects the left rail (consistent everywhere)
- * and a floating prototype screen-switcher. Each page sets:
+/* Agentic Kanban - shared app shell. Injects the left rail (consistent everywhere).
+ * Each page sets:
  *   <body data-active="board|projects|tokens" data-project="opf-hub" data-awaiting="2">
  * and provides <aside id="rail"></aside> as the mount point.  */
 (function () {
@@ -67,35 +67,4 @@
         </div>
       </div>`;
   }
-
-  // ---- prototype screen-switcher (floating, bottom-right) ----
-  const screens = [
-    ['index.html', 'squares-four', 'S1 Board + S2 Detail'],
-    ['projects.html', 'folders', 'S3 Projects Overview'],
-    ['new-task.html', 'plus-circle', 'S4 Create Task'],
-    ['evidence.html', 'seal-check', 'S6 Evidence Detail'],
-    ['tokens.html', 'key', 'S7 Token Management'],
-    ['signin.html', 'sign-in', 'S5 Token Gate'],
-    ['first-run.html', 'sparkle', 'S8 First-run / States'],
-  ];
-  const here = location.pathname.split('/').pop() || 'index.html';
-  const sw = document.createElement('div');
-  sw.className = 'fixed bottom-4 right-4 z-[80]';
-  sw.innerHTML = `
-    <div id="sw-panel" class="hidden mb-2 w-60 rounded-xl border border-border bg-panel p-1.5 shadow-2xl">
-      <p class="px-2 pt-1 pb-1.5 text-[13px] uppercase tracking-wider text-muted">Prototype screens</p>
-      ${screens.map(([href, icon, label]) => {
-        const on = href === here;
-        return `<a href="${href}" class="flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] ${
-          on ? 'bg-accent/12 text-text' : 'text-muted hover:bg-white/5 hover:text-text'
-        }"><i class="ph ph-${icon} text-[15px] ${on ? 'text-accent' : ''}"></i> ${label}</a>`;
-      }).join('')}
-    </div>
-    <button id="sw-btn" class="ml-auto flex items-center gap-1.5 rounded-full border border-border bg-panel2 pl-3 pr-3.5 h-10 text-[13px] text-text shadow-xl hover:border-borderlt">
-      <i class="ph ph-stack text-[16px] text-accent"></i> Screens
-    </button>`;
-  body.appendChild(sw);
-  const panel = sw.querySelector('#sw-panel');
-  sw.querySelector('#sw-btn').addEventListener('click', () => panel.classList.toggle('hidden'));
-  document.addEventListener('click', (e) => { if (!sw.contains(e.target)) panel.classList.add('hidden'); });
 })();
