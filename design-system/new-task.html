@@ -191,14 +191,7 @@
     api.listProjects().then(function (res) {
       var projects = (res && res.projects) || [];
       sel.innerHTML = '';
-      projects.forEach(function (p) {
-        var slug = p.slug || p.id;
-        var opt = document.createElement('option');
-        opt.value = slug;
-        opt.textContent = slug;
-        if (slug === current) opt.selected = true;
-        sel.appendChild(opt);
-      });
+      window.populateProjectSelect(sel, projects, current); // shared helper (shell.js)
       if (headerProject && !current && projects.length) {
         headerProject.textContent = projects[0].slug || projects[0].id;
       }

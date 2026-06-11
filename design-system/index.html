@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="/theme.css" />
 </head>
 
-<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="board" data-awaiting="0">
+<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="board">
 
 <div class="flex h-full">
 
@@ -328,18 +328,10 @@
       api.listProjects().then(function (res) {
         if (!res || !res.projects) { showBoardError('No projects returned'); return; }
         var projects = res.projects;
-        if (projects.length === 0) {
-          // Empty-state guide: no projects yet — send to first-run onboarding.
-          location.replace('/first-run.html');
-          return;
-        }
+        // Shared redirect (shell.js): 0 projects -> first-run onboarding;
+        // no project prefix in the URL -> first project's board.
+        if (window.redirectToProject('index.html', projects)) return;
         var fromPath = window.projectFromPath ? window.projectFromPath() : '';
-        if (!fromPath) {
-          // No project in the URL — go to the first project's board.
-          var first = projects[0].slug || projects[0].id;
-          location.replace('/' + encodeURIComponent(first) + '/index.html');
-          return;
-        }
         var proj = null;
         projects.forEach(function (p) {
           if (p.slug === fromPath || p.id === fromPath) proj = p;
@@ -408,10 +400,8 @@
         '<span class="text-border">|</span>' +
         '<span class="text-muted">' + totalActive + ' active across <span class="text-text">' + esc(projName) + '</span></span>' +
         '<span class="ml-auto flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-full bg-ev_pass heartbeat"></span> live</span>';
-      document.body.dataset.awaiting = String(humanCount);
-      // Keep the rail "Awaiting You" badge in sync with the real count.
-      var railAwaiting = document.getElementById('rail-awaiting');
-      if (railAwaiting) railAwaiting.textContent = String(humanCount);
+      // NOTE: the rail "Awaiting You" badge is owned by shell.js
+      // (refreshAwaitingBadge) — single update path, synced via SSE.
     }
 
     // --- Task attribute display/edit helpers ---
@@ -671,23 +661,19 @@
       return (window.projectFromPath ? window.projectFromPath() : '') || '';
     }
 
-    window.addEventListener('kanban:created', function (e) {
-      var d = e.detail || {};
-      if (d.project && d.project !== currentProject()) return;
-      showToast('TASK', 'New task: ' + (d.key || ''));
-      loadBoard();
-    });
-    window.addEventListener('kanban:transition', function (e) {
-      var d = e.detail || {};
-      if (d.project && d.project !== currentProject()) return;
-      showToast('TASK', (d.key || d.task_id || '') + ': ' + (d.from_state || '') + '→' + (d.to_state || ''));
-      loadBoard();
-    });
-    window.addEventListener('kanban:removed', function (e) {
-      var d = e.detail || {};
-      if (d.project && d.project !== currentProject()) return;
-      showToast('TASK', 'Task removed: ' + (d.key || d.task_id || ''));
-      loadBoard();
+    // One handler body for all three task events — only the toast text differs.
+    var SSE_TOAST = {
+      'kanban:created': function (d) { return 'New task: ' + (d.key || ''); },
+      'kanban:transition': function (d) { return (d.key || d.task_id || '') + ': ' + (d.from_state || '') + '→' + (d.to_state || ''); },
+      'kanban:removed': function (d) { return 'Task removed: ' + (d.key || d.task_id || ''); },
+    };
+    Object.keys(SSE_TOAST).forEach(function (name) {
+      window.addEventListener(name, function (e) {
+        var d = e.detail || {};
+        if (d.project && d.project !== currentProject()) return;
+        showToast('TASK', SSE_TOAST[name](d));
+        loadBoard();
+      });
     });
 
     document.addEventListener('keydown', function (e) {

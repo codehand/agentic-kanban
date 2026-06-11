@@ -84,7 +84,15 @@
     api.listProjects().then(function (res) {
       if (!res || !res.projects) { showOnly('tasks-empty'); return; }
       var projects = res.projects;
-      if (projects.length === 0) { showOnly('tasks-empty'); return; }
+      if (projects.length === 0) {
+        // 0 projects: show an explicit empty state — never leave the
+        // loading skeleton up (tasks.html is redirecting to first-run).
+        var ps = document.getElementById('tasks-empty').querySelectorAll('p');
+        if (ps[0]) ps[0].textContent = 'No projects yet';
+        if (ps[1]) ps[1].textContent = 'Create your first project to see tasks here.';
+        showOnly('tasks-empty');
+        return;
+      }
       if (!fromPath) return; // tasks.html inline script is redirecting to /<first>/tasks.html
       var proj = null;
       projects.forEach(function (p) {

@@ -15,6 +15,7 @@ import {
   broadcastTransition,
   broadcastRemoved,
   handleSseStream,
+  getClientCount,
   _clearClients,
   type CreatedEvent,
   type TransitionEvent,
@@ -208,5 +209,43 @@ describe('broadcastRemoved', () => {
     expect(removedFrame).toContain('"key":"R-2"')
     // SSE frame must be terminated by a blank line
     expect(removedFrame!.endsWith('\n\n')).toBe(true)
+  })
+})
+
+describe('shared broadcast helper (TASK-026)', () => {
+  it('drops clients whose write throws and keeps serving healthy clients', () => {
+    const good = makeFakeRes()
+    handleSseStream(makeFakeReq(), good.res)
+
+    // Bad client: accepts the initial 'connected' write, then throws.
+    let badWrites = 0
+    const badRes = {
+      writeHead: vi.fn(),
+      write: vi.fn(() => {
+        badWrites++
+        if (badWrites > 1) throw new Error('broken pipe')
+        return true
+      }),
+      on: vi.fn(),
+      addListener: vi.fn(),
+    } as unknown as ServerResponse
+    handleSseStream(makeFakeReq(), badRes)
+    expect(getClientCount()).toBe(2)
+
+    broadcastTransition({
+      task_id: 'task_b',
+      project: 'test-project',
+      key: 'B-1',
+      from_state: 'TODO',
+      to_state: 'IN_PROGRESS',
+      actor_role: 'implementer',
+      at: '2026-06-10T00:00:00Z',
+    })
+
+    // Broken client pruned; healthy client received the frame.
+    expect(getClientCount()).toBe(1)
+    const frame = good.writes().find((w) => w.startsWith('event: transition'))
+    expect(frame).toBeDefined()
+    expect(frame).toContain('"key":"B-1"')
   })
 })

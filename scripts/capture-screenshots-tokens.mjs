@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * capture-screenshots.mjs — take REAL screenshots of tokens.html for TASK-024.
+ * capture-screenshots-tokens.mjs — take REAL screenshots of tokens.html for TASK-024.
  * Drives a real dev server, mints a real token via the UI, captures distinct PNGs.
  */
 import { chromium } from '@playwright/test';

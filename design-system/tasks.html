@@ -103,17 +103,13 @@
 <script src="/shell.js"></script>
 <script>
   /* Project scoping: under /<project>/tasks.html only that project's tasks are
-   * listed (same pattern as the board). No project prefix in the URL ->
-   * redirect to the first project's tasks page, mirroring index.html. */
+   * listed (same pattern as the board). Redirects use the shared helper in
+   * shell.js: no prefix -> first project's tasks page, 0 projects -> first-run. */
   (function () {
     'use strict';
     if (window.projectFromPath && !window.projectFromPath() && window.__kanban_api) {
       window.__kanban_api.listProjects().then(function (res) {
-        var projects = (res && res.projects) || [];
-        if (projects.length) {
-          var first = projects[0].slug || projects[0].id;
-          location.replace('/' + encodeURIComponent(first) + '/tasks.html');
-        }
+        window.redirectToProject('tasks.html', (res && res.projects) || []);
       }).catch(function () {});
     }
   })();
