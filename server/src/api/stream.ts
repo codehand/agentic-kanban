@@ -135,3 +135,19 @@ export function getClientCount(): number {
 export function _clearClients(): void {
   clients.clear()
 }
+
+/**
+ * Gracefully end every connected SSE response and drop it from the registry.
+ * Used by the shutdown path so long-lived event streams release their sockets,
+ * letting the HTTP server's close() callback fire.
+ */
+export function closeAllClients(): void {
+  for (const res of clients) {
+    try {
+      res.end()
+    } catch {
+      // socket may already be gone — ignore
+    }
+  }
+  clients.clear()
+}

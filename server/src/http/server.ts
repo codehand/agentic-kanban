@@ -1,4 +1,4 @@
-import { createServer, IncomingMessage, ServerResponse } from 'node:http'
+import { createServer, IncomingMessage, ServerResponse, Server } from 'node:http'
 import { resolve } from 'node:path'
 import type { Db } from '../db/connection.js'
 import { mountMcpRoute } from '../mcp/server.js'
@@ -44,12 +44,12 @@ export function createHttpServer(db?: Db) {
   return createServer(router)
 }
 
-export function startServer(port: number, db?: Db): Promise<void> {
+export function startServer(port: number, db?: Db): Promise<Server> {
   return new Promise((resolve) => {
     const server = createHttpServer(db)
     server.listen(port, () => {
       logger.info({ port }, 'HTTP server listening')
-      resolve()
+      resolve(server)
     })
   })
 }
