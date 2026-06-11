@@ -13,6 +13,7 @@
  *   POST /api/tasks/:key/approve?project= — approve JUDGE_PASSED → DONE
  *   POST /api/tasks/:key/reset?project=   — reset task to IN_PROGRESS
  *   POST /api/tasks/:key/remove?project=  — remove task
+ *   DELETE /api/tokens/:id                — revoke a token (human only)
  *
  * All endpoints require bearer auth (401 if missing/invalid).
  */
@@ -28,9 +29,9 @@ import { listCommentsByTask } from '../db/repositories/comment.js'
 import { getLatestEvidenceByTask, listEvidenceByTask } from '../db/repositories/evidence.js'
 import { listGitRefsByTask } from '../db/repositories/gitref.js'
 import { listTransitionsByTask } from '../db/repositories/transition.js'
-import { listActiveTokens } from '../db/repositories/token.js'
+import { listActiveTokens, getTokenById, findActiveTokensByRole } from '../db/repositories/token.js'
 import { insertTransition } from '../db/repositories/transition.js'
-import { mintToken as mintTokenFn, type Role as MintRole } from '../auth/mint.js'
+import { mintToken as mintTokenFn, revokeTokenById, type Role as MintRole } from '../auth/mint.js'
 import { propose, type TransitionRepository } from '../domain/gate.js'
 import type { TaskState } from '../domain/statemachine.js'
 import { handleSseStream, broadcastCreated, broadcastTransition, broadcastRemoved } from './stream.js'
@@ -304,6 +305,37 @@ async function handleMintToken(db: Db, _query: Record<string, string>, auth: Res
     label,
     project: project ?? null,
     secret: result.secret,
+  })
+}
+
+function handleRevokeToken(db: Db, id: string, auth: ResolvedToken, res: ServerResponse): void {
+  // Human-only endpoint, mirroring the mint route's guard.
+  if (auth.role !== 'human') {
+    sendJson(res, 403, { error: 'Only human role can revoke tokens' }); return
+  }
+  if (!authorize(auth.role as Role, 'token.revoke')) {
+    sendJson(res, 403, { error: 'Forbidden' }); return
+  }
+  const token = getTokenById(db, id)
+  if (!token) {
+    sendJson(res, 404, { error: `Token not found: ${id}` }); return
+  }
+  if (token.revoked_at) {
+    sendJson(res, 409, { error: `Token already revoked: ${id}` }); return
+  }
+  // Lockout guard: never revoke the last active human token, or the operator
+  // loses access (and bootstrap skips re-minting because the row still exists).
+  if (token.role === 'human' && findActiveTokensByRole(db, 'human').length <= 1) {
+    sendJson(res, 409, { error: 'Cannot revoke the last active human token' }); return
+  }
+  revokeTokenById(db, id)
+  const revoked = getTokenById(db, id)!
+  // SECURITY: only metadata is returned/logged — never the secret or its hash.
+  sendJson(res, 200, {
+    id: revoked.id,
+    role: revoked.role,
+    label: revoked.label,
+    revoked_at: revoked.revoked_at,
   })
 }
 
@@ -632,6 +664,14 @@ export function mountApiRoutes(
         const removeMatch = path.match(/^\/api\/tasks\/([^/]+)\/remove$/)
         if (removeMatch) {
           await handleRemove(db, decodeURIComponent(removeMatch[1]!), query, auth, req, res); return
+        }
+      }
+
+      // DELETE write endpoints (human only)
+      if (method === 'DELETE') {
+        const tokenMatch = path.match(/^\/api\/tokens\/([^/]+)$/)
+        if (tokenMatch) {
+          handleRevokeToken(db, decodeURIComponent(tokenMatch[1]!), auth, res); return
         }
       }
 
