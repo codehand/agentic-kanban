@@ -24,7 +24,7 @@
 
     <!-- top bar -->
     <header class="h-14 shrink-0 border-b border-border bg-panel/80 backdrop-blur flex items-center gap-3 px-4">
-      <button class="lg:hidden grid place-items-center w-8 h-8 rounded-md text-muted hover:bg-white/5"><i class="ph ph-list text-[19px]"></i></button>
+      <button class="lg:hidden grid place-items-center w-8 h-8 rounded-md text-muted hover:bg-white/5" aria-label="Open navigation"><i class="ph ph-list text-[19px]"></i></button>
       <div class="flex items-center gap-2 min-w-0">
         <span id="topbar-project" class="text-[15px] font-semibold tracking-tight">&hellip;</span>
         <span class="text-muted text-[13px] hidden sm:inline">Board</span>
@@ -33,7 +33,7 @@
       <div class="ml-auto flex items-center gap-2">
         <div class="hidden md:flex items-center gap-2 rounded-md border border-border bg-panel2 px-2.5 h-9 w-64 text-muted focus-within:border-accent/60">
           <i class="ph ph-magnifying-glass text-[16px]"></i>
-          <input placeholder="Search tasks, keys, SHAs" class="bg-transparent text-[13px] text-text placeholder:text-muted outline-none w-full" />
+          <input id="board-search" name="board-search" aria-label="Search tasks, keys, SHAs" placeholder="Search tasks, keys, SHAs" class="bg-transparent text-[13px] text-text placeholder:text-muted outline-none w-full" />
           <kbd class="mono text-[13px] text-muted border border-border rounded px-1">/</kbd>
         </div>
 
@@ -42,7 +42,7 @@
           <i class="ph ph-funnel text-[15px]"></i> Filter
         </button>
 
-        <button id="theme-toggle" class="grid place-items-center w-9 h-9 rounded-md border border-border bg-panel2 text-muted hover:text-text" title="Toggle theme">
+        <button id="theme-toggle" aria-label="Toggle theme" class="grid place-items-center w-9 h-9 rounded-md border border-border bg-panel2 text-muted hover:text-text" title="Toggle theme">
           <i class="ph ph-moon text-[16px]"></i>
         </button>
 
@@ -61,7 +61,7 @@
     <div id="board-loading" class="flex-1 grid place-items-center text-muted text-[14px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[17px]"></i> Loading board&hellip;</span></div>
     <div id="board-error" class="flex-1 grid place-items-center hidden"><div class="text-center"><p class="text-ev_fail text-[15px] font-medium">Failed to load board</p><p class="text-muted text-[13px] mt-1" id="board-error-msg"></p><button onclick="loadBoard()" class="mt-3 text-accent text-[13px] hover:underline">Retry</button></div></div>
     <div id="board-empty" class="flex-1 grid place-items-center hidden"><div class="text-center"><p class="text-muted text-[15px]">No tasks yet</p><p class="text-muted text-[13px] mt-1">Create a task to get started.</p></div></div>
-    <div id="board-columns" class="flex-1 overflow-x-auto overflow-y-hidden console-grid hidden">
+    <div id="board-columns" tabindex="0" role="region" aria-label="Kanban board columns" class="flex-1 overflow-x-auto overflow-y-hidden console-grid hidden">
       <div class="flex gap-3 h-full p-3 min-w-max">
 
         <!-- COLUMN: Backlog -->
@@ -124,7 +124,7 @@
               <h2 class="text-[13px] font-semibold text-st_human">Awaiting Human</h2>
               <span id="count-human" class="mono text-[13px] px-1.5 rounded bg-st_human/15 text-st_human">0</span>
             </div>
-            <span class="mono text-[13px] text-st_human/80 uppercase tracking-wider">NEEDS YOU</span>
+            <span class="mono text-[13px] text-st_human uppercase tracking-wider">NEEDS YOU</span>
           </div>
           <div id="col-judge_passed" class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5 rounded-lg"></div>
         </section>
@@ -163,7 +163,7 @@
         <h2 id="drawer-title" class="mt-1.5 text-[18px] font-semibold leading-tight tracking-tight"></h2>
         <p class="mt-1 text-[13px] text-muted">in <span id="drawer-project" class="text-text"></span> &middot; updated <span id="drawer-updated" class="mono"></span></p>
       </div>
-      <button onclick="closeDrawer()" class="grid place-items-center w-8 h-8 rounded-md text-muted hover:bg-white/5 shrink-0"><i class="ph ph-x text-[17px]"></i></button>
+      <button onclick="closeDrawer()" aria-label="Close drawer" class="grid place-items-center w-8 h-8 rounded-md text-muted hover:bg-white/5 shrink-0"><i class="ph ph-x text-[17px]"></i></button>
     </div>
 
     <!-- primary action: state-driven -->
@@ -174,7 +174,7 @@
       <button id="btn-reset" onclick="doReset()" class="hidden flex items-center gap-1.5 rounded-md border border-border bg-panel2 px-3 h-9 text-[13px] text-muted hover:text-text hover:border-borderlt">
         <i class="ph ph-arrow-counter-clockwise text-[15px]"></i> Reset
       </button>
-      <button id="btn-remove" onclick="doRemove()" class="hidden ml-auto grid place-items-center w-9 h-9 rounded-md border border-border bg-panel2 text-muted hover:text-st_reject hover:border-st_reject/40" title="Remove (guarded)">
+      <button id="btn-remove" onclick="doRemove()" aria-label="Remove task (guarded)" class="hidden ml-auto grid place-items-center w-9 h-9 rounded-md border border-border bg-panel2 text-muted hover:text-st_reject hover:border-st_reject/40" title="Remove (guarded)">
         <i class="ph ph-trash text-[15px]"></i>
       </button>
     </div>
@@ -287,7 +287,9 @@
       var fill = st.fill ? 'fill' : '';
       var border = BORDER_COLORS[t.state] || 'border-l-border';
       var extra = t.state === 'JUDGE_PASSED' ? ' border-st_human/40 glow-human hover:bg-st_human/5' : ' hover:border-borderlt';
-      var opacity = t.state === 'DONE' ? ' opacity-90' : '';
+      // No opacity fade on DONE cards: fading drops the muted chip text below
+      // the 4.5:1 AA contrast floor in both themes (TASK-036).
+      var opacity = '';
       var lease = '';
       if (t.state === 'IN_PROGRESS' && t.lease_until) {
         var left = Math.max(0, Math.floor((new Date(t.lease_until) - new Date()) / 60000));
@@ -295,7 +297,7 @@
       }
       // Priority + tags badges
       var badges = '';
-      var prioColors = { P0: 'bg-ev_fail/15 text-ev_fail', P1: 'bg-orange-500/15 text-orange-400', P2: 'bg-yellow-500/15 text-yellow-400', P3: 'bg-blue-500/15 text-blue-400' };
+      var prioColors = { P0: 'bg-ev_fail/15 text-ev_fail', P1: 'bg-orange-500/15 text-orange-800 dark:text-orange-400', P2: 'bg-yellow-500/15 text-yellow-800 dark:text-yellow-400', P3: 'bg-blue-500/15 text-blue-700 dark:text-blue-400' };
       if (t.priority && prioColors[t.priority]) {
         badges += '<span role="img" aria-label="Priority ' + esc(t.priority) + '" class="mono text-[11px] px-1.5 py-0.5 rounded ' + prioColors[t.priority] + '">' + esc(t.priority) + '</span>';
       }
@@ -397,7 +399,7 @@
       var projName = projects.length === 1 ? (projects[0].slug || projects[0].name) : projects.length + ' projects';
       strip.innerHTML =
         '<span class="flex items-center gap-1.5 text-st_human font-medium"><i class="ph-fill ph-hand-tap text-[15px]"></i> ' + humanCount + ' tasks awaiting you</span>' +
-        '<span class="text-border">|</span>' +
+        '<span class="w-px h-3.5 bg-border" aria-hidden="true"></span>' +
         '<span class="text-muted">' + totalActive + ' active across <span class="text-text">' + esc(projName) + '</span></span>' +
         '<span class="ml-auto flex items-center gap-1.5 text-muted"><span class="w-1.5 h-1.5 rounded-full bg-ev_pass heartbeat"></span> live</span>';
       // NOTE: the rail "Awaiting You" badge is owned by shell.js
@@ -405,7 +407,7 @@
     }
 
     // --- Task attribute display/edit helpers ---
-    var PRIO_COLORS = { P0: 'bg-ev_fail/15 text-ev_fail', P1: 'bg-orange-500/15 text-orange-400', P2: 'bg-yellow-500/15 text-yellow-400', P3: 'bg-blue-500/15 text-blue-400' };
+    var PRIO_COLORS = { P0: 'bg-ev_fail/15 text-ev_fail', P1: 'bg-orange-500/15 text-orange-800 dark:text-orange-400', P2: 'bg-yellow-500/15 text-yellow-800 dark:text-yellow-400', P3: 'bg-blue-500/15 text-blue-700 dark:text-blue-400' };
 
     function renderAttributesDisplay(t) {
       var tags = Array.isArray(t.tags) ? t.tags : [];

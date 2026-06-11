@@ -65,7 +65,7 @@
       </div>
 
       <div class="px-3 pt-3 relative">
-        <button id="project-switcher" aria-haspopup="menu" aria-expanded="false" aria-label="Switch project"
+        <button id="project-switcher" aria-haspopup="menu" aria-expanded="false" aria-label="Switch project: ${project}"
           class="w-full flex items-center justify-between gap-2 rounded-md border border-border bg-panel2 px-2.5 py-2 text-left hover:border-borderlt">
           <span class="flex items-center gap-2 min-w-0">
             <span class="w-2 h-2 rounded-sm bg-accent shrink-0"></span>
@@ -160,7 +160,12 @@
         renderMenu(projects);
         // No project prefix in the URL yet: show the first real project name.
         const label = document.getElementById('project-switcher-label');
-        if (!current && projects.length && label) label.textContent = projects[0].slug || projects[0].id;
+        if (!current && projects.length && label) {
+          label.textContent = projects[0].slug || projects[0].id;
+          // Keep the accessible name containing the visible label
+          // (axe label-content-name-mismatch).
+          btn.setAttribute('aria-label', 'Switch project: ' + label.textContent);
+        }
       }).catch(() => {});
     }
 

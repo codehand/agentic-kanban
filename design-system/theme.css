@@ -11,19 +11,20 @@
   --borderlt:  #BFC3CC;
   --text:      #1A1D24;
   --muted:     #5F6672;
-  --accent:    #4263EB;
-  /* semantic workflow-state hues — darker shades for light bg (AA contrast) */
+  --accent:    #3D5CE5;
+  /* semantic workflow-state hues — darker shades for light bg (AA contrast,
+   * ≥4.5:1 as normal text on bg/panel/panel2 and on their /12-/15 tints) */
   --st_todo:     #5F6672;
   --st_prog:     #2F5AC7;
   --st_impl:     #4C5FD8;
-  --st_self:     #0A8D68;
-  --st_selffail: #B96B00;
+  --st_self:     #07795A;
+  --st_selffail: #8F5400;
   --st_human:    #7C3AED;
-  --st_reject:   #C8321E;
-  --st_done:     #0A9660;
-  --ev_pass:     #0A9660;
-  --ev_fail:     #C8321E;
-  --ev_warn:     #B96B00;
+  --st_reject:   #B3261E;
+  --st_done:     #047A4E;
+  --ev_pass:     #047A4E;
+  --ev_fail:     #B3261E;
+  --ev_warn:     #8F5400;
 }
 
 /* ---- Dark palette ---- */
@@ -35,9 +36,9 @@ html.dark {
   --border:    #262932;
   --borderlt:  #30343F;
   --text:      #E6E8EC;
-  --muted:     #8A8F98;
+  --muted:     #949AA4; /* ≥4.5:1 even on bg-white/5 chips over panel2 (AA) */
   --accent:    #5B7CFA;
-  --st_todo:     #8A8F98;
+  --st_todo:     #949AA4;
   --st_prog:     #4D8DF0;
   --st_impl:     #7C83FA;
   --st_self:     #2DD4BF;
@@ -49,6 +50,10 @@ html.dark {
   --ev_fail:     #F4564E;
   --ev_warn:     #F5A524;
 }
+
+/* AA contrast: in dark mode the bright accent/human fills can't carry white
+ * text (≈3.7:1), so filled buttons get near-black text instead (≥5:1). */
+html.dark .bg-accent, html.dark .bg-st_human { color: var(--bg); }
 
 html, body { background: var(--bg); }
 body { font-feature-settings: "cv11", "ss01"; }
