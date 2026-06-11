@@ -17,6 +17,32 @@
   }
   window.projectFromPath = projectFromPath;
 
+  /* redirectToProject(page, projects) — shared no-prefix redirect used by the
+   * board and the tasks page: with no projects at all go to first-run
+   * onboarding; with no project prefix in the URL go to the first project's
+   * <page>. Returns true when a redirect was issued (caller stops rendering). */
+  window.redirectToProject = function (page, projects) {
+    if (!projects.length) { location.replace('/first-run.html'); return true; }
+    if (projectFromPath()) return false;
+    const first = projects[0].slug || projects[0].id;
+    location.replace('/' + encodeURIComponent(first) + '/' + page);
+    return true;
+  };
+
+  /* populateProjectSelect(sel, projects, selected) — shared <select> populate:
+   * appends one <option> per project (value/text = slug), preselecting
+   * `selected` when given. Used by new-task and tokens pages. */
+  window.populateProjectSelect = function (sel, projects, selected) {
+    projects.forEach((p) => {
+      const slug = p.slug || p.id;
+      const opt = document.createElement('option');
+      opt.value = slug;
+      opt.textContent = slug;
+      if (selected && slug === selected) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  };
+
   const project = projectFromPath() || '—';
 
   const nav = (key, href, icon, label) => {
@@ -126,8 +152,10 @@
       }).join('');
     }
 
-    if (window.__kanban_api && window.__kanban_api.listProjects) {
-      window.__kanban_api.listProjects().then((res) => {
+    const api = window.__kanban_api;
+
+    if (api && api.listProjects) {
+      api.listProjects().then((res) => {
         const projects = (res && res.projects) || [];
         renderMenu(projects);
         // No project prefix in the URL yet: show the first real project name.
@@ -136,13 +164,25 @@
       }).catch(() => {});
     }
 
-    /* "Awaiting You" badge: real JUDGE_PASSED count for the current project.
-     * Stays empty (no mock number) until live data arrives. */
-    if (current && window.__kanban_api && window.__kanban_api.listTasks) {
-      window.__kanban_api.listTasks(current, 'JUDGE_PASSED').then((res) => {
-        const el = document.getElementById('rail-awaiting');
-        if (el && res && res.tasks) el.textContent = String(res.tasks.length);
+    /* "Awaiting You" badge — the ONE update path. Shows the real JUDGE_PASSED
+     * count for the current project (URL prefix, falling back to the first
+     * project when the page has no prefix) and refreshes on every SSE task
+     * event so it stays live without a reload. */
+    function refreshAwaitingBadge() {
+      const el = document.getElementById('rail-awaiting');
+      if (!el || !api || !api.listProjects || !api.listTasks) return;
+      api.listProjects().then((res) => {
+        const projects = (res && res.projects) || [];
+        const slug = current || (projects.length ? (projects[0].slug || projects[0].id) : '');
+        if (!slug) { el.textContent = '0'; return; }
+        api.listTasks(slug, 'JUDGE_PASSED').then((tres) => {
+          if (tres && tres.tasks) el.textContent = String(tres.tasks.length);
+        }).catch(() => {});
       }).catch(() => {});
     }
+    refreshAwaitingBadge();
+    ['kanban:created', 'kanban:transition', 'kanban:removed'].forEach((name) => {
+      window.addEventListener(name, refreshAwaitingBadge);
+    });
   }
 })();

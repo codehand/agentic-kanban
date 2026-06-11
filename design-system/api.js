@@ -51,10 +51,25 @@
     }
   }
 
+  // Per-pageload cache of the projects promise so every consumer (rail
+  // switcher, board, dropdowns, redirects) shares ONE GET /api/projects.
+  var projectsPromise = null;
+
   // --- Public API ---
   window.__kanban_api = {
     listProjects: function () {
-      return apiFetch('/projects').then(function (r) { return r ? r.json() : null; });
+      if (!projectsPromise) {
+        projectsPromise = apiFetch('/projects')
+          .then(function (r) { return r ? r.json() : null; })
+          .then(function (res) {
+            if (!res) projectsPromise = null; // don't cache failures/auth redirects
+            return res;
+          }, function (err) {
+            projectsPromise = null;
+            throw err;
+          });
+      }
+      return projectsPromise;
     },
 
     createProject: function (payload) {
@@ -62,7 +77,10 @@
         method: 'POST',
         headers: Object.assign(authHeaders(), { 'Content-Type': 'application/json' }),
         body: JSON.stringify(payload),
-      }).then(function (r) { return r ? r.json() : null; });
+      }).then(function (r) {
+        projectsPromise = null; // project list changed — drop the cache
+        return r ? r.json() : null;
+      });
     },
 
     listTasks: function (project, state) {
@@ -151,36 +169,19 @@
       if (dot) dot.style.opacity = '1';
     });
 
-    es.addEventListener('created', function (evt) {
-      try {
-        var data = JSON.parse(evt.data);
-        console.log('[sse] created', data);
-        window.dispatchEvent(new CustomEvent('kanban:created', { detail: data }));
-      } catch (e) {
-        console.error('[sse] parse error', e);
-      }
-    });
-
-    es.addEventListener('transition', function (evt) {
-      try {
-        var data = JSON.parse(evt.data);
-        console.log('[sse] transition', data);
-        // Dispatch a custom event so UI components can react with
-        // soft-refetch + toast (no full page reload).
-        window.dispatchEvent(new CustomEvent('kanban:transition', { detail: data }));
-      } catch (e) {
-        console.error('[sse] parse error', e);
-      }
-    });
-
-    es.addEventListener('removed', function (evt) {
-      try {
-        var data = JSON.parse(evt.data);
-        console.log('[sse] removed', data);
-        window.dispatchEvent(new CustomEvent('kanban:removed', { detail: data }));
-      } catch (e) {
-        console.error('[sse] parse error', e);
-      }
+    // One listener body for all task events: re-dispatch each SSE event as a
+    // 'kanban:<name>' CustomEvent so UI components can react with
+    // soft-refetch + toast (no full page reload).
+    ['created', 'transition', 'removed'].forEach(function (name) {
+      es.addEventListener(name, function (evt) {
+        try {
+          var data = JSON.parse(evt.data);
+          console.log('[sse] ' + name, data);
+          window.dispatchEvent(new CustomEvent('kanban:' + name, { detail: data }));
+        } catch (e) {
+          console.error('[sse] parse error', e);
+        }
+      });
     });
 
     es.onerror = function () {

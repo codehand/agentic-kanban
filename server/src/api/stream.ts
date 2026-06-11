@@ -55,11 +55,13 @@ sseBus.setMaxListeners(100)
 const clients = new Set<ServerResponse>()
 
 /**
- * Broadcast a created-task event to all connected SSE clients and emit on
- * the bus so test listeners (and any in-process subscribers) can observe it.
+ * Shared broadcast: write one SSE frame (`event: <name>` + JSON data) to every
+ * connected client, dropping clients whose socket write throws, then emit the
+ * same payload on sseBus so test listeners (and any in-process subscribers)
+ * can observe it.
  */
-export function broadcastCreated(evt: CreatedEvent): void {
-  const data = `event: created\ndata: ${JSON.stringify(evt)}\n\n`
+function broadcast(name: 'created' | 'transition' | 'removed', evt: CreatedEvent | TransitionEvent | RemovedEvent): void {
+  const data = `event: ${name}\ndata: ${JSON.stringify(evt)}\n\n`
   for (const res of clients) {
     try {
       res.write(data)
@@ -67,41 +69,26 @@ export function broadcastCreated(evt: CreatedEvent): void {
       clients.delete(res)
     }
   }
-  sseBus.emit('created', evt)
+  sseBus.emit(name, evt)
 }
 
-/**
- * Broadcast a transition event to all connected SSE clients.
- */
+/** Broadcast a created-task event to all connected SSE clients. */
+export function broadcastCreated(evt: CreatedEvent): void {
+  broadcast('created', evt)
+}
+
+/** Broadcast a transition event to all connected SSE clients. */
 export function broadcastTransition(evt: TransitionEvent): void {
-  const data = `event: transition\ndata: ${JSON.stringify(evt)}\n\n`
-  for (const res of clients) {
-    try {
-      res.write(data)
-    } catch {
-      clients.delete(res)
-    }
-  }
-  // Also emit on the bus for test listeners
-  sseBus.emit('transition', evt)
+  broadcast('transition', evt)
 }
 
 /**
  * Broadcast a removed-task event to all connected SSE clients so live UIs
- * drop the card without a reload. Mirrors broadcastCreated/broadcastTransition.
+ * drop the card without a reload.
  */
 export function broadcastRemoved(project: string, task_id: string, key: string): void {
   const evt: RemovedEvent = { task_id, project, key, at: new Date().toISOString() }
-  const data = `event: removed\ndata: ${JSON.stringify(evt)}\n\n`
-  for (const res of clients) {
-    try {
-      res.write(data)
-    } catch {
-      clients.delete(res)
-    }
-  }
-  // Also emit on the bus for test listeners
-  sseBus.emit('removed', evt)
+  broadcast('removed', evt)
 }
 
 /**

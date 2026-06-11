@@ -8,8 +8,8 @@
     "pnpm": ">=8"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "vitest run",
+    "build": "tsc -p tsconfig.json && mkdir -p dist/db/migrations && cp server/src/db/migrations/*.sql dist/db/migrations/",
+    "test": "vitest run --coverage",
     "lint": "eslint server/src server/test --ext .ts",
     "test:ui": "playwright test --config=playwright.config.ts",
     "test:e2e": "playwright test"

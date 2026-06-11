@@ -131,6 +131,7 @@
   </main>
 </div>
 <script src="/api.js"></script>
+<script src="/shell.js"></script>
 <script>
   /* tokens.js — Live data wiring for tokens page. Fetches from /api/tokens. */
   (function () {
@@ -151,14 +152,7 @@
       var sel = document.getElementById('mint-project');
       if (!sel) return;
       api.listProjects().then(function (res) {
-        var projects = (res && res.projects) || [];
-        projects.forEach(function (p) {
-          var slug = p.slug || p.id;
-          var opt = document.createElement('option');
-          opt.value = slug;
-          opt.textContent = slug;
-          sel.appendChild(opt);
-        });
+        window.populateProjectSelect(sel, (res && res.projects) || []); // shared helper (shell.js)
       }).catch(function () {});
     })();
 
@@ -282,6 +276,5 @@
     });
   })();
 </script>
-<script src="/shell.js"></script>
 </body>
 </html>
