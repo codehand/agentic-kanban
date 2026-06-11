@@ -6,7 +6,8 @@
  * detail drawer, and rendered as badges on board cards — and that editing
  * them in the drawer persists through PATCH /api/tasks/:key.
  *
- * The form test loads new-task.html via file:// (static markup assertions).
+ * The form test loads new-task.html via the ds-server static HTTP helper
+ * (static markup assertions).
  * The board/drawer tests spawn a REAL server (node dev-server.mjs, requires
  * `pnpm build` first) on a dedicated port with a throwaway DB and seed a task
  * with all 5 attributes via POST /api/tasks — no API mocks.
@@ -20,11 +21,11 @@ import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { startDsServer, type DsServer } from './ds-server';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT = path.resolve(__dirname, '../..');
-const DS_DIR = path.join(ROOT, 'design-system');
 const OUT_DIR = path.join(ROOT, 'docs/ui/TASK-021');
 
 const PORT = 4621;
@@ -34,10 +35,11 @@ const PROJECT = 'attr-proj';
 const KEY = 'TASK-ATTR-DEMO';
 
 let server: ChildProcess;
+let dsServer: DsServer;
 let dbPath: string;
 
 function pageUrl(file: string): string {
-  return `file://${path.join(DS_DIR, file)}`;
+  return dsServer.url(file);
 }
 
 async function api(method: string, p: string, body?: unknown): Promise<Response> {
@@ -62,6 +64,7 @@ async function waitForServer(): Promise<void> {
 test.describe('TASK-021: Task Attributes UI', () => {
   test.beforeAll(async () => {
     fs.mkdirSync(OUT_DIR, { recursive: true });
+    dsServer = await startDsServer();
     // tsc does not copy .sql migrations into dist/ — dev-server needs them.
     fs.cpSync(path.join(ROOT, 'server/src/db/migrations'), path.join(ROOT, 'dist/db/migrations'), { recursive: true });
     dbPath = path.join(os.tmpdir(), `task021-e2e-${Date.now()}.db`);
@@ -102,6 +105,7 @@ test.describe('TASK-021: Task Attributes UI', () => {
 
   test.afterAll(async () => {
     if (server) server.kill('SIGTERM');
+    if (dsServer) await dsServer.close();
     if (dbPath) { try { fs.unlinkSync(dbPath); } catch { /* ignore */ } }
   });
 

@@ -10,30 +10,30 @@
  *   npx playwright test tests/ui/theme-toggle.spec.ts
  */
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const PAGE_URL = 'about:blank';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-/** Serve the design-system directory via a local static file. */
-function designSystemUrl(_page: import('@playwright/test').Page, file: string): string {
-  // Use file:// protocol — Playwright supports it natively.
-  const abs = path.resolve(__dirname, '../../design-system', file);
-  return 'file://' + abs;
-}
+import { startDsServer, seedToken, type DsServer } from './ds-server';
 
 test.describe('Theme toggle CTA', () => {
+  let server: DsServer;
+
+  test.beforeAll(async () => {
+    server = await startDsServer();
+  });
+
+  test.afterAll(async () => {
+    await server.close();
+  });
+
   test.beforeEach(async ({ page }) => {
-    // Clear any prior theme preference so each test starts from OS default.
-    await page.context().addInitScript(() => {
-      try { localStorage.removeItem('ak-theme'); } catch (_) { /* noop */ }
-    });
+    // Each test gets a fresh browser context, so there is no prior 'ak-theme'
+    // preference — every test starts from the OS default. (An init script that
+    // removed the key on every document load would also wipe it on reload and
+    // break the persistence test.)
+    // Fake token so the board's auto API call doesn't bounce to signin.html.
+    await seedToken(page.context());
   });
 
   test('CTA toggles dark class and background-color', async ({ page }) => {
-    await page.goto(designSystemUrl(page, 'index.html'));
+    await page.goto(server.url('index.html'));
     // Wait for the theme script to apply the initial class.
     await page.waitForFunction(() => document.querySelector('#theme-toggle') != null);
 
@@ -61,7 +61,7 @@ test.describe('Theme toggle CTA', () => {
   });
 
   test('theme persists across reload via localStorage', async ({ page }) => {
-    await page.goto(designSystemUrl(page, 'index.html'));
+    await page.goto(server.url('index.html'));
     await page.waitForFunction(() => document.querySelector('#theme-toggle') != null);
 
     const html = page.locator('html');
@@ -86,7 +86,7 @@ test.describe('Theme toggle CTA', () => {
   });
 
   test('icon reflects current theme state', async ({ page }) => {
-    await page.goto(designSystemUrl(page, 'index.html'));
+    await page.goto(server.url('index.html'));
     await page.waitForFunction(() => document.querySelector('#theme-toggle') != null);
 
     const icon = page.locator('#theme-toggle i');
@@ -120,8 +120,9 @@ test.describe('Theme toggle CTA', () => {
     await page.addInitScript(() => {
       try { localStorage.removeItem('ak-theme'); } catch (_) { /* noop */ }
     });
+    await seedToken(context);
 
-    await page.goto(designSystemUrl(page, 'index.html'));
+    await page.goto(server.url('index.html'));
     await page.waitForFunction(() => document.documentElement != null);
 
     const hasDark = await page.evaluate(() => document.documentElement.classList.contains('dark'));
@@ -136,8 +137,9 @@ test.describe('Theme toggle CTA', () => {
     await page.addInitScript(() => {
       try { localStorage.removeItem('ak-theme'); } catch (_) { /* noop */ }
     });
+    await seedToken(context);
 
-    await page.goto(designSystemUrl(page, 'index.html'));
+    await page.goto(server.url('index.html'));
     await page.waitForFunction(() => document.documentElement != null);
 
     const hasDark = await page.evaluate(() => document.documentElement.classList.contains('dark'));
