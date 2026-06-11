@@ -601,6 +601,16 @@
       drawer.classList.add('translate-x-full');
       scrim.classList.add('opacity-0', 'pointer-events-none');
     };
+
+    // If the drawer is open for (project, key), refetch the task detail so
+    // badge/buttons/timeline reflect the server state. Same data path the
+    // board uses (full refetch) — no state is hardcoded client-side.
+    function refreshDrawerIfOpen(project, key) {
+      if (!selectedTask || !key || selectedTask.key !== key) return;
+      if (project && selectedTask.project !== project) return;
+      if (drawer.classList.contains('translate-x-full')) return; // closed
+      window.__openDrawer(selectedTask.project, selectedTask.key);
+    }
     window.scrollToHuman = function () {
       document.getElementById('col-human').scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'});
     };
@@ -619,7 +629,10 @@
       api.approveTask(selectedTask.project, selectedTask.key, note).then(function (res) {
         if (res && res.task) {
           showToast('TASK', selectedTask.key + ' marked DONE. MRs left open for manual merge.');
-          setTimeout(function () { loadBoard(); closeDrawer(); }, 800);
+          // Refresh board + drawer from the server (same refetch path the SSE
+          // handlers use) so the open drawer shows the new state/timeline.
+          loadBoard();
+          refreshDrawerIfOpen(selectedTask.project, selectedTask.key);
         }
       });
     };
@@ -673,6 +686,9 @@
         if (d.project && d.project !== currentProject()) return;
         showToast('TASK', SSE_TOAST[name](d));
         loadBoard();
+        // Keep an open drawer in sync with the task the event describes
+        // (e.g. approved via MCP from another client while drawer is open).
+        if (name === 'kanban:transition') refreshDrawerIfOpen(d.project, d.key);
       });
     });
 
