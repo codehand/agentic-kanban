@@ -187,6 +187,53 @@ describe('TASK-021: task attributes', () => {
     expect(res.status).toBe(400)
   })
 
+  it('rejects a javascript: link_document on create and persists nothing (stored XSS)', async () => {
+    const res = await fetch(`${baseUrl}/api/tasks`, {
+      method: 'POST',
+      headers: authHeaders(humanSecret),
+      body: JSON.stringify({
+        project: 'test-project',
+        key: 'TASK-ATTR-XSS1',
+        title: 'XSS link',
+        link_document: 'javascript:alert(1)',
+      }),
+    })
+    expect(res.status).toBe(400)
+    // Nothing must be persisted.
+    const get = await fetch(`${baseUrl}/api/tasks/TASK-ATTR-XSS1?project=test-project`, {
+      headers: authHeaders(humanSecret),
+    })
+    expect(get.status).toBe(404)
+  })
+
+  it('rejects a javascript: link_document on PATCH and leaves the field unchanged', async () => {
+    const res = await fetch(`${baseUrl}/api/tasks/TASK-ATTR-001?project=test-project`, {
+      method: 'PATCH',
+      headers: authHeaders(humanSecret),
+      body: JSON.stringify({ link_document: 'javascript:alert(1)' }),
+    })
+    expect(res.status).toBe(400)
+    const get = await fetch(`${baseUrl}/api/tasks/TASK-ATTR-001?project=test-project`, {
+      headers: authHeaders(humanSecret),
+    })
+    const body = await get.json() as { task: Record<string, unknown> }
+    expect(body.task.link_document).toBe('https://docs.example.com/spec')
+  })
+
+  it('rejects a non-finite estimate_hours (Infinity via 1e999) on create', async () => {
+    const res = await fetch(`${baseUrl}/api/tasks`, {
+      method: 'POST',
+      headers: authHeaders(humanSecret),
+      // 1e999 parses to Infinity in JSON.parse — must be rejected.
+      body: '{"project":"test-project","key":"TASK-ATTR-INF","title":"Infinite estimate","estimate_hours":1e999}',
+    })
+    expect(res.status).toBe(400)
+    const get = await fetch(`${baseUrl}/api/tasks/TASK-ATTR-INF?project=test-project`, {
+      headers: authHeaders(humanSecret),
+    })
+    expect(get.status).toBe(404)
+  })
+
   it('creates a task with no attributes (defaults)', async () => {
     const res = await fetch(`${baseUrl}/api/tasks`, {
       method: 'POST',

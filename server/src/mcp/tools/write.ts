@@ -40,6 +40,13 @@ import type { McpContext } from '../context.js'
 import type { TaskState } from '../../domain/statemachine.js'
 import type { Db } from '../../db/connection.js'
 import { loadConfig } from '../../config/index.js'
+import {
+  prioritySchema,
+  complexitySchema,
+  estimateHoursSchema,
+  tagsSchema,
+  linkDocumentSchema,
+} from '../../validation/task-attributes.js'
 
 const config = loadConfig()
 const LEASE_TTL_SECONDS = config.leaseTtlSeconds
@@ -105,11 +112,11 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       body_md: z.string().optional().default(''),
       repos: z.array(z.string()).optional().default([]),
       allow_no_code_change: z.boolean().optional().default(false),
-      priority: z.enum(['P0', 'P1', 'P2', 'P3']).optional(),
-      complexity: z.enum(['XS', 'S', 'M', 'L', 'XL']).optional(),
-      estimate_hours: z.number().nonnegative().optional(),
-      tags: z.array(z.string()).optional().default([]),
-      link_document: z.string().url().optional(),
+      priority: prioritySchema.optional(),
+      complexity: complexitySchema.optional(),
+      estimate_hours: estimateHoursSchema.optional(),
+      tags: tagsSchema.optional().default([]),
+      link_document: linkDocumentSchema.optional(),
     },
   }, async ({ project, key, title, body_md, allow_no_code_change, priority, complexity, estimate_hours, tags, link_document }) => {
     assertAuthorized(ctx.auth.role as Role, 'task.create')
@@ -149,11 +156,11 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
     inputSchema: {
       project: z.string().min(1),
       key: z.string().min(1),
-      priority: z.enum(['P0', 'P1', 'P2', 'P3']).optional(),
-      complexity: z.enum(['XS', 'S', 'M', 'L', 'XL']).optional(),
-      estimate_hours: z.number().nonnegative().optional(),
-      tags: z.array(z.string()).optional(),
-      link_document: z.string().url().optional(),
+      priority: prioritySchema.optional(),
+      complexity: complexitySchema.optional(),
+      estimate_hours: estimateHoursSchema.optional(),
+      tags: tagsSchema.optional(),
+      link_document: linkDocumentSchema.optional(),
     },
   }, async ({ project, key, priority, complexity, estimate_hours, tags, link_document }) => {
     assertAuthorized(ctx.auth.role as Role, 'task.update')

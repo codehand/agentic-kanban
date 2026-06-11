@@ -285,6 +285,47 @@ describe('TASK-021 AC12: task attributes via real MCP client (task.create + task
       await closeClient(c)
     }
   })
+
+  it('task.update rejects a javascript: link_document and persists nothing (stored XSS)', async () => {
+    const c = await makeClient(tokens.human.secret)
+    try {
+      const createRes = await c.client.callTool({
+        name: 'task.create',
+        arguments: {
+          project: 'test-project',
+          key: attrKey,
+          title: 'Attribute task for XSS-link test',
+          link_document: 'https://docs.example.com/safe',
+        },
+      })
+      expect(createRes.isError).toBeFalsy()
+
+      let rejected = false
+      let message = ''
+      try {
+        const res = await c.client.callTool({
+          name: 'task.update',
+          arguments: { project: 'test-project', key: attrKey, link_document: 'javascript:alert(1)' },
+        })
+        if (res.isError) {
+          rejected = true
+          message = (res.content as Array<{ text: string }>).map((x) => x.text).join(' ')
+        }
+      } catch (err) {
+        rejected = true
+        message = err instanceof Error ? err.message : String(err)
+      }
+      expect(rejected).toBe(true)
+      expect(message).toMatch(/url|http|invalid/i)
+
+      // link_document must be unchanged in the DB.
+      const row = db.prepare(`SELECT link_document FROM task WHERE key = ?`).get(attrKey) as { link_document: string }
+      expect(row.link_document).toBe('https://docs.example.com/safe')
+    } finally {
+      await closeClient(c)
+    }
+  })
+
 })
 
 describe('AC9: full happy-path lifecycle through tools', () => {

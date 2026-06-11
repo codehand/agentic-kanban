@@ -270,6 +270,9 @@
 
     // --- Helpers ---
     function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    // Returns the URL only if it is an http(s) URL; otherwise '' so callers can
+    // neutralize the href (defense against javascript:/data: stored XSS).
+    function safeHttpHref(u) { try { return /^https?:$/.test(new URL(u).protocol) ? u : ''; } catch (e) { return ''; } }
     function relTime(iso) {
       if (!iso) return '';
       var d = new Date(iso), now = new Date(), s = Math.floor((now - d) / 1000);
@@ -425,7 +428,11 @@
       else { rows += '<span class="text-[13px] text-muted">—</span>'; }
       rows += '</div>';
       rows += '<div class="flex items-center gap-2 py-1"><span class="text-[13px] text-muted w-24 shrink-0">Link Doc</span>';
-      if (t.link_document) { rows += '<a href="' + esc(t.link_document) + '" target="_blank" class="text-[13px] text-accent hover:underline truncate max-w-[250px]">' + esc(t.link_document) + '</a>'; }
+      if (t.link_document) {
+        var safeDoc = safeHttpHref(t.link_document);
+        if (safeDoc) { rows += '<a href="' + esc(safeDoc) + '" target="_blank" rel="noopener noreferrer" class="text-[13px] text-accent hover:underline truncate max-w-[250px]">' + esc(t.link_document) + '</a>'; }
+        else { rows += '<span class="text-[13px] text-muted truncate max-w-[250px]">' + esc(t.link_document) + '</span>'; }
+      }
       else { rows += '<span class="text-[13px] text-muted">—</span>'; }
       rows += '</div>';
       return '<div id="attrs-display" class="rounded-lg border border-border bg-panel2 divide-y divide-border px-3 mb-2">' + rows + '</div>';
@@ -557,7 +564,7 @@
             html += '<div class="rounded-lg border border-border bg-panel2 p-2.5"><span class="mono text-[13px] font-medium">' + esc(g.repo || '') + '</span>';
             if (g.branch) html += '<div class="mt-1 mono text-[13px] text-muted">' + esc(g.branch) + '</div>';
             if (g.head_sha) html += '<div class="mt-0.5 mono text-[13px] text-muted">' + esc(g.head_sha.substring(0, 7)) + '</div>';
-            if (g.mr_url) html += '<div class="mt-1"><a href="' + esc(g.mr_url) + '" target="_blank" class="text-[13px] text-accent hover:underline flex items-center gap-1"><i class="ph ph-link text-[13px]"></i> PR/MR link</a></div>';
+            if (g.mr_url) { var safeMr = safeHttpHref(g.mr_url); if (safeMr) html += '<div class="mt-1"><a href="' + esc(safeMr) + '" target="_blank" rel="noopener noreferrer" class="text-[13px] text-accent hover:underline flex items-center gap-1"><i class="ph ph-link text-[13px]"></i> PR/MR link</a></div>'; else html += '<div class="mt-1 text-[13px] text-muted flex items-center gap-1"><i class="ph ph-link text-[13px]"></i> ' + esc(g.mr_url) + '</div>'; }
             html += '</div>';
           });
           html += '</div></section>';

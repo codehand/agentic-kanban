@@ -34,6 +34,7 @@ import { mintToken as mintTokenFn, type Role as MintRole } from '../auth/mint.js
 import { propose, type TransitionRepository } from '../domain/gate.js'
 import type { TaskState } from '../domain/statemachine.js'
 import { handleSseStream, broadcastCreated, broadcastTransition, broadcastRemoved } from './stream.js'
+import { VALID_PRIORITIES, VALID_COMPLEXITIES, isHttpUrl } from '../validation/task-attributes.js'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -106,8 +107,8 @@ function resolveProject(db: Db, ref: string) {
   return null
 }
 
-const VALID_PRIORITIES = new Set(['P0', 'P1', 'P2', 'P3'])
-const VALID_COMPLEXITIES = new Set(['XS', 'S', 'M', 'L', 'XL'])
+const PRIORITY_SET = new Set<string>(VALID_PRIORITIES)
+const COMPLEXITY_SET = new Set<string>(VALID_COMPLEXITIES)
 
 interface TaskAttributesPatch {
   priority?: string | null
@@ -122,22 +123,22 @@ function validateTaskAttributesPatch(body: Record<string, unknown>): { ok: true;
 
   if ('priority' in body) {
     const v = body['priority']
-    if (v !== null && (typeof v !== 'string' || !VALID_PRIORITIES.has(v))) {
-      return { ok: false, error: `Invalid priority. Must be one of: P0, P1, P2, P3` }
+    if (v !== null && (typeof v !== 'string' || !PRIORITY_SET.has(v))) {
+      return { ok: false, error: `Invalid priority. Must be one of: ${VALID_PRIORITIES.join(', ')}` }
     }
     patch.priority = v as string | null
   }
   if ('complexity' in body) {
     const v = body['complexity']
-    if (v !== null && (typeof v !== 'string' || !VALID_COMPLEXITIES.has(v))) {
-      return { ok: false, error: `Invalid complexity. Must be one of: XS, S, M, L, XL` }
+    if (v !== null && (typeof v !== 'string' || !COMPLEXITY_SET.has(v))) {
+      return { ok: false, error: `Invalid complexity. Must be one of: ${VALID_COMPLEXITIES.join(', ')}` }
     }
     patch.complexity = v as string | null
   }
   if ('estimate_hours' in body) {
     const v = body['estimate_hours']
-    if (v !== null && (typeof v !== 'number' || v < 0)) {
-      return { ok: false, error: `Invalid estimate_hours. Must be a non-negative number` }
+    if (v !== null && (typeof v !== 'number' || !Number.isFinite(v) || v < 0)) {
+      return { ok: false, error: `Invalid estimate_hours. Must be a finite non-negative number` }
     }
     patch.estimate_hours = v as number | null
   }
@@ -152,7 +153,7 @@ function validateTaskAttributesPatch(body: Record<string, unknown>): { ok: true;
     const v = body['link_document']
     if (v !== null) {
       if (typeof v !== 'string') return { ok: false, error: `Invalid link_document. Must be a URL string` }
-      try { new URL(v) } catch { return { ok: false, error: `Invalid link_document. Must be a valid URL` } }
+      if (!isHttpUrl(v)) return { ok: false, error: `Invalid link_document. Must be a valid http(s) URL` }
     }
     patch.link_document = v as string | null
   }
