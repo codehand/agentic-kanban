@@ -9,22 +9,29 @@
  *   npx playwright test tests/ui/remove-screens.spec.ts
  */
 import { test, expect } from '@playwright/test';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { startDsServer, seedToken, type DsServer } from './ds-server';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const DS_DIR = path.resolve(__dirname, '../../design-system');
+let server: DsServer;
 
 function pageUrl(file: string): string {
-  return `file://${path.join(DS_DIR, file)}`;
+  return server.url(file);
 }
 
 test.describe('TASK-020: Screens switcher removed', () => {
   const pages = ['index.html', 'projects.html', 'tokens.html'];
 
+  test.beforeAll(async () => {
+    server = await startDsServer();
+  });
+
+  test.afterAll(async () => {
+    await server.close();
+  });
+
   for (const page of pages) {
     test(`${page} should not have #sw-btn or Screens button`, async ({ page: p }) => {
+      // Fake token so the pages' auto API calls don't bounce to signin.html.
+      await seedToken(p.context());
       await p.goto(pageUrl(page));
       // Assert #sw-btn does not exist
       await expect(p.locator('#sw-btn')).toHaveCount(0);

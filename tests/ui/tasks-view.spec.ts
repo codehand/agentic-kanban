@@ -6,24 +6,28 @@
  *   - Navigating to tasks.html loads, marks Tasks active, and renders a list of tasks.
  *   - Clicking a row opens the task detail drawer.
  *
- * Uses file:// protocol and mocks /api/* via page.route().
+ * Serves design-system/ over HTTP (ds-server helper) and mocks /api/* by
+ * overriding window.fetch in the page.
  */
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { startDsServer, type DsServer } from './ds-server';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DS_DIR = path.resolve(__dirname, '../../design-system');
 const OUT_DIR = path.resolve(__dirname, '../../docs/ui/TASK-023');
 
+let server: DsServer;
+
 function pageUrl(file: string): string {
-  return `file://${path.join(DS_DIR, file)}`;
+  return server.url(file);
 }
 
 async function mockApi(page: any) {
-  // Mock fetch directly since page.route may not intercept file:// requests.
+  // Override fetch in the page; survives the shell's project-prefix redirect
+  // (addInitScript re-runs on every navigation in the context).
   await page.addInitScript(() => {
     const PROJECTS_RESP = JSON.stringify({ projects: [{ id: 'p1', slug: 'opf-hub', name: 'opf-hub' }] });
     const TASKS_RESP = JSON.stringify({
@@ -64,8 +68,13 @@ async function mockApi(page: any) {
 }
 
 test.describe('TASK-023: Tasks list view', () => {
-  test.beforeAll(() => {
+  test.beforeAll(async () => {
     fs.mkdirSync(OUT_DIR, { recursive: true });
+    server = await startDsServer();
+  });
+
+  test.afterAll(async () => {
+    await server.close();
   });
 
   test.beforeEach(async ({ context }) => {
@@ -78,7 +87,9 @@ test.describe('TASK-023: Tasks list view', () => {
   test('rail Tasks link points to tasks.html (not index.html)', async ({ page }) => {
     await mockApi(page);
     await page.goto(pageUrl('index.html'));
-    await page.waitForSelector('#rail a', { timeout: 5000 });
+    // Wait on the visible nav links: with projects mocked, the (hidden)
+    // project-switcher dropdown also contains <a> elements inside #rail.
+    await page.waitForSelector('#rail nav a', { timeout: 5000 });
 
     const tasksLink = page.locator('#rail a[href="tasks.html"]');
     await expect(tasksLink).toHaveCount(1);
@@ -88,7 +99,8 @@ test.describe('TASK-023: Tasks list view', () => {
   test('tasks.html renders list with Tasks active', async ({ page }) => {
     await mockApi(page);
     await page.goto(pageUrl('tasks.html'));
-    await page.waitForSelector('#rail a', { timeout: 5000 });
+    // Same as above: target the visible nav links, not the hidden dropdown.
+    await page.waitForSelector('#rail nav a', { timeout: 5000 });
 
     // Active highlight: data-active="tasks" on body, and the Tasks rail link uses ph-fill + accent.
     await expect(page.locator('body')).toHaveAttribute('data-active', 'tasks');

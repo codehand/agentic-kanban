@@ -6,14 +6,16 @@ import { test, expect, type Page } from '@playwright/test';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { startDsServer, seedToken, type DsServer } from './ds-server';
 
 const _dirname = path.dirname(fileURLToPath(import.meta.url));
 const SHOT_DIR = path.resolve(_dirname, '../../docs/ui/TASK-016');
-const DS_DIR = path.resolve(_dirname, '../../design-system');
 
-/** Build a file:// URL for a design-system HTML file. */
+let server: DsServer;
+
+/** Build an HTTP URL for a design-system HTML file (served by ds-server). */
 function pageUrl(file: string): string {
-  return `file://${path.join(DS_DIR, file)}`;
+  return server.url(file);
 }
 
 /** Ensure the output directory exists. */
@@ -80,10 +82,23 @@ async function assertFloor13(page: Page, label: string) {
 }
 
 test.describe('TASK-016 font-size floor (≥ 13px)', () => {
-  test.beforeEach(() => ensureShotDir());
+  test.beforeAll(async () => {
+    server = await startDsServer();
+  });
+
+  test.afterAll(async () => {
+    await server.close();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    ensureShotDir();
+    // Fake token so pages that auto-call /api/* don't bounce to signin.html
+    // (the API 404s on the static server; pages show their error states).
+    await seedToken(page.context());
+  });
 
   test('new-task.html — full page flow (board-like screen with sidebar)', async ({ page }) => {
-    // new-task.html renders fully under file:// (no API auto-call, no redirect).
+    // new-task.html renders fully without live data (API errors are caught).
     // Shows the sidebar rail + modal + header — a good "flow" representative screen.
     await page.goto(pageUrl('new-task.html'));
     await waitForTailwind(page);

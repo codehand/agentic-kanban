@@ -12,19 +12,21 @@ import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { startDsServer, seedToken, type DsServer } from './ds-server';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const DS_DIR = path.resolve(__dirname, '../../design-system');
 const OUT_DIR = path.resolve(__dirname, '../../docs/ui/TASK-020');
 
+let server: DsServer;
+
 function pageUrl(file: string): string {
-  return `file://${path.join(DS_DIR, file)}`;
+  return server.url(file);
 }
 
 // The switcher code that was removed in TASK-020 (recreates the "before" state).
-// Uses inline styles (no CSS classes) to ensure it renders even without the
-// full app styles loaded via file:// protocol.
+// Uses inline styles (no CSS classes) so it renders independently of the
+// app's stylesheet.
 const SWITCHER_INJECT = `
 (function () {
   var body = document.body;
@@ -56,8 +58,18 @@ test.describe('TASK-020: take before/after screenshots', () => {
   // Clip a 260x180 area of the bottom-right corner (large enough to show the button + context)
   const clip = { x: 1180, y: 720, width: 260, height: 180 };
 
-  test.beforeAll(() => {
+  test.beforeAll(async () => {
     fs.mkdirSync(OUT_DIR, { recursive: true });
+    server = await startDsServer();
+  });
+
+  test.afterAll(async () => {
+    await server.close();
+  });
+
+  test.beforeEach(async ({ page }) => {
+    // Fake token so the board's auto API call doesn't bounce to signin.html.
+    await seedToken(page.context());
   });
 
   test('before: bottom-right corner WITH switcher', async ({ page }) => {
