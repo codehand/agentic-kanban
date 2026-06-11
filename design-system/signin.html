@@ -29,11 +29,11 @@
 
       <!-- token field -->
       <div class="mt-5 grid gap-1.5">
-        <label class="text-[13px] font-medium">Operator token</label>
+        <label for="tok" class="text-[13px] font-medium">Operator token</label>
         <div class="flex items-center gap-2 rounded-md border border-border bg-panel2 px-3 h-11 focus-within:border-accent/60">
           <i class="ph ph-key text-muted text-[16px]"></i>
-          <input id="tok" type="password" placeholder="akb_live_…" class="flex-1 bg-transparent mono text-[14px] outline-none" />
-          <button onclick="const t=document.getElementById('tok'); t.type = t.type==='password'?'text':'password'; this.firstElementChild.classList.toggle('ph-eye'); this.firstElementChild.classList.toggle('ph-eye-slash')" class="text-muted hover:text-text"><i class="ph ph-eye text-[16px]"></i></button>
+          <input id="tok" name="token" type="password" placeholder="akb_live_…" class="flex-1 bg-transparent mono text-[14px] outline-none" />
+          <button aria-label="Reveal token" onclick="const t=document.getElementById('tok'); t.type = t.type==='password'?'text':'password'; this.setAttribute('aria-label', t.type==='password'?'Reveal token':'Hide token'); this.firstElementChild.classList.toggle('ph-eye'); this.firstElementChild.classList.toggle('ph-eye-slash')" class="text-muted hover:text-text"><i class="ph ph-eye text-[16px]"></i></button>
         </div>
       </div>
 

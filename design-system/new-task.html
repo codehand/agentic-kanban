@@ -33,7 +33,7 @@
               <i class="ph-fill ph-plus-circle text-accent text-[18px]"></i>
               <h2 class="text-[15px] font-semibold">New Task</h2>
             </div>
-            <a href="index.html" class="grid place-items-center w-8 h-8 rounded-md text-muted hover:bg-white/5"><i class="ph ph-x text-[17px]"></i></a>
+            <a href="index.html" aria-label="Close and return to board" class="grid place-items-center w-8 h-8 rounded-md text-muted hover:bg-white/5"><i class="ph ph-x text-[17px]"></i></a>
           </div>
 
           <!-- body -->
@@ -144,7 +144,7 @@
 
             <!-- allow-no-code-change toggle -->
             <div class="flex items-start gap-3 rounded-lg border border-border bg-panel2 px-3 py-2.5">
-              <button type="button" id="field-allow-no-code-change" name="allow_no_code_change" onclick="this.dataset.on = this.dataset.on==='1'?'0':'1'; this.firstElementChild.classList.toggle('translate-x-4'); this.classList.toggle('bg-accent'); this.classList.toggle('bg-border')"
+              <button type="button" id="field-allow-no-code-change" name="allow_no_code_change" aria-label="Allow no code change" onclick="this.dataset.on = this.dataset.on==='1'?'0':'1'; this.firstElementChild.classList.toggle('translate-x-4'); this.classList.toggle('bg-accent'); this.classList.toggle('bg-border')"
                 data-on="0" class="mt-0.5 shrink-0 relative w-9 h-5 rounded-full bg-border transition-colors">
                 <span class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"></span>
               </button>
