@@ -33,6 +33,7 @@ export type Action =
   // Task mgmt
   | 'task.claim'
   | 'task.create'
+  | 'task.update'
   | 'task.reset'
   | 'task.remove'
   | 'gitref.set'
@@ -45,6 +46,7 @@ const PERMISSIONS: Record<Role, Set<Action>> = {
     'task.reset',
     'task.remove',
     'task.create',
+    'task.update',
     'token.mint',
     'token.revoke',
     'comment.review',
@@ -57,6 +59,7 @@ const PERMISSIONS: Record<Role, Set<Action>> = {
     'task.transition.todo_to_in_progress',
     'task.transition.in_progress_to_implemented',
     'task.transition.rework',
+    'task.update',
     'comment.narrative',
     'gitref.set',
     'read',

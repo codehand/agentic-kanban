@@ -20,6 +20,7 @@ import { validateAndChecksumManifest } from '../../domain/checksum.js'
 import {
   insertTask,
   getTaskByKey,
+  updateTaskAttributes,
 } from '../../db/repositories/task.js'
 import { createLeaseRepository } from '../../db/repositories/lease.js'
 import { claim as domainClaim, heartbeat as domainHeartbeat, release as domainRelease } from '../../domain/lease.js'
@@ -39,6 +40,13 @@ import type { McpContext } from '../context.js'
 import type { TaskState } from '../../domain/statemachine.js'
 import type { Db } from '../../db/connection.js'
 import { loadConfig } from '../../config/index.js'
+import {
+  prioritySchema,
+  complexitySchema,
+  estimateHoursSchema,
+  tagsSchema,
+  linkDocumentSchema,
+} from '../../validation/task-attributes.js'
 
 const config = loadConfig()
 const LEASE_TTL_SECONDS = config.leaseTtlSeconds
@@ -104,8 +112,13 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       body_md: z.string().optional().default(''),
       repos: z.array(z.string()).optional().default([]),
       allow_no_code_change: z.boolean().optional().default(false),
+      priority: prioritySchema.optional(),
+      complexity: complexitySchema.optional(),
+      estimate_hours: estimateHoursSchema.optional(),
+      tags: tagsSchema.optional().default([]),
+      link_document: linkDocumentSchema.optional(),
     },
-  }, async ({ project, key, title, body_md, allow_no_code_change }) => {
+  }, async ({ project, key, title, body_md, allow_no_code_change, priority, complexity, estimate_hours, tags, link_document }) => {
     assertAuthorized(ctx.auth.role as Role, 'task.create')
     const proj = resolveProject(ctx, project)
     const existing = getTaskByKey(ctx.db, proj.id, key)
@@ -119,6 +132,11 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       body_md,
       state: 'TODO',
       allow_no_code_change,
+      priority: priority ?? null,
+      complexity: complexity ?? null,
+      estimate_hours: estimate_hours ?? null,
+      tags,
+      link_document: link_document ?? null,
     })
     // Broadcast SSE 'created' event so live UI picks up the new task.
     broadcastCreated({
@@ -130,6 +148,31 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       at: task.created_at,
     })
     return { content: [{ type: 'text', text: JSON.stringify(task, null, 2) }] }
+  })
+
+  // ---------- task.update ----------
+  mcp.registerTool('task.update', {
+    description: 'Update task attributes (priority, complexity, estimate_hours, tags, link_document). Does not change state.',
+    inputSchema: {
+      project: z.string().min(1),
+      key: z.string().min(1),
+      priority: prioritySchema.optional(),
+      complexity: complexitySchema.optional(),
+      estimate_hours: estimateHoursSchema.optional(),
+      tags: tagsSchema.optional(),
+      link_document: linkDocumentSchema.optional(),
+    },
+  }, async ({ project, key, priority, complexity, estimate_hours, tags, link_document }) => {
+    assertAuthorized(ctx.auth.role as Role, 'task.update')
+    const { task } = resolveTask(ctx, project, key)
+    const patch: Record<string, unknown> = {}
+    if (priority !== undefined) patch.priority = priority
+    if (complexity !== undefined) patch.complexity = complexity
+    if (estimate_hours !== undefined) patch.estimate_hours = estimate_hours
+    if (tags !== undefined) patch.tags = tags
+    if (link_document !== undefined) patch.link_document = link_document
+    const updated = updateTaskAttributes(ctx.db, task.id, patch)
+    return { content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }] }
   })
 
   // ---------- task.claim ----------
