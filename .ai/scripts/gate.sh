@@ -26,26 +26,33 @@ NOW="$(date -u +%FT%TZ)"
 # --- Thin-client: source MCP client for server calls (TASK_HUB_DESIGN.md §12) ---
 # When TASK_HUB_URL is set, propose/selfcheck/approve also dispatch to the Task Hub
 # server via MCP tools (task.transition, task.selfcheck, task.approve, gitref.set).
+# The server keys tasks by (project, key): key == the local TASK-id ($task),
+# project defaults to "default" (override with TASK_HUB_PROJECT).
 MCP_CLIENT="$ROOT/.ai/scripts/mcp-client.sh"
 if [ -f "$MCP_CLIENT" ]; then
   # shellcheck source=./mcp-client.sh
   source "$MCP_CLIENT"
 fi
+TASK_HUB_PROJECT="${TASK_HUB_PROJECT:-default}"
 
 # Push a transition to the server via MCP tool task.transition.
 # Called after local state write succeeds and TASK_HUB_URL is set.
+# Note: the server derives actor_role from the bearer token; `actor` is sent as
+# the transition note for traceability.
 server_transition() { # TASK FROM TO ACTOR
   [ -n "${TASK_HUB_URL:-}" ] && type mcp_call &>/dev/null || return 0
   local task="$1" from="$2" to="$3" actor="$4"
-  mcp_call "task.transition" "$(jq -nc --arg t "$task" --arg f "$from" --arg to "$to" --arg a "$actor" \
-    '{task_id:$t, from:$f, to:$to, actor_role:$a}')" || warn "server: task.transition failed (offline fallback OK)"
+  mcp_call "task.transition" "$(jq -nc --arg p "$TASK_HUB_PROJECT" --arg k "$task" --arg f "$from" --arg to "$to" --arg a "$actor" \
+    '{project:$p, key:$k, from:$f, to:$to, note:("gate: actor="+$a)}')" || warn "server: task.transition failed (offline fallback OK)"
 }
 
 # Push a selfcheck result to the server via MCP tool task.selfcheck.
+# task.selfcheck requires the self-check role on the server, so use
+# TASK_HUB_SELFCHECK_TOKEN when set (falls back to TASK_HUB_TOKEN for dev).
 server_selfcheck() { # TASK
   [ -n "${TASK_HUB_URL:-}" ] && type mcp_call &>/dev/null || return 0
-  local task="$1"
-  mcp_call "task.selfcheck" "$(jq -nc --arg t "$task" '{task_id:$t}')" \
+  local task="$1" sc_token="${TASK_HUB_SELFCHECK_TOKEN:-${TASK_HUB_TOKEN:-}}"
+  TASK_HUB_TOKEN="$sc_token" mcp_call "task.selfcheck" "$(jq -nc --arg p "$TASK_HUB_PROJECT" --arg k "$task" '{project:$p, key:$k}')" \
     || warn "server: task.selfcheck failed (offline fallback OK)"
 }
 
@@ -53,7 +60,7 @@ server_selfcheck() { # TASK
 server_approve() { # TASK
   [ -n "${TASK_HUB_URL:-}" ] && type mcp_call &>/dev/null || return 0
   local task="$1"
-  mcp_call "task.approve" "$(jq -nc --arg t "$task" '{task_id:$t}')" \
+  mcp_call "task.approve" "$(jq -nc --arg p "$TASK_HUB_PROJECT" --arg k "$task" '{project:$p, key:$k}')" \
     || warn "server: task.approve failed (offline fallback OK)"
 }
 
@@ -62,8 +69,8 @@ server_approve() { # TASK
 server_gitref_set() { # TASK REPO BASE_SHA HEAD_SHA BRANCH
   [ -n "${TASK_HUB_URL:-}" ] && type mcp_call &>/dev/null || return 0
   local task="$1" repo="$2" base="$3" head="$4" branch="$5"
-  mcp_call "gitref.set" "$(jq -nc --arg t "$task" --arg r "$repo" --arg b "$base" --arg h "$head" --arg br "$branch" \
-    '{task_id:$t, repo:$r, base_sha:$b, head_sha:$h, branch:$br}')" \
+  mcp_call "gitref.set" "$(jq -nc --arg p "$TASK_HUB_PROJECT" --arg k "$task" --arg r "$repo" --arg b "$base" --arg h "$head" --arg br "$branch" \
+    '{project:$p, key:$k, repo:$r, base_sha:$b, head_sha:$h, branch:$br}')" \
     || warn "server: gitref.set failed for $repo (offline fallback OK)"
 }
 

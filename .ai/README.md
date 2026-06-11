@@ -143,6 +143,28 @@ Switch a terminal's model with `/model` (or launch with `--model`). Running `/ju
 .ai/scripts/gate.sh remove TASK-002 --yes  # delete the task entirely (incl. worktrees & branch)
 ```
 
+## Thin client — connect the workflow to a live Task Hub server
+
+By default the workflow is fully local (state in `.ai/state/`). When the
+environment variables below are set, `gate.sh` / `run-evidence.sh` / `new-task.sh`
+**also** mirror every step to a running Task Hub server over MCP (so a shared
+web UI sees task creation, transitions, gitrefs and evidence in real time). The
+server keys tasks by `(project, key)` where `key` is the local `TASK-id`; server
+pushes are best-effort (offline → a warning, local state still advances).
+
+| Env var | Used by | Purpose |
+|---------|---------|---------|
+| `TASK_HUB_URL` | all `.ai/scripts/*` | Base URL of the Task Hub server (e.g. `http://127.0.0.1:3000`). Unset → local-only, no server calls. Also accepts `SERVER_URL`/`MCP_URL`/`BASE_URL`. |
+| `TASK_HUB_TOKEN` | all | Bearer token for MCP calls (implementer role for `task.transition`/`gitref.set`). Also accepts `TASK_HUB_BEARER`. |
+| `TASK_HUB_RUNNER_TOKEN` | `run-evidence.sh` | **Runner-role** token for `evidence.submit` — kept distinct from implementer credentials (evidence/agent separation). Falls back to `TASK_HUB_TOKEN`. |
+| `TASK_HUB_SELFCHECK_TOKEN` | `gate.sh selfcheck` | **self-check-role** token for `task.selfcheck` (the server requires that role). Falls back to `TASK_HUB_TOKEN`. |
+| `TASK_HUB_PROJECT` | all | Project slug on the server (default `default`). |
+
+End-to-end proof that this wiring drives a real server through a full task
+lifecycle (no mocks): `scripts/e2e-thin-client.sh` boots the real server, mints
+the tokens above, and asserts the transitions / gitref / evidence landed on the
+server. Run it after `pnpm build`.
+
 ## Layout
 
 **Engine** (portable — copy to other projects):

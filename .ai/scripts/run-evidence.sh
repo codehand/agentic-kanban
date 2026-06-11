@@ -30,15 +30,28 @@ fi
 
 # Submit evidence to the Task Hub server via MCP tool evidence.submit.
 # Uses TASK_HUB_RUNNER_TOKEN (runner role) — distinct from implementer credentials.
-server_evidence_submit() { # TASK MANIFEST_JSON
+# The server keys evidence by (project, key): key == TASK-id, project defaults
+# to "default" (override with TASK_HUB_PROJECT). build/test/ac exits are coerced
+# to integers (non-numeric "na"/"skipped" -> 0) since the tool requires ints.
+TASK_HUB_PROJECT="${TASK_HUB_PROJECT:-default}"
+server_evidence_submit() { # TASK MANIFEST_JSON BUILD_EXIT TEST_EXIT AC_EXIT LINT_EXIT COVERAGE_PCT
   [ -n "${TASK_HUB_URL:-}" ] && type mcp_call &>/dev/null || return 0
-  local task="$1" manifest="$2"
+  local task="$1" manifest="$2" be="$3" te="$4" ae="$5" le="$6" cov="$7"
   # Runner token: TASK_HUB_RUNNER_TOKEN (falls back to TASK_HUB_TOKEN for dev convenience)
   local runner_token="${TASK_HUB_RUNNER_TOKEN:-${TASK_HUB_TOKEN:-}}"
   [ -n "$runner_token" ] || { warn "server: evidence.submit skipped — no RUNNER token set"; return 0; }
-  export TASK_HUB_TOKEN="$runner_token"
-  mcp_call "evidence.submit" "$(jq -nc --arg t "$task" --arg m "$manifest" \
-    '{task_id:$t, manifest_json:$m}')" || warn "server: evidence.submit failed (offline fallback OK)"
+  # Coerce non-numeric exit codes (na/skipped) to 0 for the integer schema.
+  local n_be n_te n_ae n_le n_cov
+  n_be=$([[ "$be" =~ ^-?[0-9]+$ ]] && echo "$be" || echo 0)
+  n_te=$([[ "$te" =~ ^-?[0-9]+$ ]] && echo "$te" || echo 0)
+  n_ae=$([[ "$ae" =~ ^-?[0-9]+$ ]] && echo "$ae" || echo 0)
+  n_le=$([[ "$le" =~ ^-?[0-9]+$ ]] && echo "$le" || echo 0)
+  n_cov=$([[ "$cov" =~ ^-?[0-9]+(\.[0-9]+)?$ ]] && echo "$cov" || echo 0)
+  TASK_HUB_TOKEN="$runner_token" mcp_call "evidence.submit" "$(jq -nc \
+    --arg p "$TASK_HUB_PROJECT" --arg k "$task" --arg m "$manifest" \
+    --argjson be "$n_be" --argjson te "$n_te" --argjson ae "$n_ae" --argjson le "$n_le" --argjson cov "$n_cov" \
+    '{project:$p, key:$k, build_exit:$be, test_exit:$te, ac_exit:$ae, lint_exit:$le, coverage_pct:$cov, manifest_json:$m}')" \
+    || warn "server: evidence.submit failed (offline fallback OK)"
 }
 
 # đọc lệnh từ config.yml (format inline: '  build: "pnpm build"')
@@ -158,7 +171,9 @@ jq -n \
 # Uses the RUNNER token (TASK_HUB_RUNNER_TOKEN) — distinct from implementer credentials.
 if [ -f "$EV/manifest.json" ]; then
   MANIFEST_JSON="$(cat "$EV/manifest.json")"
-  server_evidence_submit "$TASK" "$MANIFEST_JSON"
+  server_evidence_submit "$TASK" "$MANIFEST_JSON" \
+    "$(cat "$EV/build.exit")" "$(cat "$EV/test.exit")" "$(cat "$EV/ac.exit")" \
+    "$(cat "$EV/lint.exit")" "$(cat "$EV/coverage.pct")"
 fi
 
 # --- khoá evidence read-only (defense-in-depth; hook là lớp chính) ---

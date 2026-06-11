@@ -1,0 +1,15 @@
+# Never ship host build artifacts or secrets into the image build context.
+# better-sqlite3's native binding MUST be compiled inside the image (stage 1),
+# so host node_modules/dist are excluded on purpose.
+node_modules
+dist
+coverage
+test-results
+.git
+.claude
+.ai
+*.db
+.env
+backups
+logs
+data

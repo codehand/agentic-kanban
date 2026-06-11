@@ -1,0 +1,36 @@
+# docker-compose.yml — single-operator LAN deployment of the Agentic Kanban Task Hub.
+#
+# REQUIRED host bind mounts (data MUST survive `docker restart` / recreate):
+#   ./data -> /data   SQLite database (DB_PATH=/data/tasks.db)
+#   ./logs -> /logs   usage logs    (USAGE_LOG_DIR=/logs, used by TASK-028)
+# These are host directories, not anonymous volumes — recreating the container
+# never loses the database or logs.
+#
+# Set ADMIN_TOKEN before `docker compose up` (e.g. in a local .env file or the
+# shell). The secret is injected at runtime; it is never baked into the image.
+services:
+  task-hub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: agentic-kanban:latest
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      ADMIN_TOKEN: "${ADMIN_TOKEN:?set ADMIN_TOKEN before starting}"
+      PORT: "3000"
+      DB_PATH: "/data/tasks.db"
+      USAGE_LOG_DIR: "/logs"
+    volumes:
+      - ./data:/data
+      - ./logs:/logs
+    # `docker stop` sends SIGTERM -> graceful shutdown (SSE -> HTTP -> DB).
+    stop_signal: SIGTERM
+    stop_grace_period: 10s
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

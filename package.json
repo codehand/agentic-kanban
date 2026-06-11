@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && mkdir -p dist/db/migrations && cp server/src/db/migrations/*.sql dist/db/migrations/",
+    "start": "node dist/index.js",
     "test": "vitest run --coverage",
     "lint": "eslint server/src server/test --ext .ts",
     "test:ui": "playwright test --config=playwright.config.ts",
