@@ -25,7 +25,7 @@
     if (!projects.length) { location.replace('/first-run.html'); return true; }
     if (projectFromPath()) return false;
     const first = projects[0].slug || projects[0].id;
-    location.replace('/' + encodeURIComponent(first) + '/' + page);
+    location.replace('/' + encodeURIComponent(first) + '/' + page + location.search);
     return true;
   };
 
