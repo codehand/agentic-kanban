@@ -20,6 +20,39 @@ import type { Db } from '../db/connection.js'
 import { registerReadTools, registerWriteTools } from './tools/index.js'
 import type { McpContext } from './context.js'
 import { logger } from '../logger.js'
+import { logToolCall, resolveUsageLogDir, type UsageEvent } from './usagelog.js'
+
+/** Minimal shape of a CallTool request we read identifying fields from. */
+interface CallToolRequest {
+  params?: { name?: unknown; arguments?: unknown }
+}
+/** Minimal shape of a CallTool result we inspect for success/failure. */
+interface CallToolResult {
+  isError?: boolean
+  content?: unknown
+}
+
+/**
+ * Classify a failed (isError) tool result: domain/authz/validation rejects are
+ * 'rejected'; internal/system faults are 'error'. The MCP SDK turns thrown
+ * errors into isError results, so the distinction is by message prefix.
+ */
+function classifyOutcome(text: string): UsageEvent['outcome'] {
+  return /internal error|internal server error/i.test(text) ? 'error' : 'rejected'
+}
+
+/** Best-effort extraction of a tool result's text for logging. */
+function errorTextOf(result: CallToolResult): string {
+  const content = result.content
+  if (Array.isArray(content)) {
+    const text = content
+      .map((c) => (c && typeof (c as { text?: unknown }).text === 'string' ? (c as { text: string }).text : ''))
+      .filter(Boolean)
+      .join(' ')
+    if (text) return text
+  }
+  return 'tool error'
+}
 
 /**
  * Build a fully configured McpServer with all tools registered for the given
@@ -31,6 +64,69 @@ export function buildMcpServer(ctx: McpContext): McpServer {
     { name: 'agentic-kanban', version: '0.1.0' },
     { capabilities: { logging: {} } },
   )
+
+  // --- Single usage-log dispatch hook (TASK-028) -------------------------
+  // The McpServer installs one CallTool request handler (lazily, on the first
+  // registerTool) that does input validation + dispatch for EVERY tool. We
+  // intercept setRequestHandler on the underlying low-level server so that, the
+  // moment that handler is installed, it is wrapped with usage logging. This is
+  // the single point that sees all tool calls — read and write, including those
+  // rejected at input validation — without touching any individual handler.
+  const lowServer = mcp.server as unknown as {
+    setRequestHandler: (schema: unknown, handler: (req: unknown, extra: unknown) => unknown) => void
+  }
+  const originalSet = lowServer.setRequestHandler.bind(lowServer)
+  lowServer.setRequestHandler = (schema, handler) => {
+    const isCallTool =
+      typeof (schema as { shape?: { method?: { value?: unknown } } })?.shape?.method?.value === 'string' &&
+      (schema as { shape: { method: { value: string } } }).shape.method.value === 'tools/call'
+    if (!isCallTool) {
+      originalSet(schema, handler)
+      return
+    }
+    originalSet(schema, async (req: unknown, extra: unknown) => {
+      const start = Date.now()
+      const params = (req as CallToolRequest).params ?? {}
+      const tool = typeof params.name === 'string' ? params.name : 'unknown'
+      // Only identifying fields are read from args; full args are never logged.
+      const a = (params.arguments ?? {}) as Record<string, unknown>
+      const project = typeof a.project === 'string' ? a.project : null
+      const task_key = typeof a.key === 'string' ? a.key : null
+
+      const emit = (outcome: UsageEvent['outcome'], error_message: string | null): void => {
+        // Resolved per call so USAGE_LOG_DIR (incl. 'off') is honoured at runtime.
+        const dir = resolveUsageLogDir(process.env['USAGE_LOG_DIR'])
+        void logToolCall(dir, {
+          ts: new Date().toISOString(),
+          tool,
+          role: ctx.auth.role,
+          token_id: ctx.auth.token_id,
+          project,
+          task_key,
+          outcome,
+          error_message,
+          duration_ms: Date.now() - start,
+        })
+      }
+
+      try {
+        const result = (await handler(req, extra)) as CallToolResult
+        if (result && result.isError) {
+          const msg = errorTextOf(result)
+          emit(classifyOutcome(msg), msg)
+        } else {
+          emit('ok', null)
+        }
+        return result
+      } catch (err) {
+        // The SDK normally converts errors to isError results; a throw here is
+        // a system-level fault.
+        emit('error', err instanceof Error ? err.message : String(err))
+        throw err
+      }
+    })
+  }
+
   registerReadTools(mcp, ctx)
   registerWriteTools(mcp, ctx)
   return mcp
