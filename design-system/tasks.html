@@ -58,16 +58,24 @@
     <div id="tasks-error" class="flex-1 grid place-items-center hidden"><div class="text-center"><p class="text-ev_fail text-[15px] font-medium">Failed to load tasks</p><p class="text-muted text-[13px] mt-1" id="tasks-error-msg"></p><button onclick="loadTasks()" class="mt-3 text-accent text-[13px] hover:underline">Retry</button></div></div>
     <div id="tasks-empty" class="flex-1 grid place-items-center hidden"><div class="text-center"><p class="text-muted text-[15px]">No tasks match</p><p class="text-muted text-[13px] mt-1">Try changing the filter.</p></div></div>
 
-    <!-- table -->
+    <!-- table (full width; inner overflow-x keeps narrow viewports from overflowing the page) -->
     <div id="tasks-table-wrap" class="flex-1 overflow-y-auto hidden console-grid">
-      <div class="max-w-[1200px] mx-auto px-6 py-5">
-        <table class="w-full text-left border-collapse" role="grid" aria-label="Tasks list">
+      <div class="px-4 sm:px-6 py-5 overflow-x-auto">
+        <table class="w-full min-w-[560px] text-left border-collapse" role="grid" aria-label="Tasks list">
           <thead>
             <tr class="text-[12px] uppercase tracking-wider text-muted border-b border-border">
-              <th class="py-2 pr-3 font-medium w-[140px]">Key</th>
-              <th class="py-2 pr-3 font-medium">Title</th>
-              <th class="py-2 pr-3 font-medium w-[170px]">State</th>
-              <th class="py-2 font-medium w-[110px] text-right">Updated</th>
+              <th scope="col" data-col="key" class="py-2 pr-3 font-medium w-[140px]">
+                <button type="button" data-sort="key" class="inline-flex items-center gap-1 hover:text-text">Key <i data-sort-icon class="ph ph-caret-up text-[12px] hidden" aria-hidden="true"></i></button>
+              </th>
+              <th scope="col" data-col="title" class="py-2 pr-3 font-medium">
+                <button type="button" data-sort="title" class="inline-flex items-center gap-1 hover:text-text">Title <i data-sort-icon class="ph ph-caret-up text-[12px] hidden" aria-hidden="true"></i></button>
+              </th>
+              <th scope="col" data-col="state" class="py-2 pr-3 font-medium w-[170px]">
+                <button type="button" data-sort="state" class="inline-flex items-center gap-1 hover:text-text">State <i data-sort-icon class="ph ph-caret-up text-[12px] hidden" aria-hidden="true"></i></button>
+              </th>
+              <th scope="col" data-col="updated" class="py-2 font-medium w-[110px] text-right">
+                <button type="button" data-sort="updated" class="inline-flex items-center gap-1 hover:text-text">Updated <i data-sort-icon class="ph ph-caret-up text-[12px] hidden" aria-hidden="true"></i></button>
+              </th>
             </tr>
           </thead>
           <tbody id="tasks-tbody"></tbody>
