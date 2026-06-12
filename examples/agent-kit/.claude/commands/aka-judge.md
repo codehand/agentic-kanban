@@ -1,5 +1,5 @@
 ---
-description: One JUDGE iteration — adversarial review of a self-checked task (loop or watch mode).
+description: One JUDGE iteration — adversarial review of a self-checked task (designed for /loop).
 argument-hint: [project-slug]
 ---
 
@@ -9,8 +9,7 @@ Read the `aka-kanban` skill for the verdict guard. Run exactly one iteration:
 1. **Busy check.** If a review from the previous iteration is unfinished, finish it.
    Do not pick a new task.
 2. **Pick work:** `task.list { state: "SELF_CHECK_PASSED" }`, take the oldest.
-   Nothing → reply `idle` and end the turn (in watch mode, still arm a waker per
-   **Watch mode** below).
+   Nothing → reply `idle` and end the turn.
 3. **Independent adversarial review** — ignore the implementer's narrative claims:
    - `gitref.list` → `git fetch origin`. **If the fetch itself fails** (origin
      unreachable — infra, not a code problem), do NOT reject: change no state, report
@@ -28,16 +27,6 @@ Read the `aka-kanban` skill for the verdict guard. Run exactly one iteration:
    - First `comment.add { kind: "verdict", verdict: "PASS" | "REJECT", body_md: "<detailed reasoning>" }`.
    - Then `task.transition SELF_CHECK_PASSED → JUDGE_PASSED` (or `→ JUDGE_REJECTED`).
    - A REJECT body must tell the implementer concretely what to fix.
-
-**Watch mode** (invoked once, not under /loop): never end a turn without exactly one
-background waker:
-- Normal end (verdict delivered, or idle):
-  `bash .claude/scripts/wait-for-work.sh <project> SELF_CHECK_PASSED` — exits
-  instantly if more reviews queue up, so a backlog drains one task per turn.
-- You deliberately left the review undone (origin unreachable — infra failure):
-  `bash -c 'sleep 300'` as a retry timer instead — the watcher would wake you
-  instantly in a spin since the task is still SELF_CHECK_PASSED.
-When woken, rerun this whole flow. Under /loop, start no waker.
 
 Never modify code, never approve to DONE, never submit evidence.
 Report the task key and your verdict with the one-line reason.
