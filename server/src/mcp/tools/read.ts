@@ -13,7 +13,6 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   listProjects,
   getProjectBySlug,
-  getProjectById,
   insertProject,
 } from '../../db/repositories/project.js'
 import {
@@ -25,6 +24,7 @@ import { listCommentsByTask } from '../../db/repositories/comment.js'
 import { getLatestEvidenceByTask } from '../../db/repositories/evidence.js'
 import { listGitRefsByTask } from '../../db/repositories/gitref.js'
 import { assertAuthorized } from '../../auth/authorize.js'
+import { assertUnscoped, filterProjectsByScope, resolveProjectInScope } from '../../auth/scope.js'
 import type { McpContext } from '../context.js'
 
 /**
@@ -48,13 +48,13 @@ function taskToResult(t: Task) {
 
 /**
  * Resolve a project by slug or id; throws a clear error if missing.
+ * Shared scope chokepoint (TASK-042): a project-scoped token gets a clean
+ * ScopeError (→ isError tool result) for anything but its own project.
  */
 function resolveProject(ctx: McpContext, ref: string) {
-  const bySlug = getProjectBySlug(ctx.db, ref)
-  if (bySlug) return bySlug
-  const byId = getProjectById(ctx.db, ref)
-  if (byId) return byId
-  throw new Error(`Project not found: ${ref}`)
+  const proj = resolveProjectInScope(ctx.db, ctx.auth, ref)
+  if (!proj) throw new Error(`Project not found: ${ref}`)
+  return proj
 }
 
 export function registerReadTools(mcp: McpServer, ctx: McpContext): void {
@@ -64,7 +64,8 @@ export function registerReadTools(mcp: McpServer, ctx: McpContext): void {
     inputSchema: {},
   }, async () => {
     assertAuthorized(ctx.auth.role as never, 'read')
-    const rows = listProjects(ctx.db)
+    // List tool: FILTER by token project scope instead of erroring (TASK-042).
+    const rows = filterProjectsByScope(ctx.auth, listProjects(ctx.db))
     return { content: [{ type: 'text', text: JSON.stringify(rows, null, 2) }] }
   })
 
@@ -77,6 +78,8 @@ export function registerReadTools(mcp: McpServer, ctx: McpContext): void {
     },
   }, async ({ slug, name }) => {
     assertAuthorized(ctx.auth.role as never, 'task.create')
+    // Project creation is global — scoped tokens may not do it (TASK-042).
+    assertUnscoped(ctx.auth)
     const existing = getProjectBySlug(ctx.db, slug)
     if (existing) throw new Error(`Project with slug '${slug}' already exists`)
     const id = `proj_${slug}_${Date.now().toString(36)}`
