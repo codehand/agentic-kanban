@@ -1,5 +1,5 @@
 ---
-description: One SELF-CHECK iteration — independent evidence run + gate verdict (loop or watch mode).
+description: One SELF-CHECK iteration — independent evidence run + gate verdict (designed for /loop).
 argument-hint: [project-slug]
 ---
 
@@ -10,8 +10,7 @@ Read the `aka-kanban` skill for the evidence rules. Run exactly one iteration:
 1. **Busy check.** If an evidence run from the previous iteration is unfinished, finish
    it (steps 3–5). Do not pick a new task.
 2. **Pick work:** `task.list { state: "IMPLEMENTED" }`, take the oldest.
-   Nothing → reply `idle` and end the turn (in watch mode, still arm a waker per
-   **Watch mode** below).
+   Nothing → reply `idle` and end the turn.
 3. **Independent checkout — origin is the only source of truth:**
    `gitref.list` for the task → `git fetch origin`. **If the fetch itself fails**
    (origin unreachable — infra problem, not the implementer's fault), submit nothing,
@@ -36,16 +35,6 @@ Read the `aka-kanban` skill for the evidence rules. Run exactly one iteration:
      tail of each output.
    - On `taskhub`: `task.selfcheck { project, key }`. The gate sets
      SELF_CHECK_PASSED or SELF_CHECK_FAILED — accept its verdict.
-
-**Watch mode** (invoked once, not under /loop): never end a turn without exactly one
-background waker:
-- Normal end (verdict delivered, or idle):
-  `bash .claude/scripts/wait-for-work.sh <project> IMPLEMENTED` — exits instantly if
-  more IMPLEMENTED tasks queue up, so a backlog drains one task per turn.
-- You deliberately left the task ungraded (origin unreachable — infra failure):
-  `bash -c 'sleep 300'` as a retry timer instead — the watcher would wake you
-  instantly in a spin since the task is still IMPLEMENTED.
-When woken, rerun this whole flow. Under /loop, start no waker.
 
 Never modify code, never re-run to coax a pass, never call judge/approve tools.
 Report the task key, the exit codes, and the gate's verdict.

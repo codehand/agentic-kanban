@@ -1,5 +1,5 @@
 ---
-description: One HUMAN-approver iteration — merge a judge-passed task and approve to DONE (loop or watch mode).
+description: One HUMAN-approver iteration — merge a judge-passed task and approve to DONE (designed for /loop).
 argument-hint: [project-slug]
 ---
 
@@ -13,8 +13,7 @@ You act as the HUMAN approver for project **$ARGUMENTS** (if blank, use slug `de
    note (mismatch/conflict/red tests) for the task's current `head_sha`, move on to
    the next oldest instead of re-failing it every tick. A blocked task only becomes
    eligible again when its `head_sha` changed or a human resolved it.
-   Nothing eligible → reply `idle` and end the turn (in watch mode, still arm a
-   waker per **Watch mode** below).
+   Nothing eligible → reply `idle` and end the turn.
 3. **Sanity read:** `comment.list` (the judge's PASS verdict must exist) and
    `gitref.list` for branch + shas.
 4. **Merge — `task.approve` does NOT merge git, so merge first:**
@@ -47,16 +46,5 @@ You act as the HUMAN approver for project **$ARGUMENTS** (if blank, use slug `de
      human role, skip it silently).
    - `comment.add { kind: "note", body_md: "merged into master at <sha>" }`.
    - `task.approve { project, key }` → DONE.
-
-**Watch mode** (invoked once, not under /loop): never end a turn without exactly one
-background waker:
-- Normal end (task approved to DONE, or queue truly empty):
-  `bash .claude/scripts/wait-for-work.sh <project> JUDGE_PASSED` — exits instantly
-  if more approvals queue up, so a backlog drains one task per turn.
-- Every remaining JUDGE_PASSED task is one you skipped as blocked (mismatch/conflict/
-  red tests): `bash -c 'sleep 600'` as a recheck timer instead — blocked tasks still
-  sit in JUDGE_PASSED, so the watcher would wake you instantly in a spin.
-When woken, rerun this whole flow (re-apply the blocked-skip rule from step 2).
-Under /loop, start no waker.
 
 Report the task key, the merge commit sha, and the final state.

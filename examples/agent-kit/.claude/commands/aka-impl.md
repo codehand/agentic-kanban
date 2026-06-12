@@ -1,5 +1,5 @@
 ---
-description: One IMPLEMENTER iteration against the taskhub MCP server (loop or watch mode).
+description: One IMPLEMENTER iteration against the taskhub MCP server (designed for /loop).
 argument-hint: [project-slug]
 ---
 
@@ -8,9 +8,8 @@ Read the `aka-kanban` skill for states, guards, and lease rules. Run exactly one
 
 1. **Busy check — ask the hub, not your memory** (a restarted session remembers
    nothing, but the lease lives on the server, bound to this token):
-   `task.list { state: "IN_PROGRESS" }` — for each hit, `task.heartbeat` it: success
-   means YOU hold the lease (you cannot read your own token id, but heartbeat only
-   succeeds for the lease holder), so that is your task. Then **rebuild from origin, not from the local
+   `task.list { state: "IN_PROGRESS" }` — if a task is assigned to you, that is your
+   task. `task.heartbeat` first, then **rebuild from origin, not from the local
    tree** — `git fetch origin`; if `origin/fix/<KEY>` exists, hard-reset your branch
    to it (any local-only work from a dead sandbox is gone — that is expected). Read
    `comment.list` for your own last narrative to find where you stopped, resume the
@@ -21,8 +20,7 @@ Read the `aka-kanban` skill for states, guards, and lease rules. Run exactly one
    - `task.list { state: "JUDGE_REJECTED" }` — rework. Read the judge's verdict comment,
      `task.claim`, transition → IN_PROGRESS.
    - `task.next` — fresh TODO. `task.claim`, then `task.transition TODO → IN_PROGRESS`.
-   - Nothing found → reply `idle` and end the turn (in watch mode, still arm a waker
-     per **Watch mode** below).
+   - Nothing found → reply `idle` and end the turn.
 3. **Preflight — clean tree + fresh master (required before branching):**
    - `git status --porcelain` must be empty. If the tree is dirty (leftovers from a
      dead run), discard everything: `git checkout -- . && git clean -fd` — per the
@@ -67,17 +65,6 @@ Read the `aka-kanban` skill for states, guards, and lease rules. Run exactly one
      with the push error, report it, end the turn. Next iteration the busy check
      resumes this task and retries the push. The work survives locally only until the
      sandbox dies, so retrying the push is always the top priority on resume.
-
-**Watch mode** (command invoked once, not under a recurring /loop): never end a turn
-without exactly one background waker, or the session goes silent while work queues up:
-- Normal end (task handed off, or idle):
-  `bash .claude/scripts/wait-for-work.sh <project> SELF_CHECK_FAILED JUDGE_REJECTED TODO IN_PROGRESS`
-  — it exits the instant eligible work exists (immediately if a queue is already
-  non-empty), so a backlog drains one task per turn; true idle costs zero tokens.
-- You deliberately left your own task unprocessed (push failed / origin unreachable):
-  `bash -c 'sleep 300'` as a plain retry timer instead — the watcher would see the
-  task still IN_PROGRESS and wake you instantly in a spin.
-When woken, rerun this whole flow. Under /loop, start no waker.
 
 Never call selfcheck/judge/approve tools. Never push to master.
 Report which task you worked and its final state.

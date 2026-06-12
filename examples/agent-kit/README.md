@@ -1,25 +1,25 @@
-# agent-kit — bộ skill/command copy vào project target
+# agent-kit — skill/command bundle to copy into the target project
 
-Bộ `.claude/` portable để các Claude session trong **project target** (repo demo mà
-agent sẽ sửa code) biết cách vận hành lifecycle của aka-mcp qua MCP. Hub server và
-token mint vẫn theo `docs/CONNECT_MCP.md`.
+A portable `.claude/` bundle that teaches Claude sessions inside the **target
+project** (the demo repo the agents will modify) how to operate the aka-mcp
+lifecycle over MCP. Hub server setup and token minting still follow
+`docs/CONNECT_MCP.md`.
 
-## Nội dung
+## Contents
 
 ```
 .claude/
-  skills/aka-kanban/SKILL.md      # tham chiếu chung: state machine, guard, lease, evidence
-  commands/aka-impl.md            # 1 vòng implementer   → /aka-impl <slug>
-  commands/aka-selfcheck.md       # 1 vòng self-check    → /aka-selfcheck <slug>
-  commands/aka-judge.md           # 1 vòng judge         → /aka-judge <slug>
-  commands/aka-human.md           # 1 vòng human approve → /aka-human <slug>
-  scripts/wait-for-work.sh        # watcher 0-token cho watch mode (curl + jq)
+  skills/aka-kanban/SKILL.md      # shared reference: state machine, guards, lease, evidence
+  commands/aka-impl.md            # one implementer iteration   → /aka-impl <slug>
+  commands/aka-selfcheck.md       # one self-check iteration    → /aka-selfcheck <slug>
+  commands/aka-judge.md           # one judge iteration         → /aka-judge <slug>
+  commands/aka-human.md           # one human-approve iteration → /aka-human <slug>
 ```
 
-## Cách dùng
+## Usage
 
-1. Copy nguyên thư mục `.claude/` này vào **từng clone** của project target
-   (`work-impl`, `work-selfcheck`, `work-judge`, `work-human`):
+1. Copy this entire `.claude/` directory into **each clone** of the target
+   project (`work-impl`, `work-selfcheck`, `work-judge`, `work-human`):
 
    ```bash
    for r in impl selfcheck judge human; do
@@ -27,45 +27,40 @@ token mint vẫn theo `docs/CONNECT_MCP.md`.
    done
    ```
 
-2. Trong mỗi clone, đăng ký MCP server `taskhub` với bearer token đúng role
-   (clone self-check đăng ký thêm `taskhub-runner` với token role `runner`).
-   Chạy trong Docker thì dùng `http://host.docker.internal:3000/mcp`.
+2. In each clone, register the MCP server `taskhub` with the bearer token for
+   the matching role (the self-check clone additionally registers
+   `taskhub-runner` with a `runner`-role token). When running in Docker, use
+   `http://host.docker.internal:3000/mcp`.
 
-3. Mở `claude` trong từng clone và chạy theo một trong hai chế độ:
+3. Open `claude` in each clone and run its role under `/loop`:
 
-   **Watch mode (khuyên dùng — idle 0 token):** gõ command MỘT lần, không cần /loop:
-
-   | Terminal | Lệnh |
+   | Terminal | Command |
    |---|---|
-   | work-impl | `/aka-impl demo` |
-   | work-selfcheck | `/aka-selfcheck demo` |
-   | work-judge | `/aka-judge demo` |
-   | work-human | `/aka-human demo` |
+   | work-impl | `/loop 5m /aka-impl demo` |
+   | work-selfcheck | `/loop 5m /aka-selfcheck demo` |
+   | work-judge | `/loop 5m /aka-judge demo` |
+   | work-human | `/loop 5m /aka-human demo` |
 
-   Khi hết việc, agent tự thả `.claude/scripts/wait-for-work.sh` chạy nền (poll hub
-   bằng curl mỗi 30s — không tốn token). Có task đúng state → script thoát → session
-   tự thức dậy xử lý → lại gác. Session để mở vĩnh viễn trong terminal; LLM chỉ
-   chạy khi có việc thật. Script cần `jq` + `curl`, tự đọc URL/token từ `.mcp.json`
-   của clone (override bằng env `AKA_HUB_URL` / `AKA_TOKEN`; đổi nhịp poll bằng
-   `AKA_POLL_INTERVAL`).
+   The agent wakes every 5 minutes, runs exactly one iteration (at most one
+   task), then sleeps again; on an empty board the iteration costs only a
+   single queue check. Tune the interval to taste (shorter → picks up new
+   tasks sooner, spends more tokens on empty checks).
 
-   **Loop mode (cũ):** `/loop 5m /aka-impl demo` … — agent bị đánh thức đều mỗi 5
-   phút kể cả khi board rỗng. Dùng khi không muốn dựa vào background task.
+   `demo` is the project slug on the hub; if omitted, the commands default to
+   `demo`.
 
-   `demo` = project slug trên hub; bỏ trống thì command mặc định dùng `demo`.
+   Session context grows with the number of iterations. When the board is
+   quiet, run `/compact` occasionally — the kit is stateless by design (all
+   context is rebuilt from the hub + origin), so compacting/clearing loses
+   nothing.
 
-   Context của session vẫn dài dần theo số task đã xử lý (không theo thời gian
-   idle nữa). Lúc board vắng, thi thoảng gõ `/compact` — kit vốn stateless
-   (mọi context rebuild từ hub + origin) nên nén/clear không mất gì.
+Each command carries its own "busy → skip" rule: at most one task per
+iteration, and an unfinished task from the previous iteration is resumed
+instead of picking a new one.
 
-Mỗi command tự chứa quy tắc "đang thao tác thì skip": mỗi vòng tối đa 1 task, vòng
-trước còn dở thì làm tiếp thay vì pick task mới. Watch mode gác waker cuối **mọi**
-turn (watcher thoát tức thì nếu queue còn task → backlog tự rút từng task một;
-trường hợp chủ động để việc lại — blocked/infra fail — dùng timer `sleep` để
-tránh spin).
-
-Kit giả định session chạy trong môi trường ephemeral (Docker/sandbox), nên **git
-server (origin) là source of truth**: implementer push nhánh trước mọi lần update
-state lên hub; self-check/judge/human chỉ fetch từ origin và fail/reject nếu
-`head_sha` đã đăng ký không tồn tại trên origin. Vì vậy origin phải được mount/route
-tới được từ trong container (bare repo mount volume, hoặc remote thật như GitHub).
+The kit assumes sessions run in ephemeral environments (Docker/sandbox), so
+**the git server (origin) is the source of truth**: the implementer pushes its
+branch before every hub state update; self-check/judge/human only fetch from
+origin and fail/reject the task if the registered `head_sha` does not exist on
+origin. Origin therefore must be mountable/routable from inside the container
+(a bare repo on a mounted volume, or a real remote such as GitHub).
