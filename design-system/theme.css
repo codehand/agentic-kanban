@@ -53,7 +53,7 @@ html.dark {
 
 /* AA contrast: in dark mode the bright accent/human fills can't carry white
  * text (≈3.7:1), so filled buttons get near-black text instead (≥5:1). */
-html.dark .bg-accent, html.dark .bg-st_human { color: var(--bg); }
+html.dark .bg-accent, html.dark .bg-st_human, html.dark .bg-ev_fail { color: var(--bg); }
 
 html, body { background: var(--bg); }
 body { font-feature-settings: "cv11", "ss01"; }

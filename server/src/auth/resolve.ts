@@ -5,12 +5,27 @@
  */
 import Database from 'better-sqlite3';
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { listActiveTokens } from '../db/repositories/token.js';
+import { listActiveTokens, touchTokenLastUsed, type Token } from '../db/repositories/token.js';
 
 export interface ResolvedToken {
   token_id: string;
   role: string;
   project_scope: string | null;
+}
+
+/**
+ * Presence telemetry throttle (TASK-041): after a successful resolve we stamp
+ * token.last_used_at, but skip the UPDATE entirely while the stored value is
+ * fresher than this window — a hot agent does not turn every request into a write.
+ */
+export const LAST_USED_THROTTLE_MS = 60_000;
+
+function touchLastUsedThrottled(db: Database.Database, row: Token): void {
+  if (row.last_used_at) {
+    const last = Date.parse(row.last_used_at);
+    if (Number.isFinite(last) && Date.now() - last < LAST_USED_THROTTLE_MS) return;
+  }
+  touchTokenLastUsed(db, row.id);
 }
 
 /**
@@ -31,6 +46,9 @@ export function resolveBearer(
 
   for (const row of rows) {
     if (verifyHashConstantTime(secret, row.secret_hash)) {
+      // Every successfully authenticated request (JSON API and MCP both pass
+      // through resolveBearer) refreshes presence telemetry, throttled.
+      touchLastUsedThrottled(db, row);
       return {
         token_id: row.id,
         role: row.role,

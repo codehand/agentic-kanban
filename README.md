@@ -59,8 +59,8 @@ See `docs/CONNECT_MCP.md` for the full tool surface.
 
 ### Mint a token per role
 Permissions follow the **role** of the token (the server enforces them). The
-`human` token (from `ADMIN_TOKEN`) can mint the others via the JSON API —
-`POST /api/tokens` (token mint/revoke are JSON API only; there are no token
+`human` token (from `ADMIN_TOKEN`) can mint the others via the tokens page
+(`/tokens.html`) or the JSON API — `POST /api/tokens` (there are no token
 MCP tools):
 
 | Role | Can do |
@@ -79,10 +79,11 @@ curl -s -X POST http://127.0.0.1:3000/api/tokens \
 ```
 The `secret` is returned exactly once — store it.
 
-Revoke a token with `DELETE /api/tokens/:id` (human bearer required; list ids
-via `GET /api/tokens`). Returns `200` with the token's metadata on success,
-`404` if the id is unknown, and `409` if the token is already revoked or if it
-is the last active `human` token (lockout guard):
+Revoke a token from the tokens page (each active card has a confirm-guarded
+**Revoke** button) or with `DELETE /api/tokens/:id` (human bearer required;
+list ids via `GET /api/tokens`). Returns `200` with the token's metadata on
+success, `404` if the id is unknown, and `409` if the token is already revoked
+or if it is the last active `human` token (lockout guard):
 
 ```bash
 curl -s -X DELETE http://127.0.0.1:3000/api/tokens/<token-id> \

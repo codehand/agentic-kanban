@@ -10,6 +10,8 @@ export interface Token {
   secret_hash: string
   created_at: string
   revoked_at: string | null
+  /** Presence telemetry (TASK-041): last successfully authenticated use. NULL = never used. */
+  last_used_at: string | null
 }
 
 export interface NewToken {
@@ -57,6 +59,13 @@ export function findActiveTokensByRole(db: Db, role: TokenRole): Token[] {
   return db
     .prepare(`SELECT * FROM token WHERE role = ? AND revoked_at IS NULL ORDER BY created_at ASC`)
     .all(role) as Token[]
+}
+
+/** Set last_used_at = now. Callers throttle (see auth/resolve.ts) so hot tokens don't UPDATE per request. */
+export function touchTokenLastUsed(db: Db, id: string): void {
+  db.prepare(`
+    UPDATE token SET last_used_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?
+  `).run(id)
 }
 
 /** Soft-revoke: set revoked_at timestamp. */
