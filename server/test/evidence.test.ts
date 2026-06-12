@@ -192,6 +192,11 @@ describe('Evidence Subsystem', () => {
 
       expect(result.success).toBe(false);
       expect(result.reason).toContain('Build failed');
+      // Failing evidence must still transition the task through the gate —
+      // otherwise it is stranded in IMPLEMENTED and selfcheck loops forever.
+      expect(mockTransitionRepo.transitions.length).toBe(1);
+      expect(mockTransitionRepo.transitions[0].to_state).toBe('SELF_CHECK_FAILED');
+      expect(mockTaskRepo.getCurrentState('task-1')).toBe('SELF_CHECK_FAILED');
     });
 
     it('AC7: fails when test fails', async () => {

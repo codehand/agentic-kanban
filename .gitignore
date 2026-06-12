@@ -12,3 +12,10 @@ logs/
 
 # Playwright
 test-results/
+
+# MCP registration — chứa bearer token thật, không bao giờ commit
+.mcp.json
+
+# SQLite sidecar (WAL mode) — *.db đã ignore nhưng không cover -shm/-wal
+*.db-shm
+*.db-wal
