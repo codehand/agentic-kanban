@@ -120,16 +120,11 @@ export async function selfcheck(
   // Score the evidence according to the acceptance criteria
   const scoringResult = scoreEvidence(evidence, config);
 
-  // If scoring fails, return immediately with failure - don't delegate to gate
-  if (!scoringResult.passed) {
-    return {
-      success: false,
-      reason: scoringResult.reason
-    };
-  }
-
-  // If scoring passes, determine target state and delegate to gate
-  const targetState: 'SELF_CHECK_PASSED' | 'SELF_CHECK_FAILED' = 'SELF_CHECK_PASSED';
+  // Failing evidence is still a gate decision: IMPLEMENTED → SELF_CHECK_FAILED.
+  // Returning early without a transition would strand the task in IMPLEMENTED.
+  const targetState: 'SELF_CHECK_PASSED' | 'SELF_CHECK_FAILED' = scoringResult.passed
+    ? 'SELF_CHECK_PASSED'
+    : 'SELF_CHECK_FAILED';
 
   // Create the transition input for the gate
   const input: ProposeInput = {
@@ -161,7 +156,7 @@ export async function selfcheck(
   taskRepo.setCurrentState(taskId, targetState);
 
   return {
-    success: true,
+    success: scoringResult.passed,
     reason: scoringResult.reason
   };
 }
