@@ -156,7 +156,7 @@
       document.getElementById('drawer-state-badge').innerHTML = '<i class="ph' + (st.fill ? '-fill' : '') + ' ' + st.icon + ' text-[13px]"></i>' + esc(st.text);
 
       var html = '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-file-text text-[14px]"></i> Spec</h3>';
-      html += '<div class="text-text/90 leading-relaxed text-[13px] whitespace-pre-wrap">' + esc(t.body_md || '(no spec)') + '</div></section>';
+      html += '<div class="text-[13px]">' + renderMarkdown(t.body_md || '(no spec)') + '</div></section>';
 
       if (res.gitrefs && res.gitrefs.length > 0) {
         html += '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-git-branch text-[14px]"></i> Repos &amp; MR</h3><div class="space-y-2">';
