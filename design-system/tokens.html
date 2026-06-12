@@ -25,7 +25,7 @@
     </header>
 
     <div class="flex-1 overflow-y-auto">
-      <div class="max-w-[920px] mx-auto px-6 py-6 space-y-5">
+      <div class="px-6 py-6 space-y-5">
 
         <!-- secret-shown-once banner (hidden by default, revealed after mint) -->
         <div id="minted-banner" class="hidden rounded-xl border border-accent/40 bg-accent/8 p-4" role="status" aria-live="polite">
@@ -104,31 +104,34 @@
           </form>
         </div>
 
-        <!-- tokens table -->
+        <!-- tokens card grid -->
         <section>
           <h2 class="text-[13px] uppercase tracking-wider text-muted mb-2">Active &amp; revoked tokens</h2>
-          <div class="rounded-xl border border-border bg-panel overflow-hidden">
-            <table class="w-full text-[13px]">
-              <thead class="text-[13px] text-muted">
-                <tr class="border-b border-border">
-                  <th class="text-left font-medium px-4 py-2.5">Role</th>
-                  <th class="text-left font-medium px-4 py-2.5">Label</th>
-                  <th class="text-left font-medium px-4 py-2.5 hidden md:table-cell">Scope</th>
-                  <th class="text-left font-medium px-4 py-2.5 hidden sm:table-cell">Created</th>
-                  <th class="text-right font-medium px-4 py-2.5">Action</th>
-                </tr>
-              </thead>
-              <tbody id="tokens-body" class="divide-y divide-border">
-                <tr><td colspan="5" class="px-4 py-3 text-muted text-[13px]">Loading&hellip;</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p class="mt-2 text-[13px] text-muted leading-relaxed">Roles are enforced server-side: a <span class="mono text-text">runner</span> token can only submit evidence, an <span class="mono text-text">implementer</span> token cannot set JUDGE_PASSED or DONE. Keeping the runner credential separate from the implementer is the core anti-self-certify guard.</p>
+          <ul id="tokens-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 list-none p-0 m-0">
+            <li class="rounded-xl border border-border bg-panel p-4 text-muted text-[13px]">Loading&hellip;</li>
+          </ul>
+          <p class="mt-3 text-[13px] text-muted leading-relaxed">Roles are enforced server-side: a <span class="mono text-text">runner</span> token can only submit evidence, an <span class="mono text-text">implementer</span> token cannot set JUDGE_PASSED or DONE. Keeping the runner credential separate from the implementer is the core anti-self-certify guard. <span class="text-text font-medium">live</span> = the token authenticated a request within the last 5 minutes.</p>
         </section>
 
       </div>
     </div>
   </main>
+</div>
+
+<!-- ============ REVOKE CONFIRM DIALOG (same pattern as the board's approve modal) ============ -->
+<div id="revoke-confirm" role="dialog" aria-modal="true" aria-labelledby="revoke-title" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/60 p-4">
+  <div class="w-full max-w-sm rounded-xl border border-ev_fail/30 bg-panel p-5">
+    <div class="flex items-center gap-2.5">
+      <span class="grid place-items-center w-9 h-9 rounded-lg bg-ev_fail/15 text-ev_fail"><i class="ph-fill ph-prohibit text-[19px]" aria-hidden="true"></i></span>
+      <h3 id="revoke-title" class="text-[16px] font-semibold">Revoke token?</h3>
+    </div>
+    <p class="mt-3 text-[13px] text-muted leading-relaxed">Agents authenticating with this token get <span class="text-text font-medium">401</span> immediately. This cannot be undone &mdash; mint a new token to replace it.</p>
+    <div id="revoke-error" role="alert" class="hidden mt-3 rounded-md border border-ev_fail/40 bg-ev_fail/10 px-3 py-2 text-[13px] text-ev_fail"></div>
+    <div class="mt-4 flex items-center justify-end gap-2">
+      <button type="button" id="revoke-cancel" class="rounded-md border border-border bg-panel2 px-3 h-9 text-[13px] text-muted hover:text-text">Cancel</button>
+      <button type="button" id="revoke-do" class="flex items-center gap-1.5 rounded-md bg-ev_fail px-3.5 h-9 text-[13px] font-semibold text-white hover:brightness-110"><i class="ph-fill ph-prohibit text-[15px]" aria-hidden="true"></i> Revoke token</button>
+    </div>
+  </div>
 </div>
 <script src="/api.js"></script>
 <script src="/shell.js"></script>
@@ -138,7 +141,7 @@
     'use strict';
     var api = window.__kanban_api;
     if (!api) return;
-    var tbody = document.getElementById('tokens-body');
+    var grid = document.getElementById('tokens-grid');
     var ROLE_ICONS = {
       'human': { icon: 'ph-user-circle', fill: true, cls: 'bg-accent/12 text-accent' },
       'implementer': { icon: 'ph-robot', fill: false, cls: 'bg-st_prog/12 text-st_prog' },
@@ -156,29 +159,120 @@
       }).catch(function () {});
     })();
 
+    // --- Card grid rendering (TASK-041) ---
+    var LIVE_WINDOW_MS = 5 * 60 * 1000; // "live" = authenticated within the last 5 min
+    var tokens = [];
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    function relTime(ms) {
+      var s = Math.max(1, Math.floor(ms / 1000));
+      if (s < 60) return s + 's ago';
+      if (s < 3600) return Math.floor(s / 60) + 'm ago';
+      if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+      return Math.floor(s / 86400) + 'd ago';
+    }
+    /* Status from last_used_at (presence telemetry): revoked > live > idle > never.
+       Never color-only: every status carries a text label (AA both themes). */
+    function statusHtml(t) {
+      if (t.revoked_at) {
+        return '<span data-status="revoked" class="inline-flex items-center gap-1.5 text-[13px] font-medium text-ev_fail"><i class="ph-fill ph-prohibit text-[13px]" aria-hidden="true"></i>revoked</span>';
+      }
+      if (!t.last_used_at) {
+        return '<span data-status="never" class="text-[13px] text-muted">never used</span>';
+      }
+      var ts = Date.parse(t.last_used_at);
+      if (isFinite(ts) && Date.now() - ts <= LIVE_WINDOW_MS) {
+        return '<span data-status="live" class="inline-flex items-center gap-1.5 text-[13px] font-medium text-ev_pass"><span class="w-2 h-2 rounded-full bg-ev_pass" aria-hidden="true"></span>live</span>';
+      }
+      return '<span data-status="idle" class="text-[13px] text-muted">last seen ' + esc(relTime(Date.now() - ts)) + '</span>';
+    }
+    function cardHtml(t) {
+      var r = ROLE_ICONS[t.role] || { icon: 'ph-circle', fill: false, cls: 'bg-white/5 text-muted' };
+      var revoked = !!t.revoked_at;
+      return '<li data-token-id="' + esc(t.id) + '" class="rounded-xl border border-border p-4 flex flex-col gap-3 min-w-0 ' + (revoked ? 'bg-panel2' : 'bg-panel') + '">' +
+        '<div class="flex items-center justify-between gap-2">' +
+          '<span class="inline-flex items-center gap-1.5 mono text-[13px] px-2 py-0.5 rounded ' + r.cls + '"><i class="ph' + (r.fill ? '-fill' : '') + ' ' + r.icon + ' text-[13px]" aria-hidden="true"></i>' + esc(t.role || '') + '</span>' +
+          statusHtml(t) +
+        '</div>' +
+        '<div class="text-[14px] font-medium truncate' + (revoked ? ' line-through text-muted' : '') + '">' + esc(t.label || t.id) + '</div>' +
+        '<div class="flex flex-wrap items-center gap-x-3 gap-y-1 mono text-[13px] text-muted">' +
+          '<span class="inline-flex items-center gap-1 min-w-0"><i class="ph ph-stack text-[13px]" aria-hidden="true"></i><span class="truncate">' + esc(t.project_id || 'all') + '</span></span>' +
+          '<span class="inline-flex items-center gap-1"><i class="ph ph-calendar-blank text-[13px]" aria-hidden="true"></i>' + esc((t.created_at || '').slice(0, 10)) + '</span>' +
+        '</div>' +
+        '<div class="mt-auto flex justify-end">' + (revoked
+          ? '<span class="mono text-[13px] text-muted">revoked ' + esc((t.revoked_at || '').slice(0, 10)) + '</span>'
+          : '<button type="button" data-revoke-id="' + esc(t.id) + '" class="flex items-center gap-1 rounded-md border border-border px-2.5 h-8 text-[13px] font-medium text-ev_fail hover:bg-ev_fail/10"><i class="ph ph-prohibit text-[13px]" aria-hidden="true"></i> Revoke</button>') +
+        '</div></li>';
+    }
+    function renderTokens() {
+      if (!tokens.length) {
+        grid.innerHTML = '<li class="rounded-xl border border-border bg-panel p-4 text-muted text-[13px]">No tokens found.</li>';
+        return;
+      }
+      grid.innerHTML = tokens.map(cardHtml).join('');
+    }
     function reloadTokens() {
       api.listTokens().then(function (res) {
-        if (!res || !res.tokens || res.tokens.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-3 text-muted text-[13px]">No tokens found.</td></tr>';
-          return;
-        }
-        tbody.innerHTML = '';
-        res.tokens.forEach(function (t) {
-          var r = ROLE_ICONS[t.role] || { icon: 'ph-circle', fill: false, cls: 'bg-white/5 text-muted' };
-          var revoked = !!t.revoked_at;
-          var tr = '<tr' + (revoked ? ' class="opacity-50"' : '') + '>' +
-            '<td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 mono text-[13px] px-2 py-0.5 rounded ' + r.cls + '"><i class="ph' + (r.fill ? '-fill' : '') + ' ' + r.icon + ' text-[13px]"></i>' + (t.role || '') + '</span></td>' +
-            '<td class="px-4 py-3' + (revoked ? ' line-through' : '') + '">' + (t.label || t.id) + '</td>' +
-            '<td class="px-4 py-3 mono text-[13px] text-muted hidden md:table-cell">' + (t.project_id || 'all') + '</td>' +
-            '<td class="px-4 py-3 mono text-[13px] text-muted hidden sm:table-cell">' + (t.created_at || '') + '</td>' +
-            '<td class="px-4 py-3 text-right">' + (revoked ? '<span class="mono text-[13px] text-ev_fail">revoked</span>' : '<span class="mono text-[13px] text-muted">active</span>') + '</td></tr>';
-          tbody.insertAdjacentHTML('beforeend', tr);
-        });
+        tokens = (res && res.tokens) || [];
+        renderTokens();
       }).catch(function () {
-        tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-3 text-ev_fail text-[13px]">Failed to load tokens.</td></tr>';
+        grid.innerHTML = '<li class="rounded-xl border border-ev_fail/40 bg-ev_fail/10 p-4 text-ev_fail text-[13px]">Failed to load tokens.</li>';
       });
     }
     reloadTokens();
+
+    // --- Revoke flow: confirm dialog -> DELETE /api/tokens/:id (TASK-041) ---
+    var revokeEl = document.getElementById('revoke-confirm');
+    var revokeErr = document.getElementById('revoke-error');
+    var pendingRevokeId = null;
+
+    function openRevoke(id) {
+      pendingRevokeId = id;
+      var t = null;
+      tokens.forEach(function (x) { if (x.id === id) t = x; });
+      document.getElementById('revoke-title').textContent =
+        'Revoke ' + (t ? t.role : 'token') + ' "' + (t ? (t.label || t.id) : id) + '"?';
+      revokeErr.classList.add('hidden'); revokeErr.textContent = '';
+      revokeEl.classList.remove('hidden'); revokeEl.classList.add('flex');
+    }
+    function closeRevoke() {
+      revokeEl.classList.add('hidden'); revokeEl.classList.remove('flex');
+      pendingRevokeId = null;
+    }
+    grid.addEventListener('click', function (evt) {
+      var btn = evt.target && evt.target.closest ? evt.target.closest('[data-revoke-id]') : null;
+      if (btn) openRevoke(btn.getAttribute('data-revoke-id'));
+    });
+    document.getElementById('revoke-cancel').addEventListener('click', closeRevoke);
+    document.getElementById('revoke-do').addEventListener('click', function () {
+      if (!pendingRevokeId) return;
+      var id = pendingRevokeId;
+      api.revokeToken(id).then(function (res) {
+        if (res && res.status === 200 && res.body) {
+          // Flip the card to revoked in place — no full page reload.
+          tokens.forEach(function (t) {
+            if (t.id === id) t.revoked_at = res.body.revoked_at || new Date().toISOString();
+          });
+          closeRevoke();
+          renderTokens();
+        } else {
+          // Surface 409s ("already revoked", "cannot revoke the last active
+          // human token") and any other failure visibly — never silent.
+          var msg = (res && res.body && res.body.error)
+            ? res.body.error
+            : 'Revoke failed' + (res ? ' (HTTP ' + res.status + ')' : '') + '.';
+          revokeErr.textContent = msg;
+          revokeErr.classList.remove('hidden');
+        }
+      }).catch(function (e) {
+        revokeErr.textContent = 'Network error: ' + (e && e.message ? e.message : 'unknown');
+        revokeErr.classList.remove('hidden');
+      });
+    });
 
     // --- Clipboard helper ---
     function copyText(text, btn) {

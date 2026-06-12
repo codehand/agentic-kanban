@@ -116,6 +116,20 @@
       }).then(function (r) { return r ? r.json() : null; });
     },
 
+    // DELETE /api/tokens/:id — resolves {status, body} so callers can surface
+    // 409s ("already revoked" / "last active human token") visibly.
+    revokeToken: function (id) {
+      return apiFetch('/tokens/' + encodeURIComponent(id), {
+        method: 'DELETE',
+      }).then(function (r) {
+        if (!r) return null;
+        return r.json().then(
+          function (body) { return { status: r.status, body: body }; },
+          function () { return { status: r.status, body: null }; }
+        );
+      });
+    },
+
     approveTask: function (project, key, note) {
       var qs = '?project=' + encodeURIComponent(project);
       return apiFetch('/tasks/' + encodeURIComponent(key) + '/approve' + qs, {

@@ -122,6 +122,19 @@ async function mockApi(page: Page): Promise<void> {
         ],
       }),
   );
+  // Tokens page (TASK-041): one card per status — live / idle / never / revoked.
+  await page.route(
+    (url) => url.pathname.endsWith('/api/tokens'),
+    (route) =>
+      json(route, {
+        tokens: [
+          { id: 'tk_h', role: 'human', project_id: null, label: 'op-root', created_at: now, revoked_at: null, last_used_at: now },
+          { id: 'tk_i', role: 'implementer', project_id: 'p1', label: 'idle-agent', created_at: now, revoked_at: null, last_used_at: new Date(Date.now() - 2 * 86400000).toISOString() },
+          { id: 'tk_n', role: 'runner', project_id: null, label: 'fresh-runner', created_at: now, revoked_at: null, last_used_at: null },
+          { id: 'tk_r', role: 'judge', project_id: null, label: 'retired-judge', created_at: now, revoked_at: now, last_used_at: now },
+        ],
+      }),
+  );
   // Quiet SSE stream; huge retry so EventSource never reconnects mid-test.
   await page.route(
     (url) => url.pathname.endsWith('/api/stream'),
@@ -187,6 +200,32 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page.locator('#drawer-body')).toContainText('Timeline');
       await expect(page.locator('#btn-approve')).toBeVisible();
       await expectNoViolations(page, `board+drawer/${theme}`);
+    });
+
+    test('tokens page (card grid, all statuses) has no violations', async ({ page }) => {
+      await page.addInitScript(() => {
+        localStorage.setItem('kanban_token', 'a11y-test-token');
+      });
+      await mockApi(page);
+      await page.goto(server.url('tokens.html'));
+      // All four status renderings present: live, idle, never used, revoked.
+      await expect(page.locator('#tokens-grid [data-status="live"]')).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('#tokens-grid [data-status="idle"]')).toBeVisible();
+      await expect(page.locator('#tokens-grid [data-status="never"]')).toBeVisible();
+      await expect(page.locator('#tokens-grid [data-status="revoked"]')).toBeVisible();
+      await expectNoViolations(page, `tokens/${theme}`);
+    });
+
+    test('tokens page with revoke dialog open has no violations', async ({ page }) => {
+      await page.addInitScript(() => {
+        localStorage.setItem('kanban_token', 'a11y-test-token');
+      });
+      await mockApi(page);
+      await page.goto(server.url('tokens.html'));
+      await expect(page.locator('#tokens-grid [data-revoke-id]').first()).toBeVisible({ timeout: 10000 });
+      await page.locator('#tokens-grid [data-revoke-id]').first().click();
+      await expect(page.locator('#revoke-confirm')).toBeVisible();
+      await expectNoViolations(page, `tokens+revoke-dialog/${theme}`);
     });
   });
 }

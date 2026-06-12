@@ -6,7 +6,7 @@
  *   GET /api/tasks?project=&state= — list tasks (filtered)
  *   GET /api/tasks/:key?project= — get task detail (spec + gitrefs + evidence + timeline)
  *   GET /api/evidence/:key?project= — list evidence for a task
- *   GET /api/tokens            — list active tokens
+ *   GET /api/tokens            — list tokens (active + revoked, with last_used_at)
  *
  * Write endpoints (bearer role = human only):
  *   POST /api/projects                     — create project (slug + name)
@@ -29,7 +29,7 @@ import { listCommentsByTask } from '../db/repositories/comment.js'
 import { getLatestEvidenceByTask, listEvidenceByTask } from '../db/repositories/evidence.js'
 import { listGitRefsByTask } from '../db/repositories/gitref.js'
 import { listTransitionsByTask } from '../db/repositories/transition.js'
-import { listActiveTokens, getTokenById, findActiveTokensByRole } from '../db/repositories/token.js'
+import { listTokens, getTokenById, findActiveTokensByRole } from '../db/repositories/token.js'
 import { insertTransition } from '../db/repositories/transition.js'
 import { mintToken as mintTokenFn, revokeTokenById, type Role as MintRole } from '../auth/mint.js'
 import { propose, type TransitionRepository } from '../domain/gate.js'
@@ -267,13 +267,16 @@ function handleGetTokens(db: Db, _query: Record<string, string>, auth: ResolvedT
   if (!authorize(auth.role as Role, 'read')) {
     sendJson(res, 403, { error: 'Forbidden' }); return
   }
-  const tokens = listActiveTokens(db).map((t) => ({
+  // Active + revoked rows: the tokens page shows revoked cards too (TASK-041).
+  // SECURITY: metadata only — never secret or secret_hash.
+  const tokens = listTokens(db).map((t) => ({
     id: t.id,
     role: t.role,
     project_id: t.project_id,
     label: t.label,
     created_at: t.created_at,
     revoked_at: t.revoked_at,
+    last_used_at: t.last_used_at,
   }))
   sendJson(res, 200, { tokens })
 }

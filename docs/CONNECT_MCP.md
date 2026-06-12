@@ -51,8 +51,10 @@ Quyền = **role của token**, server cưỡng chế. Một token chỉ làm đ
 | `runner` | `evidence.submit` (chỉ vậy) |
 
 Token `human` (từ `ADMIN_TOKEN`) tạo được project + task. Để chạy hết pipeline, **mint thêm** token các
-role khác qua JSON API `POST /api/tokens` (human-only — không có MCP tool cho việc mint/revoke token),
-rồi đăng ký mỗi role như một MCP server riêng với bearer tương ứng (hoặc đổi header khi cần).
+role khác qua trang Tokens của Web UI (`/tokens.html`) hoặc JSON API `POST /api/tokens` (human-only —
+không có MCP tool cho việc mint/revoke token). Revoke cũng làm được từ trang Tokens (nút **Revoke**
+trên từng card, có confirm dialog) hoặc `DELETE /api/tokens/:id`. Sau đó đăng ký mỗi role như một
+MCP server riêng với bearer tương ứng (hoặc đổi header khi cần).
 
 ## 4. Tool surface (tên tool)
 
