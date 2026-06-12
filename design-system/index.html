@@ -217,6 +217,7 @@
 
 <script src="/api.js"></script>
 <script src="/shell.js"></script>
+<script src="/md.js"></script>
 <script>
   /* board.js — Live board wiring. Fetches tasks from /api/tasks and renders cards. */
   (function () {
@@ -547,7 +548,7 @@
 
         // Spec section
         html += '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-file-text text-[14px]"></i> Spec</h3>';
-        html += '<div class="text-text/90 leading-relaxed text-[13px] whitespace-pre-wrap">' + esc(t.body_md || '(no spec)') + '</div></section>';
+        html += '<div class="text-[13px]">' + renderMarkdown(t.body_md || '(no spec)') + '</div></section>';
 
         // Gitrefs (with PR link from mr_url)
         if (res.gitrefs && res.gitrefs.length > 0) {
@@ -578,7 +579,7 @@
         if (res.timeline && res.timeline.length > 0) {
           html += '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-3 flex items-center gap-1.5"><i class="ph ph-clock-counter-clockwise text-[14px]"></i> Timeline</h3>';
           html += '<ol class="relative border-l border-border ml-1.5 space-y-4 pl-4">';
-          res.timeline.forEach(function (tr) {
+          res.timeline.slice().reverse().forEach(function (tr) { // newest-first; copy so the original array stays untouched
             var dotColor = tr.to_state === 'DONE' ? 'bg-st_done' : tr.to_state === 'JUDGE_PASSED' ? 'bg-st_human' : tr.actor_role === 'judge' ? 'bg-st_self' : 'bg-border';
             html += '<li class="relative"><span class="absolute -left-[22px] top-1 w-3 h-3 rounded-full ' + dotColor + ' ring-4 ring-panel"></span>';
             html += '<p class="text-[13px]"><span class="mono px-1.5 py-0.5 rounded bg-white/5 text-text/70">' + esc(tr.actor_role || '') + '</span> ';
