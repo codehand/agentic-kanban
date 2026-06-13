@@ -22,6 +22,8 @@ import {
   getTaskByKey,
   updateTaskAttributes,
 } from '../../db/repositories/task.js'
+import { setDependencies } from '../../db/repositories/dependency.js'
+import { validateDependsOn, unmetDependencies, formatUnmet } from '../../domain/dependencies.js'
 import { createLeaseRepository } from '../../db/repositories/lease.js'
 import { claim as domainClaim, heartbeat as domainHeartbeat, release as domainRelease } from '../../domain/lease.js'
 import { insertComment, type CommentKind, type Verdict } from '../../db/repositories/comment.js'
@@ -120,8 +122,9 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       estimate_hours: estimateHoursSchema.optional(),
       tags: tagsSchema.optional().default([]),
       link_document: linkDocumentSchema.optional(),
+      depends_on: z.array(z.string()).optional().default([]),
     },
-  }, async ({ project, key, title, body_md, allow_no_code_change, priority, complexity, estimate_hours, tags, link_document }) => {
+  }, async ({ project, key, title, body_md, allow_no_code_change, priority, complexity, estimate_hours, tags, link_document, depends_on }) => {
     assertAuthorized(ctx.auth.role as Role, 'task.create')
     const proj = resolveProject(ctx, project)
     const existing = getTaskByKey(ctx.db, proj.id, key)
@@ -141,6 +144,16 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       tags,
       link_document: link_document ?? null,
     })
+    if (depends_on.length > 0) {
+      try {
+        const depIds = validateDependsOn(ctx.db, proj.id, key, depends_on, task.id)
+        setDependencies(ctx.db, task.id, depIds)
+      } catch (err) {
+        // Roll back the just-created task so a rejected depends_on leaves no orphan.
+        ctx.db.prepare(`DELETE FROM task WHERE id = ?`).run(task.id)
+        throw err
+      }
+    }
     // Broadcast SSE 'created' event so live UI picks up the new task.
     broadcastCreated({
       task_id: task.id,
@@ -164,16 +177,21 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       estimate_hours: estimateHoursSchema.optional(),
       tags: tagsSchema.optional(),
       link_document: linkDocumentSchema.optional(),
+      depends_on: z.array(z.string()).optional(),
     },
-  }, async ({ project, key, priority, complexity, estimate_hours, tags, link_document }) => {
+  }, async ({ project, key, priority, complexity, estimate_hours, tags, link_document, depends_on }) => {
     assertAuthorized(ctx.auth.role as Role, 'task.update')
-    const { task } = resolveTask(ctx, project, key)
+    const { proj, task } = resolveTask(ctx, project, key)
     const patch: Record<string, unknown> = {}
     if (priority !== undefined) patch.priority = priority
     if (complexity !== undefined) patch.complexity = complexity
     if (estimate_hours !== undefined) patch.estimate_hours = estimate_hours
     if (tags !== undefined) patch.tags = tags
     if (link_document !== undefined) patch.link_document = link_document
+    if (depends_on !== undefined) {
+      const depIds = validateDependsOn(ctx.db, proj.id, task.key, depends_on, task.id)
+      setDependencies(ctx.db, task.id, depIds)
+    }
     const updated = updateTaskAttributes(ctx.db, task.id, patch)
     return { content: [{ type: 'text', text: JSON.stringify(updated, null, 2) }] }
   })
@@ -188,6 +206,11 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
   }, async ({ project, key }) => {
     assertAuthorized(ctx.auth.role as Role, 'task.claim')
     const { task } = resolveTask(ctx, project, key)
+    // Dependency gate: a task with unmet dependencies cannot be claimed.
+    const unmet = unmetDependencies(ctx.db, task.id)
+    if (unmet.length > 0) {
+      throw new Error(`Task ${task.key} is blocked by unmet dependencies: ${formatUnmet(unmet)}`)
+    }
     const leaseRepo = createLeaseRepository(ctx.db)
     const result = domainClaim(task.id, ctx.auth.token_id, leaseRepo, { ttlSeconds: LEASE_TTL_SECONDS })
     if (!result.ok) {
@@ -252,6 +275,16 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
     }
     const action = transitionAction(from, to)
     assertAuthorized(ctx.auth.role as Role, action)
+
+    // Dependency gate: every FORWARD transition is blocked while a dependency
+    // is not DONE. Rework edges (FAILED/REJECTED -> IN_PROGRESS) are NOT
+    // re-checked — the deps were satisfied when the task entered the pipeline.
+    if (!isReworkEdge(from, to)) {
+      const unmet = unmetDependencies(ctx.db, task.id)
+      if (unmet.length > 0) {
+        throw new Error(`Task ${task.key} is blocked by unmet dependencies: ${formatUnmet(unmet)}`)
+      }
+    }
 
     const gitrefs = listGitRefsByTask(ctx.db, task.id).map((r) => ({
       repo: r.repo,
@@ -462,6 +495,11 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
   }, async ({ project, key }) => {
     assertAuthorized(ctx.auth.role as Role, 'task.transition.approve')
     const { proj, task } = resolveTask(ctx, project, key)
+    // Dependency gate: cannot approve while any dependency is not DONE.
+    const unmetApprove = unmetDependencies(ctx.db, task.id)
+    if (unmetApprove.length > 0) {
+      throw new Error(`Task ${task.key} is blocked by unmet dependencies: ${formatUnmet(unmetApprove)}`)
+    }
     const repo = makeTransitionRepo(ctx)
     const result = propose(
       {
@@ -487,6 +525,14 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
     })
     return { content: [{ type: 'text', text: JSON.stringify(result.transition, null, 2) }] }
   })
+}
+
+/** Rework edges loop a failed/rejected task back to IN_PROGRESS — not forward. */
+function isReworkEdge(from: string, to: string): boolean {
+  return (
+    (from === 'SELF_CHECK_FAILED' && to === 'IN_PROGRESS') ||
+    (from === 'JUDGE_REJECTED' && to === 'IN_PROGRESS')
+  )
 }
 
 /** Map a from→to transition to the Action required by auth/authorize. */

@@ -35,6 +35,8 @@ import { insertTransition } from '../db/repositories/transition.js'
 import { mintToken as mintTokenFn, revokeTokenById, type Role as MintRole } from '../auth/mint.js'
 import { propose, type TransitionRepository } from '../domain/gate.js'
 import type { TaskState } from '../domain/statemachine.js'
+import { listDependencyIds, setDependencies } from '../db/repositories/dependency.js'
+import { validateDependsOn, unmetDependencies, formatUnmet, DependencyError } from '../domain/dependencies.js'
 import { handleSseStream, broadcastCreated, broadcastTransition, broadcastRemoved } from './stream.js'
 import { VALID_PRIORITIES, VALID_COMPLEXITIES, isHttpUrl } from '../validation/task-attributes.js'
 
@@ -155,9 +157,14 @@ function validateTaskAttributesPatch(body: Record<string, unknown>): { ok: true;
   return { ok: true, patch }
 }
 
-function taskToResult(t: { id: string; project_id: string; key: string; title: string; body_md: string; state: string; allow_no_code_change: number; assignee_token_id: string | null; lease_until: string | null; priority: string | null; complexity: string | null; estimate_hours: number | null; tags: string; link_document: string | null; created_at: string; updated_at: string }) {
+function taskToResult(db: Db, t: { id: string; project_id: string; key: string; title: string; body_md: string; state: string; allow_no_code_change: number; assignee_token_id: string | null; lease_until: string | null; priority: string | null; complexity: string | null; estimate_hours: number | null; tags: string; link_document: string | null; created_at: string; updated_at: string }) {
   let tagsParsed: string[] = []
   try { tagsParsed = JSON.parse(t.tags || '[]') } catch { tagsParsed = [] }
+  // depends_on is exposed as task KEYS so clients can read it the same way they
+  // declare it; an unresolvable id (deleted task) is simply dropped.
+  const dependsOn = listDependencyIds(db, t.id)
+    .map((id) => getTaskById(db, id)?.key)
+    .filter((k): k is string => typeof k === 'string')
   return {
     id: t.id,
     project_id: t.project_id,
@@ -173,6 +180,7 @@ function taskToResult(t: { id: string; project_id: string; key: string; title: s
     estimate_hours: t.estimate_hours,
     tags: tagsParsed,
     link_document: t.link_document,
+    depends_on: dependsOn,
     created_at: t.created_at,
     updated_at: t.updated_at,
   }
@@ -212,7 +220,7 @@ function handleGetTasks(db: Db, query: Record<string, string>, auth: ResolvedTok
   }
   const stateFilter = query['state']
   const tasks = listTasksByProject(db, proj.id, stateFilter)
-  sendJson(res, 200, { tasks: tasks.map(taskToResult) })
+  sendJson(res, 200, { tasks: tasks.map((t) => taskToResult(db, t)) })
 }
 
 function handleGetTaskDetail(db: Db, key: string, query: Record<string, string>, auth: ResolvedToken, res: ServerResponse): void {
@@ -237,7 +245,7 @@ function handleGetTaskDetail(db: Db, key: string, query: Record<string, string>,
   const comments = listCommentsByTask(db, task.id)
   const transitions = listTransitionsByTask(db, task.id)
   sendJson(res, 200, {
-    task: taskToResult(task),
+    task: taskToResult(db, task),
     gitrefs,
     evidence,
     comments,
@@ -414,6 +422,13 @@ async function handleCreateTask(db: Db, query: Record<string, string>, auth: Res
     sendJson(res, 400, { error: attrValidation.error }); return
   }
 
+  // depends_on (optional): array of task keys in the SAME project.
+  const dependsOnRaw = body?.['depends_on']
+  if (dependsOnRaw !== undefined && (!Array.isArray(dependsOnRaw) || !dependsOnRaw.every((d) => typeof d === 'string'))) {
+    sendJson(res, 400, { error: 'depends_on must be an array of task keys' }); return
+  }
+  const dependsOn = (dependsOnRaw as string[] | undefined) ?? []
+
   const existing = getTaskByKey(db, proj.id, key)
   if (existing) {
     sendJson(res, 409, { error: `Task ${key} already exists in project ${projectRef}` }); return
@@ -433,6 +448,20 @@ async function handleCreateTask(db: Db, query: Record<string, string>, auth: Res
     tags: attrValidation.patch.tags ?? [],
     link_document: attrValidation.patch.link_document ?? null,
   })
+  if (dependsOn.length > 0) {
+    try {
+      const depIds = validateDependsOn(db, proj.id, key, dependsOn, task.id)
+      setDependencies(db, task.id, depIds)
+    } catch (err) {
+      if (err instanceof DependencyError) {
+        // Roll back the just-created task so a rejected depends_on leaves no
+        // orphan row behind.
+        db.prepare(`DELETE FROM task WHERE id = ?`).run(task.id)
+        sendJson(res, 400, { error: err.message }); return
+      }
+      throw err
+    }
+  }
   // Broadcast SSE 'created' event so live UI picks up the new task.
   broadcastCreated({
     task_id: task.id,
@@ -442,7 +471,7 @@ async function handleCreateTask(db: Db, query: Record<string, string>, auth: Res
     title: task.title,
     at: task.created_at,
   })
-  sendJson(res, 201, { task: taskToResult(task) })
+  sendJson(res, 201, { task: taskToResult(db, task) })
 }
 
 async function handleUpdateTask(db: Db, key: string, query: Record<string, string>, auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -470,8 +499,22 @@ async function handleUpdateTask(db: Db, key: string, query: Record<string, strin
   if (!validation.ok) {
     sendJson(res, 400, { error: validation.error }); return
   }
+  // depends_on (optional): replace the dependency set when present.
+  if ('depends_on' in body) {
+    const dependsOnRaw = body['depends_on']
+    if (!Array.isArray(dependsOnRaw) || !dependsOnRaw.every((d) => typeof d === 'string')) {
+      sendJson(res, 400, { error: 'depends_on must be an array of task keys' }); return
+    }
+    try {
+      const depIds = validateDependsOn(db, proj.id, task.key, dependsOnRaw, task.id)
+      setDependencies(db, task.id, depIds)
+    } catch (err) {
+      if (err instanceof DependencyError) { sendJson(res, 400, { error: err.message }); return }
+      throw err
+    }
+  }
   const updated = updateTaskAttributes(db, task.id, validation.patch)
-  sendJson(res, 200, { task: updated ? taskToResult(updated) : null })
+  sendJson(res, 200, { task: updated ? taskToResult(db, updated) : null })
 }
 
 async function handleApprove(db: Db, key: string, query: Record<string, string>, auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -496,6 +539,11 @@ async function handleApprove(db: Db, key: string, query: Record<string, string>,
   }
   if (task.state !== 'JUDGE_PASSED') {
     sendJson(res, 409, { error: `Task is in state '${task.state}', expected 'JUDGE_PASSED'` }); return
+  }
+  // Dependency gate: cannot approve while any dependency is not DONE.
+  const unmet = unmetDependencies(db, task.id)
+  if (unmet.length > 0) {
+    sendJson(res, 409, { error: `Task ${task.key} is blocked by unmet dependencies: ${formatUnmet(unmet)}`, unmet_dependencies: unmet }); return
   }
   const body = await readJsonBody(req)
   const note = typeof body?.['note'] === 'string' ? body['note'] : undefined
@@ -528,7 +576,7 @@ async function handleApprove(db: Db, key: string, query: Record<string, string>,
 
   // Return updated task
   const updated = getTaskById(db, task.id)
-  sendJson(res, 200, { task: updated ? taskToResult(updated) : null, transition: result.transition })
+  sendJson(res, 200, { task: updated ? taskToResult(db, updated) : null, transition: result.transition })
 }
 
 async function handleReset(db: Db, key: string, query: Record<string, string>, auth: ResolvedToken, _req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -578,7 +626,7 @@ async function handleReset(db: Db, key: string, query: Record<string, string>, a
     at: result.transition!.at,
   })
   const updated = getTaskById(db, task.id)
-  sendJson(res, 200, { task: updated ? taskToResult(updated) : null })
+  sendJson(res, 200, { task: updated ? taskToResult(db, updated) : null })
 }
 
 async function handleRemove(db: Db, key: string, query: Record<string, string>, auth: ResolvedToken, _req: IncomingMessage, res: ServerResponse): Promise<void> {

@@ -84,6 +84,52 @@ ev_dir()     { echo "$ROOT/.ai/evidence/$1"; }
 report()     { echo "$ROOT/.ai/reports/$1/$2"; }
 task_md()    { echo "$ROOT/.ai/tasks/$1/$1.md"; }
 
+# ---- dependency enforcement (TASK-044) ------------------------------------
+# Parse the '## Dependencies' section of a task's md and emit every TASK-\d+
+# token found in it (deduped, excluding the task itself? — self-dep handled by
+# caller). 'none'/empty section => no output. Tolerant of free-form prose: only
+# TASK-\d+ tokens matter.
+task_deps() { # TASK -> newline-separated dep ids
+  local md; md="$(task_md "$1")"
+  [ -f "$md" ] || return 0
+  awk '
+    /^##[[:space:]]+[Dd]ependencies[[:space:]]*$/ { insec=1; next }
+    /^##[[:space:]]/ { insec=0 }
+    insec { print }
+  ' "$md" | grep -oE 'TASK-[0-9]+' | sort -u
+}
+
+# Self-dependency is never resolvable => die immediately (run in main shell so
+# die actually exits the process, not just a $() subshell).
+assert_no_self_dep() { # TASK
+  local task="$1" dep
+  while IFS= read -r dep; do
+    [ "$dep" = "$task" ] && die "$task khai báo phụ thuộc chính nó ($dep) — self-dependency không hợp lệ"
+  done < <(task_deps "$task")
+}
+
+# Check that every declared dependency of TASK is DONE. Single source of logic
+# for both `propose` (forward transitions) and the read-only `deps` subcommand.
+# Prints unmet deps (one per line: "<id>: <state>") to stdout and returns 1 if
+# any dependency is missing/not-DONE; returns 0 when all DONE or no deps.
+# (Self-dependency must be rejected by assert_no_self_dep BEFORE calling this.)
+check_deps() { # TASK
+  local task="$1" dep sf st unmet=0
+  while IFS= read -r dep; do
+    [ -z "$dep" ] && continue
+    [ "$dep" = "$task" ] && continue
+    sf="$(state_file "$dep")"
+    if [ ! -f "$sf" ]; then
+      echo "$dep: (no state file)"; unmet=1; continue
+    fi
+    st="$(jq -r '.state' "$sf" 2>/dev/null)"
+    if [ "$st" != "DONE" ]; then
+      echo "$dep: $st"; unmet=1
+    fi
+  done < <(task_deps "$task")
+  return $unmet
+}
+
 # ---- worktree / N-repo helpers (khai báo: 'Repos:'/'Branch:' trong task md) ----
 # Repos: danh sách repo (path tương đối $ROOT) task đụng. Mặc định '.' (repo gốc).
 task_repos() { # TASK
@@ -293,7 +339,7 @@ gh_create_pr() { # REPO_DIR HEAD BASE TITLE BODY
 
 # =====================================================================
 cmd="${1:-}"; task="${2:-}"
-[ -n "$cmd" ] || die "usage: gate.sh <init|state|worktrees|propose|selfcheck|approve|merge|merge-finish|merge-mark|reset|remove> ..."
+[ -n "$cmd" ] || die "usage: gate.sh <init|state|deps|worktrees|propose|selfcheck|approve|merge|merge-finish|merge-mark|reset|remove> ..."
 
 case "$cmd" in
   init)
@@ -314,6 +360,21 @@ case "$cmd" in
     cur_state "$task"
     ;;
 
+  deps)
+    # read-only: exit 0 nếu mọi dependency đã DONE (hoặc không có), exit !=0 kèm
+    # liệt kê dependency chưa đạt + state. Dùng CHUNG hàm check_deps với propose.
+    [ -n "$task" ] || die "usage: gate.sh deps TASK"
+    [ -f "$(state_file "$task")" ] || die "no state file for $task (run: gate.sh init $task)"
+    assert_no_self_dep "$task"
+    if unmet="$(check_deps "$task")"; then
+      ok "$task: mọi dependency đã DONE (hoặc không có dependency)"
+    else
+      echo "GATE REJECT: $task có dependency chưa DONE:" >&2
+      echo "$unmet" | sed 's/^/  /' >&2
+      exit 1
+    fi
+    ;;
+
   worktrees)
     # in branch + path worktree mỗi repo (implementer cd vào đây để làm việc)
     [ -n "$task" ] || die "usage: gate.sh worktrees TASK"
@@ -331,6 +392,19 @@ case "$cmd" in
     [ "$to" = "DONE" ] && die "DONE chỉ được set qua 'gate.sh approve' bởi human"
     if [ "$actor" = "gate" ] || [ "$actor" = "human" ]; then die "actor '$actor' không được dùng qua propose (dành cho selfcheck/approve)"; fi
     transition_allowed "$from" "$to" "$actor" || die "transition không hợp lệ: $from -> $to bởi $actor"
+
+    # Dependency gate (TASK-044): chặn MỌI forward transition khi dependency
+    # chưa DONE. Rework (FAILED/REJECTED -> IN_PROGRESS) KHÔNG kiểm lại — deps đã
+    # thoả khi task vào pipeline. Kiểm TRƯỚC khi ghi state / tạo worktree.
+    is_rework=0
+    { [ "$from" = "SELF_CHECK_FAILED" ] && [ "$to" = "IN_PROGRESS" ]; } && is_rework=1
+    { [ "$from" = "JUDGE_REJECTED" ] && [ "$to" = "IN_PROGRESS" ]; } && is_rework=1
+    if [ "$is_rework" = "0" ]; then
+      assert_no_self_dep "$task"
+      if ! unmet="$(check_deps "$task")"; then
+        die "$task bị chặn: dependency chưa DONE -> $(echo "$unmet" | tr '\n' ' ')"
+      fi
+    fi
 
     case "$to" in
       IMPLEMENTED) guard_implemented "$task" ;;
