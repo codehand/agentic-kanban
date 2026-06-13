@@ -227,5 +227,18 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page.locator('#revoke-confirm')).toBeVisible();
       await expectNoViolations(page, `tokens+revoke-dialog/${theme}`);
     });
+
+    test('workflow page (state machine diagram) has no violations', async ({ page }) => {
+      test.slow(); // CDN-loaded CSS/fonts can make the cold page load crawl in full runs
+      await page.addInitScript(() => {
+        localStorage.setItem('kanban_token', 'a11y-test-token');
+      });
+      await mockApi(page);
+      await page.goto(server.url('workflow.html'));
+      // Inline SVG diagram + role table rendered before the scan.
+      await expect(page.locator('#workflow-diagram svg')).toBeVisible({ timeout: 10000 });
+      await expect(page.getByRole('table')).toBeVisible();
+      await expectNoViolations(page, `workflow/${theme}`);
+    });
   });
 }

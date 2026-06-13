@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agentic Kanban - Workflow</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+<script src="/theme.js"></script>
+<link rel="stylesheet" href="/theme.css" />
+<style>
+  /* State machine diagram — pure inline SVG, themed via the shared CSS vars
+   * so it stays AA-readable in both light and dark. Meaning is never carried
+   * by color alone: every node and edge has a text label, and rework edges
+   * are additionally dashed. */
+  .wf-node       { fill: var(--panel2); stroke-width: 1.5; }
+  .wf-node-label { fill: var(--text); font: 600 13px "JetBrains Mono", ui-monospace, monospace; }
+  .wf-edge       { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+  .wf-edge--rework { stroke-dasharray: 5 4; }
+  .wf-edge-label { fill: var(--muted); font: 500 12px Inter, system-ui, sans-serif; }
+</style>
+</head>
+
+<body class="font-sans text-text antialiased h-screen overflow-hidden" data-active="workflow">
+<div class="flex h-full">
+  <aside id="rail"></aside>
+
+  <main class="flex-1 min-w-0 flex flex-col">
+    <header class="h-14 shrink-0 border-b border-border bg-panel/80 backdrop-blur flex items-center gap-3 px-4">
+      <span class="text-[15px] font-semibold tracking-tight">Workflow</span>
+      <span class="hidden sm:inline text-[13px] text-muted">no-self-certification lifecycle, gate-enforced</span>
+    </header>
+
+    <div class="flex-1 overflow-y-auto">
+      <div class="px-4 sm:px-6 py-6 space-y-8 max-w-[1100px]">
+
+        <!-- intro -->
+        <section class="space-y-2">
+          <p class="text-[14px] text-muted leading-relaxed max-w-[72ch]">
+            Every task on this board moves through a fixed state machine driven by four separate actors:
+            an <span class="text-text font-medium">implementer</span> writes the code, a machine
+            <span class="text-text font-medium">gate</span> grades fresh evidence (exit codes, checksummed),
+            an independent <span class="text-text font-medium">judge</span> reviews the diff, and a
+            <span class="text-text font-medium">human</span> gives the only approval that can mark a task
+            <span class="mono text-text">DONE</span>. No agent ever certifies its own work &mdash; that is the
+            point of the design.
+          </p>
+        </section>
+
+        <!-- ============ STATE MACHINE DIAGRAM (inline SVG, no images) ============ -->
+        <section aria-labelledby="diagram-heading">
+          <h2 id="diagram-heading" class="text-[13px] uppercase tracking-wider text-muted mb-2">State machine</h2>
+          <figure id="workflow-diagram" data-diagram="state-machine" class="rounded-xl border border-border bg-panel p-4 m-0">
+            <!-- The page never overflows at 375px: the diagram scrolls inside
+                 this container instead (keyboard-reachable via tabindex). -->
+            <div class="overflow-x-auto" tabindex="0" role="group" aria-label="State machine diagram, scrollable">
+              <svg width="840" height="552" viewBox="0 0 840 552" role="img" aria-labelledby="wf-title wf-desc" class="block">
+                <title id="wf-title">Task lifecycle state machine</title>
+                <desc id="wf-desc">
+                  Flow diagram of the nine allowed transitions: TODO to IN_PROGRESS (implementer);
+                  IN_PROGRESS to IMPLEMENTED (implementer); IMPLEMENTED to SELF_CHECK_PASSED (gate, all exit codes zero);
+                  IMPLEMENTED to SELF_CHECK_FAILED (gate, any non-zero exit code);
+                  SELF_CHECK_FAILED back to IN_PROGRESS (rework by implementer);
+                  SELF_CHECK_PASSED to JUDGE_PASSED (judge, verdict pass);
+                  SELF_CHECK_PASSED to JUDGE_REJECTED (judge, rejected with reasons);
+                  JUDGE_REJECTED back to IN_PROGRESS (rework by implementer);
+                  JUDGE_PASSED to DONE (human approval only).
+                </desc>
+                <defs>
+                  <marker id="wf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)" />
+                  </marker>
+                </defs>
+
+                <!-- edges (each labelled; rework edges also dashed) -->
+                <line class="wf-edge" x1="260" y1="58"  x2="260" y2="100" marker-end="url(#wf-arrow)" />
+                <text class="wf-edge-label" x="272" y="86">implementer &#183; claim (gate creates branch + worktree)</text>
+
+                <line class="wf-edge" x1="260" y1="148" x2="260" y2="190" marker-end="url(#wf-arrow)" />
+                <text class="wf-edge-label" x="272" y="176">implementer &#183; code + tests committed in worktree</text>
+
+                <line class="wf-edge" x1="260" y1="238" x2="260" y2="290" marker-end="url(#wf-arrow)" />
+                <text class="wf-edge-label" x="272" y="270">gate &#183; all exits = 0</text>
+
+                <line class="wf-edge" x1="345" y1="216" x2="608" y2="291" marker-end="url(#wf-arrow)" />
+                <text class="wf-edge-label" x="420" y="228">gate &#183; any exit &#8800; 0</text>
+
+                <line class="wf-edge" x1="260" y1="338" x2="260" y2="390" marker-end="url(#wf-arrow)" />
+                <text class="wf-edge-label" x="272" y="370">judge &#183; VERDICT: PASS</text>
+
+                <line class="wf-edge" x1="370" y1="316" x2="608" y2="391" marker-end="url(#wf-arrow)" />
+                <text class="wf-edge-label" x="460" y="334">judge &#183; rejected with reasons</text>
+
+                <path class="wf-edge wf-edge--rework" d="M750,316 H788 V118 H349" marker-end="url(#wf-arrow)" />
+                <text class="wf-edge-label" x="480" y="110">rework &#183; implementer</text>
+
+                <path class="wf-edge wf-edge--rework" d="M740,416 H812 V140 H349" marker-end="url(#wf-arrow)" />
+                <text class="wf-edge-label" x="480" y="158">rework &#183; implementer</text>
+
+                <line class="wf-edge" x1="260" y1="438" x2="260" y2="480" marker-end="url(#wf-arrow)" />
+                <text class="wf-edge-label" x="272" y="466">human &#183; approve &#8212; the only path to DONE</text>
+
+                <!-- nodes -->
+                <rect class="wf-node" x="200" y="14"  width="120" height="44" rx="8" stroke="var(--st_todo)" />
+                <text class="wf-node-label" x="260" y="41" text-anchor="middle">TODO</text>
+
+                <rect class="wf-node" x="175" y="104" width="170" height="44" rx="8" stroke="var(--st_prog)" />
+                <text class="wf-node-label" x="260" y="131" text-anchor="middle">IN_PROGRESS</text>
+
+                <rect class="wf-node" x="175" y="194" width="170" height="44" rx="8" stroke="var(--st_impl)" />
+                <text class="wf-node-label" x="260" y="221" text-anchor="middle">IMPLEMENTED</text>
+
+                <rect class="wf-node" x="150" y="294" width="220" height="44" rx="8" stroke="var(--st_self)" />
+                <text class="wf-node-label" x="260" y="321" text-anchor="middle">SELF_CHECK_PASSED</text>
+
+                <rect class="wf-node" x="530" y="294" width="220" height="44" rx="8" stroke="var(--st_selffail)" />
+                <text class="wf-node-label" x="640" y="321" text-anchor="middle">SELF_CHECK_FAILED</text>
+
+                <rect class="wf-node" x="170" y="394" width="180" height="44" rx="8" stroke="var(--st_human)" />
+                <text class="wf-node-label" x="260" y="421" text-anchor="middle">JUDGE_PASSED</text>
+
+                <rect class="wf-node" x="540" y="394" width="200" height="44" rx="8" stroke="var(--st_reject)" />
+                <text class="wf-node-label" x="640" y="421" text-anchor="middle">JUDGE_REJECTED</text>
+
+                <rect class="wf-node" x="200" y="484" width="120" height="44" rx="8" stroke="var(--st_done)" />
+                <text class="wf-node-label" x="260" y="511" text-anchor="middle">DONE</text>
+              </svg>
+            </div>
+            <figcaption class="mt-3 text-[13px] text-muted leading-relaxed">
+              The nine allowed transitions, exactly as enforced by the gate. Solid arrows move a task forward;
+              dashed arrows are rework loops back to <span class="mono">IN_PROGRESS</span>. Any transition not
+              drawn here (for example skipping straight from <span class="mono">IMPLEMENTED</span> to
+              <span class="mono">JUDGE_PASSED</span>) is rejected.
+              <ul class="sr-only">
+                <li>TODO to IN_PROGRESS, by the implementer; the gate creates the task branch and an isolated worktree.</li>
+                <li>IN_PROGRESS to IMPLEMENTED, by the implementer, after committing code and tests inside the worktree.</li>
+                <li>IMPLEMENTED to SELF_CHECK_PASSED, by the gate, when build, test and acceptance-criteria exit codes are all zero.</li>
+                <li>IMPLEMENTED to SELF_CHECK_FAILED, by the gate, when any exit code is non-zero.</li>
+                <li>SELF_CHECK_FAILED back to IN_PROGRESS: rework by the implementer.</li>
+                <li>SELF_CHECK_PASSED to JUDGE_PASSED, by the judge, with a literal VERDICT: PASS in the judge report.</li>
+                <li>SELF_CHECK_PASSED to JUDGE_REJECTED, by the judge, rejected with reasons.</li>
+                <li>JUDGE_REJECTED back to IN_PROGRESS: rework by the implementer.</li>
+                <li>JUDGE_PASSED to DONE, by the human only. No other actor can approve.</li>
+              </ul>
+            </figcaption>
+          </figure>
+        </section>
+
+        <!-- ============ STAGES ============ -->
+        <section aria-labelledby="stages-heading">
+          <h2 id="stages-heading" class="text-[13px] uppercase tracking-wider text-muted mb-2">The stages in detail</h2>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+            <div class="rounded-xl border border-border bg-panel p-4">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="mono text-[13px] font-semibold px-2 py-0.5 rounded bg-st_todo/12 text-st_todo">TODO</span>
+                <span class="text-[13px] text-muted">acts next: implementer</span>
+              </div>
+              <p class="mt-2 text-[13px] text-muted leading-relaxed">
+                The task spec lives in <span class="mono text-text">.ai/tasks/&lt;ID&gt;/</span> with acceptance
+                criteria, ideally machine-verifiable as an <span class="mono text-text">.ac.sh</span> script.
+                When the implementer claims it (<span class="mono text-text">TODO &rarr; IN_PROGRESS</span>),
+                the gate creates the task branch plus an <span class="text-text font-medium">isolated git
+                worktree</span> per repo and records the base commit (<span class="mono text-text">base_sha</span>).
+              </p>
+            </div>
+
+            <div class="rounded-xl border border-border bg-panel p-4">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="mono text-[13px] font-semibold px-2 py-0.5 rounded bg-st_prog/12 text-st_prog">IN_PROGRESS</span>
+                <span class="text-[13px] text-muted">actor: implementer</span>
+              </div>
+              <p class="mt-2 text-[13px] text-muted leading-relaxed">
+                The implementer writes code and real tests <span class="text-text font-medium">only inside the
+                worktree</span>, commits them onto the task branch, and writes a narrative report
+                (<span class="mono text-text">reports/&lt;ID&gt;/implementer.md</span>). The implementer may run
+                build/test locally for confidence, but nothing it claims counts as evidence.
+              </p>
+            </div>
+
+            <div class="rounded-xl border border-border bg-panel p-4">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="mono text-[13px] font-semibold px-2 py-0.5 rounded bg-st_impl/12 text-st_impl">IMPLEMENTED</span>
+                <span class="text-[13px] text-muted">gate guard on entry</span>
+              </div>
+              <p class="mt-2 text-[13px] text-muted leading-relaxed">
+                The gate accepts <span class="mono text-text">IN_PROGRESS &rarr; IMPLEMENTED</span> only if the
+                implementer report exists, every repo&rsquo;s <span class="text-text font-medium">main checkout is
+                clean</span> with <span class="mono text-text">HEAD == base_sha</span> (no code leaked outside the
+                worktree &mdash; a leak is an instant reject), and the worktree has
+                <span class="text-text font-medium">real changes vs base</span> (no-op claims are rejected).
+              </p>
+            </div>
+
+            <div class="rounded-xl border border-border bg-panel p-4">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="mono text-[13px] font-semibold px-2 py-0.5 rounded bg-st_self/12 text-st_self">SELF_CHECK_PASSED</span>
+                <span class="text-[13px] text-muted">decided by: gate, from runner evidence</span>
+              </div>
+              <p class="mt-2 text-[13px] text-muted leading-relaxed">
+                A runner script (<span class="mono text-text">run-evidence.sh</span>) <span class="text-text font-medium">freshly
+                regenerates</span> the evidence in the worktree: build and test logs with their exit codes
+                (<span class="mono text-text">build.exit</span>, <span class="mono text-text">test.exit</span>),
+                the acceptance-criteria script result (<span class="mono text-text">ac.exit</span>), and a
+                <span class="mono text-text">manifest.json</span> with a sha256 per file. The gate sets this state
+                only when <span class="mono text-text">build.exit == 0 &amp;&amp; test.exit == 0 &amp;&amp;
+                ac.exit == 0</span> and every checksum matches. Lint and coverage are checked per config
+                (warn when optional, block when required).
+              </p>
+            </div>
+
+            <div class="rounded-xl border border-border bg-panel p-4">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="mono text-[13px] font-semibold px-2 py-0.5 rounded bg-st_selffail/12 text-st_selffail">SELF_CHECK_FAILED</span>
+                <span class="text-[13px] text-muted">decided by: gate &middot; rework</span>
+              </div>
+              <p class="mt-2 text-[13px] text-muted leading-relaxed">
+                Any non-zero exit code lands here. The only way out is the dashed rework edge: the implementer
+                takes the task back to <span class="mono text-text">IN_PROGRESS</span>, fixes the code in the same
+                worktree, and the evidence is regenerated from scratch. Stale or hand-edited evidence never passes
+                &mdash; the checksums would not match.
+              </p>
+            </div>
+
+            <div class="rounded-xl border border-border bg-panel p-4">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="mono text-[13px] font-semibold px-2 py-0.5 rounded bg-st_human/12 text-st_human">JUDGE_PASSED</span>
+                <span class="text-[13px] text-muted">actor: judge</span>
+              </div>
+              <p class="mt-2 text-[13px] text-muted leading-relaxed">
+                An <span class="text-text font-medium">independent judge</span> (its own role and token, ideally a
+                different model/session than the implementer) reviews the diff against base plus the evidence, and
+                writes <span class="mono text-text">reports/&lt;ID&gt;/judge.md</span>. The gate requires the
+                literal line <span class="mono text-text">VERDICT: PASS</span>; the judge may not contradict the
+                recorded exit codes. The task now waits for a human.
+              </p>
+            </div>
+
+            <div class="rounded-xl border border-border bg-panel p-4">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="mono text-[13px] font-semibold px-2 py-0.5 rounded bg-st_reject/12 text-st_reject">JUDGE_REJECTED</span>
+                <span class="text-[13px] text-muted">actor: judge &middot; rework</span>
+              </div>
+              <p class="mt-2 text-[13px] text-muted leading-relaxed">
+                The judge rejects with written reasons (semantic problems, weakened tests, unmet acceptance
+                criteria). Like a failed self-check, the task goes back to
+                <span class="mono text-text">IN_PROGRESS</span> for the implementer to address the feedback.
+              </p>
+            </div>
+
+            <div class="rounded-xl border border-border bg-panel p-4">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="mono text-[13px] font-semibold px-2 py-0.5 rounded bg-st_done/12 text-st_done">DONE</span>
+                <span class="text-[13px] text-muted">actor: human &mdash; only</span>
+              </div>
+              <p class="mt-2 text-[13px] text-muted leading-relaxed">
+                <span class="text-text font-medium">Human approval is the single way to finish a task.</span>
+                The gate refuses <span class="mono text-text">JUDGE_PASSED &rarr; DONE</span> from any actor other
+                than <span class="mono text-text">human</span>, and there is no fast path that skips the judge.
+                Approval does not auto-merge the branch; merging stays an explicit human git action.
+              </p>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- ============ WHY NO-SELF-CERTIFICATION ============ -->
+        <section aria-labelledby="why-heading">
+          <h2 id="why-heading" class="text-[13px] uppercase tracking-wider text-muted mb-2">Why no-self-certification</h2>
+          <div class="rounded-xl border border-border bg-panel p-4">
+            <p class="text-[13px] text-muted leading-relaxed max-w-[78ch]">
+              An agent saying <em>&ldquo;tests passed&rdquo;</em> proves nothing &mdash; agents are rewarded for
+              finishing and will happily grade their own homework. This workflow removes that option:
+            </p>
+            <ul class="mt-3 space-y-2 text-[13px] text-muted leading-relaxed list-disc pl-5 max-w-[78ch]">
+              <li><span class="text-text font-medium">Evidence is machine-recorded.</span> Exit codes are written
+                by the runner script, not by prose; files are checksummed in
+                <span class="mono text-text">manifest.json</span> and made read-only, so tampering breaks the hash.</li>
+              <li><span class="text-text font-medium">Evidence must be fresh.</span> It is regenerated for the
+                current code on every check &mdash; reusing an old green run does not work.</li>
+              <li><span class="text-text font-medium">The gate is a script, not an agent.</span> It rejects every
+                transition outside the table above and never accepts a self-check without all exits at zero.</li>
+              <li><span class="text-text font-medium">The judge is decorrelated.</span> A separate role and token
+                (run it on a different model for real independence) reviews semantics the exit codes cannot see.</li>
+              <li><span class="text-text font-medium">A human holds the only terminal authority.</span>
+                <span class="mono text-text">DONE</span> requires the human role &mdash; the gate blocks everyone else.</li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- ============ ROLE -> PERMISSION TABLE ============ -->
+        <section aria-labelledby="roles-heading">
+          <h2 id="roles-heading" class="text-[13px] uppercase tracking-wider text-muted mb-2">Roles &amp; permissions</h2>
+          <div class="rounded-xl border border-border bg-panel overflow-x-auto">
+            <table class="w-full min-w-[640px] text-[13px] text-left">
+              <caption class="sr-only">Role to permission mapping: which state transitions and other actions each role may perform.</caption>
+              <thead>
+                <tr class="border-b border-border text-muted">
+                  <th scope="col" class="px-4 py-2.5 font-semibold">Role</th>
+                  <th scope="col" class="px-4 py-2.5 font-semibold">State transitions allowed</th>
+                  <th scope="col" class="px-4 py-2.5 font-semibold">Other permissions</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-border align-top">
+                <tr>
+                  <th scope="row" class="px-4 py-3 font-normal"><span class="mono text-[13px] px-2 py-0.5 rounded bg-accent/12 text-accent">human</span></th>
+                  <td class="px-4 py-3 mono text-muted">JUDGE_PASSED &rarr; DONE (approve)<br />rework: SELF_CHECK_FAILED / JUDGE_REJECTED &rarr; IN_PROGRESS</td>
+                  <td class="px-4 py-3 text-muted">create / update / reset / remove task &middot; mint / revoke token &middot; review comment &middot; read</td>
+                </tr>
+                <tr>
+                  <th scope="row" class="px-4 py-3 font-normal"><span class="mono text-[13px] px-2 py-0.5 rounded bg-st_prog/12 text-st_prog">implementer</span></th>
+                  <td class="px-4 py-3 mono text-muted">TODO &rarr; IN_PROGRESS<br />IN_PROGRESS &rarr; IMPLEMENTED<br />rework: SELF_CHECK_FAILED / JUDGE_REJECTED &rarr; IN_PROGRESS</td>
+                  <td class="px-4 py-3 text-muted">claim task &middot; update task &middot; narrative comment &middot; set gitref &middot; read</td>
+                </tr>
+                <tr>
+                  <th scope="row" class="px-4 py-3 font-normal"><span class="mono text-[13px] px-2 py-0.5 rounded bg-st_self/12 text-st_self">self-check</span></th>
+                  <td class="px-4 py-3 mono text-muted">IMPLEMENTED &rarr; SELF_CHECK_PASSED / SELF_CHECK_FAILED</td>
+                  <td class="px-4 py-3 text-muted">narrative comment &middot; read &mdash; no code changes</td>
+                </tr>
+                <tr>
+                  <th scope="row" class="px-4 py-3 font-normal"><span class="mono text-[13px] px-2 py-0.5 rounded bg-st_human/12 text-st_human">judge</span></th>
+                  <td class="px-4 py-3 mono text-muted">SELF_CHECK_PASSED &rarr; JUDGE_PASSED / JUDGE_REJECTED</td>
+                  <td class="px-4 py-3 text-muted">verdict comment &middot; read</td>
+                </tr>
+                <tr>
+                  <th scope="row" class="px-4 py-3 font-normal"><span class="mono text-[13px] px-2 py-0.5 rounded bg-white/5 text-muted">runner</span></th>
+                  <td class="px-4 py-3 mono text-muted">none</td>
+                  <td class="px-4 py-3 text-muted">submit evidence only &middot; read &mdash; no transitions, no comments</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="mt-3 text-[13px] text-muted leading-relaxed max-w-[78ch]">
+            This matrix is enforced <span class="text-text font-medium">server-side</span>
+            (<span class="mono text-text">server/src/auth/authorize.ts</span>): a request authenticated with a role
+            that is not permitted to perform an action gets <span class="mono text-text">403</span>, no matter what
+            the UI shows. Keeping the runner credential separate from the implementer is the core
+            anti-self-certify guard.
+          </p>
+        </section>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="/api.js"></script>
+<script src="/shell.js"></script>
+</body>
+</html>

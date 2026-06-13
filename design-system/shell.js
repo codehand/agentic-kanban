@@ -1,6 +1,6 @@
 /* Agentic Kanban - shared app shell. Injects the left rail (consistent everywhere).
  * Each page sets:
- *   <body data-active="board|projects|tokens">
+ *   <body data-active="board|projects|tokens|workflow">
  * and provides <aside id="rail"></aside> as the mount point. The current
  * project comes from the URL path (projectFromPath), never a hardcoded attr. */
 (function () {
@@ -84,6 +84,7 @@
         ${nav('tasks', 'tasks.html', 'list-checks', 'Tasks')}
         ${nav('projects', 'projects.html', 'folders', 'Projects')}
         ${nav('tokens', 'tokens.html', 'key', 'Tokens')}
+        ${nav('workflow', 'workflow.html', 'flow-arrow', 'Workflow')}
       </nav>
 
       <div class="px-3 mt-4">
