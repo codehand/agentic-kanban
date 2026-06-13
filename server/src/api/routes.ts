@@ -23,6 +23,7 @@ import type { Db } from '../db/connection.js'
 import { parseBearerHeader } from '../auth/parse.js'
 import { resolveBearer, type ResolvedToken } from '../auth/resolve.js'
 import { authorize, type Role } from '../auth/authorize.js'
+import { ScopeError, assertUnscoped, filterProjectsByScope, resolveProjectInScope, resolveProjectRef } from '../auth/scope.js'
 import { listProjects, getProjectBySlug, getProjectById, insertProject } from '../db/repositories/project.js'
 import { listTasksByProject, getTaskByKey, getTaskById, insertTask, updateTaskAttributes } from '../db/repositories/task.js'
 import { listCommentsByTask } from '../db/repositories/comment.js'
@@ -98,14 +99,6 @@ function makeTransitionRepo(db: Db): TransitionRepository {
       setTaskStateInDb(db, task_id, state)
     },
   }
-}
-
-function resolveProject(db: Db, ref: string) {
-  const bySlug = getProjectBySlug(db, ref)
-  if (bySlug) return bySlug
-  const byId = getProjectById(db, ref)
-  if (byId) return byId
-  return null
 }
 
 const PRIORITY_SET = new Set<string>(VALID_PRIORITIES)
@@ -193,7 +186,8 @@ function handleGetProjects(db: Db, _query: Record<string, string>, auth: Resolve
   if (!authorize(auth.role as Role, 'read')) {
     sendJson(res, 403, { error: 'Forbidden' }); return
   }
-  const projects = listProjects(db)
+  // List endpoint: FILTER by scope instead of 403 (TASK-042 locked policy).
+  const projects = filterProjectsByScope(auth, listProjects(db))
   sendJson(res, 200, { projects })
 }
 
@@ -205,8 +199,15 @@ function handleGetTasks(db: Db, query: Record<string, string>, auth: ResolvedTok
   if (!projectRef) {
     sendJson(res, 400, { error: 'project query param is required' }); return
   }
-  const proj = resolveProject(db, projectRef)
-  if (!proj) {
+  // List endpoint: FILTER by scope instead of 403 (TASK-042 locked policy).
+  // Anything that is not the scoped project — out-of-scope or nonexistent —
+  // yields an empty list, so other projects' existence is never revealed.
+  const proj = resolveProjectRef(db, projectRef)
+  if (auth.project_scope !== null) {
+    if (!proj || proj.id !== auth.project_scope) {
+      sendJson(res, 200, { tasks: [] }); return
+    }
+  } else if (!proj) {
     sendJson(res, 404, { error: `Project not found: ${projectRef}` }); return
   }
   const stateFilter = query['state']
@@ -222,7 +223,8 @@ function handleGetTaskDetail(db: Db, key: string, query: Record<string, string>,
   if (!projectRef) {
     sendJson(res, 400, { error: 'project query param is required' }); return
   }
-  const proj = resolveProject(db, projectRef)
+  // Shared scope chokepoint: scoped tokens 403 on anything but their own project.
+  const proj = resolveProjectInScope(db, auth, projectRef)
   if (!proj) {
     sendJson(res, 404, { error: `Project not found: ${projectRef}` }); return
   }
@@ -251,7 +253,8 @@ function handleGetEvidence(db: Db, key: string, query: Record<string, string>, a
   if (!projectRef) {
     sendJson(res, 400, { error: 'project query param is required' }); return
   }
-  const proj = resolveProject(db, projectRef)
+  // Shared scope chokepoint: scoped tokens 403 on anything but their own project.
+  const proj = resolveProjectInScope(db, auth, projectRef)
   if (!proj) {
     sendJson(res, 404, { error: `Project not found: ${projectRef}` }); return
   }
@@ -300,13 +303,25 @@ async function handleMintToken(db: Db, _query: Record<string, string>, auth: Res
   if (!role || !VALID_MINT_ROLES.has(role)) {
     sendJson(res, 400, { error: `Invalid role. Must be one of: ${[...VALID_MINT_ROLES].join(', ')}` }); return
   }
-  const result = mintTokenFn(db, role as MintRole, label, project ?? null)
+  // Resolve the project reference (slug or id) to the canonical project id so
+  // the stored project_id matches what scope enforcement compares against.
+  // NOTE: token CRUD itself stays global + role-gated; the minter's own scope
+  // is NOT applied here (TASK-042 locked policy).
+  let projectId: string | null = null
+  if (project) {
+    const proj = resolveProjectRef(db, project)
+    if (!proj) {
+      sendJson(res, 400, { error: `Unknown project: ${project}` }); return
+    }
+    projectId = proj.id
+  }
+  const result = mintTokenFn(db, role as MintRole, label, projectId)
   // SECURITY: secret is returned exactly once. Never log it.
   sendJson(res, 200, {
     id: result.tokenId,
     role,
     label,
-    project: project ?? null,
+    project: projectId,
     secret: result.secret,
   })
 }
@@ -350,6 +365,9 @@ async function handleCreateProject(db: Db, _query: Record<string, string>, auth:
   if (!authorize(auth.role as Role, 'task.create')) {
     sendJson(res, 403, { error: 'Forbidden' }); return
   }
+  // Project creation is global — a project-scoped token may not create
+  // resources outside its scope (TASK-042). ScopeError → 403 in the router.
+  assertUnscoped(auth)
   const body = await readJsonBody(req)
   const slug = typeof body?.['slug'] === 'string' ? body['slug'].trim() : ''
   if (!slug) {
@@ -377,7 +395,8 @@ async function handleCreateTask(db: Db, query: Record<string, string>, auth: Res
   if (!projectRef) {
     sendJson(res, 400, { error: 'project is required' }); return
   }
-  const proj = resolveProject(db, projectRef)
+  // Shared scope chokepoint: scoped tokens 403 on anything but their own project.
+  const proj = resolveProjectInScope(db, auth, projectRef)
   if (!proj) {
     sendJson(res, 404, { error: `Project not found: ${projectRef}` }); return
   }
@@ -434,7 +453,8 @@ async function handleUpdateTask(db: Db, key: string, query: Record<string, strin
   if (!projectRef) {
     sendJson(res, 400, { error: 'project query param is required' }); return
   }
-  const proj = resolveProject(db, projectRef)
+  // Shared scope chokepoint: scoped tokens 403 on anything but their own project.
+  const proj = resolveProjectInScope(db, auth, projectRef)
   if (!proj) {
     sendJson(res, 404, { error: `Project not found: ${projectRef}` }); return
   }
@@ -465,7 +485,8 @@ async function handleApprove(db: Db, key: string, query: Record<string, string>,
   if (!projectRef) {
     sendJson(res, 400, { error: 'project query param is required' }); return
   }
-  const proj = resolveProject(db, projectRef)
+  // Shared scope chokepoint: scoped tokens 403 on anything but their own project.
+  const proj = resolveProjectInScope(db, auth, projectRef)
   if (!proj) {
     sendJson(res, 404, { error: `Project not found: ${projectRef}` }); return
   }
@@ -518,7 +539,8 @@ async function handleReset(db: Db, key: string, query: Record<string, string>, a
   if (!projectRef) {
     sendJson(res, 400, { error: 'project query param is required' }); return
   }
-  const proj = resolveProject(db, projectRef)
+  // Shared scope chokepoint: scoped tokens 403 on anything but their own project.
+  const proj = resolveProjectInScope(db, auth, projectRef)
   if (!proj) {
     sendJson(res, 404, { error: `Project not found: ${projectRef}` }); return
   }
@@ -567,7 +589,8 @@ async function handleRemove(db: Db, key: string, query: Record<string, string>, 
   if (!projectRef) {
     sendJson(res, 400, { error: 'project query param is required' }); return
   }
-  const proj = resolveProject(db, projectRef)
+  // Shared scope chokepoint: scoped tokens 403 on anything but their own project.
+  const proj = resolveProjectInScope(db, auth, projectRef)
   if (!proj) {
     sendJson(res, 404, { error: `Project not found: ${projectRef}` }); return
   }
@@ -601,9 +624,27 @@ export function mountApiRoutes(
       return
     }
 
-    // SSE stream — no auth required for read-only event subscription
+    // SSE stream — auth optional (EventSource cannot set headers, so anonymous
+    // connections keep working). When a bearer IS presented it must be valid,
+    // and a project-scoped token gets a per-connection filter so out-of-scope
+    // events are never delivered (TASK-042).
     if (path === '/api/stream' && (req.method ?? 'GET').toUpperCase() === 'GET') {
-      handleSseStream(req, res)
+      const streamSecret = parseBearerHeader(req)
+      let scopeSlug: string | null = null
+      if (streamSecret) {
+        const streamAuth = resolveBearer(db, streamSecret)
+        if (!streamAuth) {
+          sendJson(res, 401, { error: 'Invalid or revoked token' })
+          return
+        }
+        if (streamAuth.project_scope !== null) {
+          const scopeProj = getProjectById(db, streamAuth.project_scope)
+          // Events carry the project slug; an unresolvable scope matches
+          // nothing ('' is never a valid slug).
+          scopeSlug = scopeProj ? scopeProj.slug : ''
+        }
+      }
+      handleSseStream(req, res, scopeSlug)
       return
     }
 
@@ -688,6 +729,13 @@ export function mountApiRoutes(
 
       sendJson(res, 404, { error: 'Not found' })
     } catch (err) {
+      // Scope violations from the shared chokepoint (auth/scope.ts) → clean
+      // 403, never 500. The message is generic by design: it must not leak
+      // names or existence of out-of-scope resources.
+      if (err instanceof ScopeError) {
+        sendJson(res, 403, { error: err.message })
+        return
+      }
       sendJson(res, 500, { error: 'Internal server error' })
     }
   }

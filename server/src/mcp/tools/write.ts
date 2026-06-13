@@ -32,7 +32,7 @@ import {
   listGitRefsByTask,
 } from '../../db/repositories/gitref.js'
 import { insertTransition } from '../../db/repositories/transition.js'
-import { getProjectBySlug, getProjectById } from '../../db/repositories/project.js'
+import { resolveProjectInScope } from '../../auth/scope.js'
 import { listCommentsByTask } from '../../db/repositories/comment.js'
 import { getLatestEvidenceByTask } from '../../db/repositories/evidence.js'
 import { broadcastCreated, broadcastTransition } from '../../api/stream.js'
@@ -65,12 +65,15 @@ function setTaskStateInDb(db: Db, id: string, state: string): void {
   ).run(state, id)
 }
 
+/**
+ * Shared scope chokepoint (TASK-042): every write tool resolves its project
+ * through here, so a project-scoped token gets a clean ScopeError (→ isError
+ * tool result, never a crash) for anything but its own project.
+ */
 function resolveProject(ctx: McpContext, ref: string) {
-  const bySlug = getProjectBySlug(ctx.db, ref)
-  if (bySlug) return bySlug
-  const byId = getProjectById(ctx.db, ref)
-  if (byId) return byId
-  throw new Error(`Project not found: ${ref}`)
+  const proj = resolveProjectInScope(ctx.db, ctx.auth, ref)
+  if (!proj) throw new Error(`Project not found: ${ref}`)
+  return proj
 }
 
 function resolveTask(ctx: McpContext, projectRef: string, key: string) {

@@ -51,18 +51,25 @@ export interface CreatedEvent {
 export const sseBus = new EventEmitter()
 sseBus.setMaxListeners(100)
 
-/** Set of currently connected SSE clients. */
-const clients = new Set<ServerResponse>()
+/**
+ * Currently connected SSE clients, mapped to their project scope:
+ *   null  — unscoped connection, receives every event (unchanged behavior).
+ *   slug  — connection authenticated with a project-scoped token (TASK-042);
+ *           it only receives events whose `project` matches that slug.
+ */
+const clients = new Map<ServerResponse, string | null>()
 
 /**
  * Shared broadcast: write one SSE frame (`event: <name>` + JSON data) to every
- * connected client, dropping clients whose socket write throws, then emit the
- * same payload on sseBus so test listeners (and any in-process subscribers)
- * can observe it.
+ * connected client whose scope admits the event, dropping clients whose socket
+ * write throws, then emit the same payload on sseBus so test listeners (and
+ * any in-process subscribers) can observe it.
  */
 function broadcast(name: 'created' | 'transition' | 'removed', evt: CreatedEvent | TransitionEvent | RemovedEvent): void {
   const data = `event: ${name}\ndata: ${JSON.stringify(evt)}\n\n`
-  for (const res of clients) {
+  for (const [res, scope] of clients) {
+    // Project-scoped connections never see out-of-scope events (TASK-042).
+    if (scope !== null && evt.project !== scope) continue
     try {
       res.write(data)
     } catch {
@@ -94,10 +101,15 @@ export function broadcastRemoved(project: string, task_id: string, key: string):
 /**
  * Handle GET /api/stream — upgrade the response to SSE.
  * Sets headers, sends initial comment, registers client, sends heartbeats.
+ *
+ * @param scopeProject  Project slug the connection is scoped to (token's
+ *                      project_scope resolved by the router), or null for an
+ *                      unscoped/anonymous connection that sees all events.
  */
 export function handleSseStream(
   _req: IncomingMessage,
   res: ServerResponse,
+  scopeProject: string | null = null,
 ): void {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -108,7 +120,7 @@ export function handleSseStream(
   // Initial connection message
   res.write('event: connected\ndata: {}\n\n')
 
-  clients.add(res)
+  clients.set(res, scopeProject)
 
   // Heartbeat every 30s to prevent proxy timeouts
   const heartbeat = setInterval(() => {
@@ -142,7 +154,7 @@ export function _clearClients(): void {
  * letting the HTTP server's close() callback fire.
  */
 export function closeAllClients(): void {
-  for (const res of clients) {
+  for (const res of clients.keys()) {
     try {
       res.end()
     } catch {
