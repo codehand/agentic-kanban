@@ -18,8 +18,11 @@ import {
 import {
   listTasksByProject,
   getTaskByKey,
+  getTaskById,
   type Task,
 } from '../../db/repositories/task.js'
+import { listDependencyIds } from '../../db/repositories/dependency.js'
+import type { Db } from '../../db/connection.js'
 import { listCommentsByTask } from '../../db/repositories/comment.js'
 import { getLatestEvidenceByTask } from '../../db/repositories/evidence.js'
 import { listGitRefsByTask } from '../../db/repositories/gitref.js'
@@ -30,7 +33,10 @@ import type { McpContext } from '../context.js'
 /**
  * Serialize a task row to a JSON-friendly object (sqlite integer booleans → JS booleans).
  */
-function taskToResult(t: Task) {
+function taskToResult(db: Db, t: Task) {
+  const dependsOn = listDependencyIds(db, t.id)
+    .map((id) => getTaskById(db, id)?.key)
+    .filter((k): k is string => typeof k === 'string')
   return {
     id: t.id,
     project_id: t.project_id,
@@ -41,6 +47,7 @@ function taskToResult(t: Task) {
     allow_no_code_change: t.allow_no_code_change === 1,
     assignee_token_id: t.assignee_token_id,
     lease_until: t.lease_until,
+    depends_on: dependsOn,
     created_at: t.created_at,
     updated_at: t.updated_at,
   }
@@ -98,7 +105,7 @@ export function registerReadTools(mcp: McpServer, ctx: McpContext): void {
     assertAuthorized(ctx.auth.role as never, 'read')
     const proj = resolveProject(ctx, project)
     const rows = listTasksByProject(ctx.db, proj.id, state)
-    return { content: [{ type: 'text', text: JSON.stringify(rows.map(taskToResult), null, 2) }] }
+    return { content: [{ type: 'text', text: JSON.stringify(rows.map((t) => taskToResult(ctx.db, t)), null, 2) }] }
   })
 
   // ---------- task.get ----------
@@ -113,7 +120,7 @@ export function registerReadTools(mcp: McpServer, ctx: McpContext): void {
     const proj = resolveProject(ctx, project)
     const task = getTaskByKey(ctx.db, proj.id, key)
     if (!task) throw new Error(`Task not found: ${key} in project ${project}`)
-    return { content: [{ type: 'text', text: JSON.stringify(taskToResult(task), null, 2) }] }
+    return { content: [{ type: 'text', text: JSON.stringify(taskToResult(ctx.db, task), null, 2) }] }
   })
 
   // ---------- task.next ----------
@@ -131,7 +138,7 @@ export function registerReadTools(mcp: McpServer, ctx: McpContext): void {
     if (!next) {
       return { content: [{ type: 'text', text: JSON.stringify({ next: null }) }] }
     }
-    return { content: [{ type: 'text', text: JSON.stringify({ next: taskToResult(next) }, null, 2) }] }
+    return { content: [{ type: 'text', text: JSON.stringify({ next: taskToResult(ctx.db, next) }, null, 2) }] }
   })
 
   // ---------- comment.list ----------
