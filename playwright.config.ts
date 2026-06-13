@@ -2,7 +2,10 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/ui',
-  timeout: 60_000,
+  // Pages pull Tailwind/Phosphor/fonts from CDNs and every test runs in a
+  // fresh context (no HTTP cache), so cold page loads can exceed 60s when the
+  // CDNs throttle. 120s absorbs that without weakening any assertion.
+  timeout: 120_000,
   retries: 0,
   use: {
     screenshot: 'off',
