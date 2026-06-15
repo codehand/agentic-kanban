@@ -2,7 +2,7 @@
 
 Drill-down từng phase của [`../IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md) §5 thành spec chi tiết
 để sinh task triển khai chạy qua workflow gate với AC machine-verifiable. Nguồn sự thật chức năng:
-[`../../TASK_HUB_DESIGN.md`](../../TASK_HUB_DESIGN.md).
+[`../TASK_HUB_DESIGN.md`](../TASK_HUB_DESIGN.md).
 
 Mỗi file `P<n>.md` có 7 section thống nhất: **Mục tiêu · Phạm vi · Module & file · Task checklist ·
 Acceptance criteria · Ánh xạ design · Phụ thuộc & rủi ro**.
