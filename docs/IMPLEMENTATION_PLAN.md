@@ -2,7 +2,7 @@
 
 > Trạng thái: **PLAN — chờ chốt để bắt đầu P0**
 > Cập nhật: 2026-06-08
-> Nguồn sự thật chức năng: [`../TASK_HUB_DESIGN.md`](../TASK_HUB_DESIGN.md) · UI: [`../UI_DESIGN_BRIEF.md`](../UI_DESIGN_BRIEF.md)
+> Nguồn sự thật chức năng: [`./TASK_HUB_DESIGN.md`](./TASK_HUB_DESIGN.md) · UI: [`./UI_DESIGN_BRIEF.md`](./UI_DESIGN_BRIEF.md)
 
 ---
 
