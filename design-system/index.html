@@ -238,6 +238,7 @@
       'SELF_CHECK_FAILED': 'col-evidence',
       'JUDGE_REJECTED': 'col-verdict',
       'JUDGE_PASSED': 'col-judge_passed',
+      'READY_TO_REVIEW': 'col-judge_passed',
       'DONE': 'col-done',
     };
     var STATE_COUNT = {
@@ -249,6 +250,7 @@
       'SELF_CHECK_FAILED': 'count-evidence',
       'JUDGE_REJECTED': 'count-verdict',
       'JUDGE_PASSED': 'count-human',
+      'READY_TO_REVIEW': 'count-human',
       'DONE': 'count-done',
     };
     var STATE_LABEL = {
@@ -260,13 +262,14 @@
       'SELF_CHECK_FAILED': { text: 'SELF_CHECK_FAILED', icon: 'ph-warning', cls: 'bg-st_selffail/12 text-st_selffail', fill: true },
       'JUDGE_REJECTED': { text: 'JUDGE_REJECTED', icon: 'ph-x-circle', cls: 'bg-st_reject/12 text-st_reject', fill: true },
       'JUDGE_PASSED': { text: 'JUDGE_PASSED', icon: 'ph-gavel', cls: 'bg-st_human/15 text-st_human', fill: true },
+      'READY_TO_REVIEW': { text: 'READY_TO_REVIEW', icon: 'ph-git-pull-request', cls: 'bg-st_human/15 text-st_human', fill: true },
       'DONE': { text: 'DONE', icon: 'ph-check-fat', cls: 'bg-st_done/12 text-st_done', fill: true },
     };
     var BORDER_COLORS = {
       'TODO': 'border-l-st_todo', 'IN_PROGRESS': 'border-l-st_prog', 'IMPLEMENTED': 'border-l-st_impl',
       'EVIDENCE': 'border-l-st_self', 'SELF_CHECK_PASSED': 'border-l-st_self',
       'SELF_CHECK_FAILED': 'border-l-st_selffail', 'JUDGE_REJECTED': 'border-l-st_reject',
-      'JUDGE_PASSED': 'border-l-st_human', 'DONE': 'border-l-st_done',
+      'JUDGE_PASSED': 'border-l-st_human', 'READY_TO_REVIEW': 'border-l-st_human', 'DONE': 'border-l-st_done',
     };
 
     // --- Helpers ---
@@ -428,6 +431,14 @@
       }
       else { rows += '<span class="text-[13px] text-muted">—</span>'; }
       rows += '</div>';
+      // PR link (TASK-051): recorded by the pr-bot via PATCH; UI only displays.
+      if (t.pr_url) {
+        rows += '<div class="flex items-center gap-2 py-1"><span class="text-[13px] text-muted w-24 shrink-0">PR</span>';
+        var safePr = safeHttpHref(t.pr_url);
+        if (safePr) { rows += '<a href="' + esc(safePr) + '" target="_blank" rel="noopener noreferrer" class="text-[13px] text-accent hover:underline truncate max-w-[250px]"><i class="ph ph-git-pull-request text-[13px]"></i> Open PR</a>'; }
+        else { rows += '<span class="text-[13px] text-muted truncate max-w-[250px]">' + esc(t.pr_url) + '</span>'; }
+        rows += '</div>';
+      }
       return '<div id="attrs-display" class="rounded-lg border border-border bg-panel2 divide-y divide-border px-3 mb-2">' + rows + '</div>';
     }
 
@@ -533,7 +544,7 @@
         document.getElementById('drawer-state-badge').innerHTML = '<i class="ph' + (st.fill ? '-fill' : '') + ' ' + st.icon + ' text-[13px]"></i>' + esc(st.text);
 
         // Show action buttons based on state
-        if (t.state === 'JUDGE_PASSED') document.getElementById('btn-approve').classList.remove('hidden');
+        if (t.state === 'JUDGE_PASSED' || t.state === 'READY_TO_REVIEW') document.getElementById('btn-approve').classList.remove('hidden');
         if (t.state === 'JUDGE_REJECTED' || t.state === 'SELF_CHECK_FAILED') document.getElementById('btn-reset').classList.remove('hidden');
         document.getElementById('btn-remove').classList.remove('hidden');
 

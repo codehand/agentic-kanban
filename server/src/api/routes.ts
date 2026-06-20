@@ -112,6 +112,7 @@ interface TaskAttributesPatch {
   estimate_hours?: number | null
   tags?: string[]
   link_document?: string | null
+  pr_url?: string | null
 }
 
 function validateTaskAttributesPatch(body: Record<string, unknown>): { ok: true; patch: TaskAttributesPatch } | { ok: false; error: string } {
@@ -153,11 +154,19 @@ function validateTaskAttributesPatch(body: Record<string, unknown>): { ok: true;
     }
     patch.link_document = v as string | null
   }
+  if ('pr_url' in body) {
+    const v = body['pr_url']
+    if (v !== null) {
+      if (typeof v !== 'string') return { ok: false, error: `Invalid pr_url. Must be a URL string` }
+      if (!isHttpUrl(v)) return { ok: false, error: `Invalid pr_url. Must be a valid http(s) URL` }
+    }
+    patch.pr_url = v as string | null
+  }
 
   return { ok: true, patch }
 }
 
-function taskToResult(db: Db, t: { id: string; project_id: string; key: string; title: string; body_md: string; state: string; allow_no_code_change: number; assignee_token_id: string | null; lease_until: string | null; priority: string | null; complexity: string | null; estimate_hours: number | null; tags: string; link_document: string | null; created_at: string; updated_at: string }) {
+function taskToResult(db: Db, t: { id: string; project_id: string; key: string; title: string; body_md: string; state: string; allow_no_code_change: number; assignee_token_id: string | null; lease_until: string | null; priority: string | null; complexity: string | null; estimate_hours: number | null; tags: string; link_document: string | null; pr_url: string | null; created_at: string; updated_at: string }) {
   let tagsParsed: string[] = []
   try { tagsParsed = JSON.parse(t.tags || '[]') } catch { tagsParsed = [] }
   // depends_on is exposed as task KEYS so clients can read it the same way they
@@ -180,6 +189,7 @@ function taskToResult(db: Db, t: { id: string; project_id: string; key: string; 
     estimate_hours: t.estimate_hours,
     tags: tagsParsed,
     link_document: t.link_document,
+    pr_url: t.pr_url,
     depends_on: dependsOn,
     created_at: t.created_at,
     updated_at: t.updated_at,
@@ -293,7 +303,7 @@ function handleGetTokens(db: Db, _query: Record<string, string>, auth: ResolvedT
 }
 
 const VALID_MINT_ROLES: ReadonlySet<string> = new Set<MintRole>([
-  'human', 'implementer', 'self-check', 'judge', 'runner',
+  'human', 'implementer', 'self-check', 'judge', 'runner', 'pr-bot',
 ])
 
 async function handleMintToken(db: Db, _query: Record<string, string>, auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -537,8 +547,10 @@ async function handleApprove(db: Db, key: string, query: Record<string, string>,
   if (!task) {
     sendJson(res, 404, { error: `Task not found: ${key}` }); return
   }
-  if (task.state !== 'JUDGE_PASSED') {
-    sendJson(res, 409, { error: `Task is in state '${task.state}', expected 'JUDGE_PASSED'` }); return
+  // Approve covers both the direct judge-pass path and the optional pr-bot
+  // path (TASK-051): a task is approvable from JUDGE_PASSED or READY_TO_REVIEW.
+  if (task.state !== 'JUDGE_PASSED' && task.state !== 'READY_TO_REVIEW') {
+    sendJson(res, 409, { error: `Task is in state '${task.state}', expected 'JUDGE_PASSED' or 'READY_TO_REVIEW'` }); return
   }
   // Dependency gate: cannot approve while any dependency is not DONE.
   const unmet = unmetDependencies(db, task.id)
@@ -548,11 +560,14 @@ async function handleApprove(db: Db, key: string, query: Record<string, string>,
   const body = await readJsonBody(req)
   const note = typeof body?.['note'] === 'string' ? body['note'] : undefined
 
+  // `from` must match the task's actual state so the ALLOWED-table lookup picks
+  // the right edge (JUDGE_PASSED→DONE or READY_TO_REVIEW→DONE).
+  const from = task.state as TaskState
   const repo = makeTransitionRepo(db)
   const result = propose({
     task_id: task.id,
-    current_state: task.state as TaskState,
-    from: 'JUDGE_PASSED',
+    current_state: from,
+    from,
     to: 'DONE',
     actor_role: 'human',
     actor_token_id: auth.token_id,
@@ -568,7 +583,7 @@ async function handleApprove(db: Db, key: string, query: Record<string, string>,
     task_id: task.id,
     project: proj.slug,
     key: task.key,
-    from_state: 'JUDGE_PASSED',
+    from_state: from,
     to_state: 'DONE',
     actor_role: 'human',
     at: result.transition!.at,

@@ -12,6 +12,7 @@
     'SELF_CHECK_FAILED': { text: 'SELF_CHECK_FAILED', icon: 'ph-warning', cls: 'bg-st_selffail/12 text-st_selffail', fill: true },
     'JUDGE_REJECTED': { text: 'JUDGE_REJECTED', icon: 'ph-x-circle', cls: 'bg-st_reject/12 text-st_reject', fill: true },
     'JUDGE_PASSED': { text: 'JUDGE_PASSED', icon: 'ph-gavel', cls: 'bg-st_human/15 text-st_human', fill: true },
+    'READY_TO_REVIEW': { text: 'READY_TO_REVIEW', icon: 'ph-git-pull-request', cls: 'bg-st_human/15 text-st_human', fill: true },
     'DONE': { text: 'DONE', icon: 'ph-check-fat', cls: 'bg-st_done/12 text-st_done', fill: true },
   };
 
@@ -29,6 +30,9 @@
     'SELF_CHECK_FAILED': { stage: 3, fail: true },
     'JUDGE_PASSED': { stage: 4 },
     'JUDGE_REJECTED': { stage: 4, fail: true },
+    // READY_TO_REVIEW (TASK-051) is part of the human-review stage (between
+    // JUDGE and DONE) — the pr-bot has opened a PR and is awaiting approval.
+    'READY_TO_REVIEW': { stage: 4 },
     'DONE': { stage: 5 },
   };
 

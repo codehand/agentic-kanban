@@ -15,6 +15,7 @@ export interface Task {
   estimate_hours: number | null
   tags: string  // JSON array string
   link_document: string | null
+  pr_url: string | null
   created_at: string
   updated_at: string
 }
@@ -40,6 +41,7 @@ export interface TaskAttributesPatch {
   estimate_hours?: number | null
   tags?: string[]
   link_document?: string | null
+  pr_url?: string | null
 }
 
 export function insertTask(db: Db, t: NewTask): Task {
@@ -126,6 +128,10 @@ export function updateTaskAttributes(db: Db, id: string, patch: TaskAttributesPa
   if ('link_document' in patch) {
     sets.push('link_document = ?')
     params.push(patch.link_document ?? null)
+  }
+  if ('pr_url' in patch) {
+    sets.push('pr_url = ?')
+    params.push(patch.pr_url ?? null)
   }
 
   if (sets.length === 0) {

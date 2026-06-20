@@ -11,9 +11,10 @@ export type TaskState =
   | 'SELF_CHECK_FAILED'
   | 'JUDGE_PASSED'
   | 'JUDGE_REJECTED'
+  | 'READY_TO_REVIEW'
   | 'DONE'
 
-export type ActorRole = 'implementer' | 'self-check' | 'judge' | 'human' | 'runner'
+export type ActorRole = 'implementer' | 'self-check' | 'judge' | 'human' | 'runner' | 'pr-bot'
 
 export interface TransitionKey {
   from: TaskState
@@ -38,6 +39,12 @@ export const ALLOWED: AllowedTransition[] = [
   { from: 'SELF_CHECK_PASSED',  to: 'JUDGE_REJECTED',     role: 'judge'       },
   { from: 'JUDGE_REJECTED',     to: 'IN_PROGRESS',        role: 'implementer' },
   { from: 'JUDGE_PASSED',       to: 'DONE',               role: 'human'       },
+  // TASK-051: optional PR-bot step between judge-pass and human-approve. The
+  // pr-bot opens a PR + records its link, then moves the task to READY_TO_REVIEW;
+  // the human approves from there. The direct JUDGE_PASSED→DONE edge above stays
+  // so the human is never blocked when the pr-bot is offline.
+  { from: 'JUDGE_PASSED',       to: 'READY_TO_REVIEW',    role: 'pr-bot'      },
+  { from: 'READY_TO_REVIEW',    to: 'DONE',               role: 'human'       },
   // §3 role table (TASK_HUB_DESIGN.md): human may also reset a failed/rejected
   // task back to IN_PROGRESS (UI "Reset" / POST /api/tasks/:key/reset).
   // Same edges as the implementer rework rows above — only the actor differs.

@@ -9,7 +9,7 @@ import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import Database from 'better-sqlite3';
 import { insertToken, revokeToken as actualRevokeToken } from '../db/repositories/token.js';
 
-export type Role = 'human' | 'implementer' | 'self-check' | 'judge' | 'runner';
+export type Role = 'human' | 'implementer' | 'self-check' | 'judge' | 'runner' | 'pr-bot';
 
 export interface MintResult {
   tokenId: string;
