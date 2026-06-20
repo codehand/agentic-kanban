@@ -550,6 +550,15 @@
         html += '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-file-text text-[14px]"></i> Spec</h3>';
         html += '<div class="text-[13px]">' + renderMarkdown(t.body_md || '(no spec)') + '</div></section>';
 
+        // Depends on section (only when the task declares dependencies)
+        if (t.depends_on && t.depends_on.length > 0) {
+          html += '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-link text-[14px]"></i> Depends on</h3><div class="flex flex-wrap gap-1.5">';
+          t.depends_on.forEach(function (dep) {
+            html += '<button type="button" onclick="window.__openDrawer(\'' + esc(project) + '\', \'' + esc(dep) + '\')" class="mono text-[13px] rounded border border-border bg-panel2 px-1.5 py-0.5 text-accent hover:underline">' + esc(dep) + '</button>';
+          });
+          html += '</div></section>';
+        }
+
         // Gitrefs (with PR link from mr_url)
         if (res.gitrefs && res.gitrefs.length > 0) {
           html += '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-git-branch text-[14px]"></i> Repos &amp; MR</h3><div class="space-y-2">';
