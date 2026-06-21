@@ -591,7 +591,7 @@
           if (ev.build_exit !== undefined) html += '<div class="flex items-center justify-between px-3 py-2"><span class="flex items-center gap-1.5 text-[13px] text-muted"><i class="ph-fill ph-hammer text-[14px]"></i> build</span><span class="mono text-[13px] ' + (ev.build_exit === 0 ? 'text-ev_pass' : 'text-ev_fail') + '">exit ' + ev.build_exit + '</span></div>';
           if (ev.test_exit !== undefined) html += '<div class="flex items-center justify-between px-3 py-2"><span class="flex items-center gap-1.5 text-[13px] text-muted"><i class="ph-fill ph-test-tube text-[14px]"></i> test</span><span class="mono text-[13px] ' + (ev.test_exit === 0 ? 'text-ev_pass' : 'text-ev_fail') + '">exit ' + ev.test_exit + '</span></div>';
           html += '</div>';
-          html += '<a href="evidence.html" class="mt-2 flex items-center gap-1.5 text-[13px] text-accent hover:underline"><i class="ph ph-caret-right text-[13px]"></i> View full evidence</a>';
+          html += '<a href="' + esc('evidence.html#' + encodeURIComponent(selectedTask.key)) + '" class="mt-2 flex items-center gap-1.5 text-[13px] text-accent hover:underline"><i class="ph ph-caret-right text-[13px]"></i> View full evidence</a>';
           html += '</section>';
         }
 
