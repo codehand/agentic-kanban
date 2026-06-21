@@ -1,5 +1,5 @@
 /**
- * workflow-page.spec.ts — Playwright spec for TASK-043.
+ * workflow-page.spec.ts — Playwright spec for TASK-043 / TASK-054.
  *
  * The "Workflow" page documents the no-self-certification lifecycle with an
  * inline SVG state machine diagram. These tests run on the ds-server harness
@@ -8,17 +8,19 @@
  *   1. The centralized sidebar nav (shell.js) shows a "Workflow" entry on
  *      other pages, clicking it navigates to workflow.html, and the entry
  *      carries the active-state styling only on the workflow page itself.
- *   2. The inline diagram renders ALL 8 state names of the state machine
+ *   2. The inline diagram renders ALL 9 state names of the state machine
  *      (asserted as SVG text, scoped to the diagram — not page prose).
  *   3. At a 375px viewport the page has no horizontal overflow; the diagram
  *      scrolls inside its own container instead of breaking the layout.
+ *   4. The pr-bot edge label is present in the diagram, and the direct
+ *      JUDGE_PASSED → DONE human edge is retained (optional-path semantics).
  */
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { startDsServer, seedToken, type DsServer } from './ds-server';
 
 const PROJECT = 'opf-hub';
 
-/** All 8 states of the gate's state machine (.ai/WORKFLOW_DESIGN.md §4). */
+/** All 9 states of the gate's state machine (.ai/WORKFLOW_DESIGN.md §4 + TASK-051). */
 const STATES = [
   'TODO',
   'IN_PROGRESS',
@@ -27,6 +29,7 @@ const STATES = [
   'SELF_CHECK_FAILED',
   'JUDGE_PASSED',
   'JUDGE_REJECTED',
+  'READY_TO_REVIEW',
   'DONE',
 ] as const;
 
@@ -93,7 +96,7 @@ test.describe('TASK-043: workflow explainer page', () => {
     await expect(active).toHaveClass(/bg-accent\/12/);
   });
 
-  test('inline SVG diagram renders all 8 state names', async ({ page }) => {
+  test('inline SVG diagram renders all 9 state names', async ({ page }) => {
     await page.goto(server.url('workflow.html'));
     const svg = page.locator('#workflow-diagram svg');
     await expect(svg).toBeVisible();
@@ -103,6 +106,24 @@ test.describe('TASK-043: workflow explainer page', () => {
         `diagram node for ${state}`,
       ).toBeVisible();
     }
+  });
+
+  test('SVG diagram shows the pr-bot edge label and retains the direct JUDGE_PASSED → DONE path', async ({ page }) => {
+    await page.goto(server.url('workflow.html'));
+    const diagram = page.locator('#workflow-diagram');
+
+    // pr-bot actor is referenced on the JUDGE_PASSED → READY_TO_REVIEW edge.
+    await expect(
+      diagram.locator('text').filter({ hasText: /pr-bot/ }),
+      'pr-bot edge label in the SVG diagram',
+    ).toBeVisible();
+
+    // Direct human-approve path JUDGE_PASSED → DONE is retained (optional path
+    // semantics: the human must never be blocked when the pr-bot is offline).
+    await expect(
+      diagram.getByText(/human.*approve.*direct/i),
+      'direct JUDGE_PASSED → DONE edge label in the SVG diagram',
+    ).toBeVisible();
   });
 
   test('no horizontal page overflow at 375px; diagram scrolls in its own container', async ({ page }) => {
