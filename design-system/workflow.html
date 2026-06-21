@@ -38,10 +38,12 @@
         <!-- intro -->
         <section class="space-y-2">
           <p class="text-[14px] text-muted leading-relaxed max-w-[72ch]">
-            Every task on this board moves through a fixed state machine driven by four separate actors:
+            Every task on this board moves through a fixed state machine driven by five separate actors:
             an <span class="text-text font-medium">implementer</span> writes the code, a machine
             <span class="text-text font-medium">gate</span> grades fresh evidence (exit codes, checksummed),
-            an independent <span class="text-text font-medium">judge</span> reviews the diff, and a
+            an independent <span class="text-text font-medium">judge</span> reviews the diff, a
+            <span class="text-text font-medium">pr-bot</span> opens the pull request and records its link
+            (moving the task to <span class="mono text-text">READY_TO_REVIEW</span>), and a
             <span class="text-text font-medium">human</span> gives the only approval that can mark a task
             <span class="mono text-text">DONE</span>. No agent ever certifies its own work &mdash; that is the
             point of the design.
@@ -55,17 +57,19 @@
             <!-- The page never overflows at 375px: the diagram scrolls inside
                  this container instead (keyboard-reachable via tabindex). -->
             <div class="overflow-x-auto" tabindex="0" role="group" aria-label="State machine diagram, scrollable">
-              <svg width="840" height="552" viewBox="0 0 840 552" role="img" aria-labelledby="wf-title wf-desc" class="block">
+              <svg width="840" height="640" viewBox="0 0 840 640" role="img" aria-labelledby="wf-title wf-desc" class="block">
                 <title id="wf-title">Task lifecycle state machine</title>
                 <desc id="wf-desc">
-                  Flow diagram of the nine allowed transitions: TODO to IN_PROGRESS (implementer);
+                  Flow diagram of the eleven allowed transitions: TODO to IN_PROGRESS (implementer);
                   IN_PROGRESS to IMPLEMENTED (implementer); IMPLEMENTED to SELF_CHECK_PASSED (gate, all exit codes zero);
                   IMPLEMENTED to SELF_CHECK_FAILED (gate, any non-zero exit code);
                   SELF_CHECK_FAILED back to IN_PROGRESS (rework by implementer);
                   SELF_CHECK_PASSED to JUDGE_PASSED (judge, verdict pass);
                   SELF_CHECK_PASSED to JUDGE_REJECTED (judge, rejected with reasons);
                   JUDGE_REJECTED back to IN_PROGRESS (rework by implementer);
-                  JUDGE_PASSED to DONE (human approval only).
+                  JUDGE_PASSED to DONE (human approval, direct optional path);
+                  JUDGE_PASSED to READY_TO_REVIEW (pr-bot, opens the pull request);
+                  READY_TO_REVIEW to DONE (human approval).
                 </desc>
                 <defs>
                   <marker id="wf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
@@ -98,8 +102,19 @@
                 <path class="wf-edge wf-edge--rework" d="M740,416 H812 V140 H349" marker-end="url(#wf-arrow)" />
                 <text class="wf-edge-label" x="480" y="158">rework &#183; implementer</text>
 
-                <line class="wf-edge" x1="260" y1="438" x2="260" y2="480" marker-end="url(#wf-arrow)" />
-                <text class="wf-edge-label" x="272" y="466">human &#183; approve &#8212; the only path to DONE</text>
+                <!-- direct JUDGE_PASSED → DONE (human, optional parallel path; kept so
+                     the human is never blocked when the pr-bot is offline). Curves
+                     around the left side so it does not cross the READY_TO_REVIEW node. -->
+                <path class="wf-edge" d="M190,438 C100,470 100,540 190,574" marker-end="url(#wf-arrow)" />
+                <text class="wf-edge-label" x="38" y="508">human &#183; approve (direct)</text>
+
+                <!-- JUDGE_PASSED → READY_TO_REVIEW (pr-bot) -->
+                <line class="wf-edge" x1="350" y1="416" x2="420" y2="500" marker-end="url(#wf-arrow)" />
+                <text class="wf-edge-label" x="360" y="450">pr-bot &#183; open PR</text>
+
+                <!-- READY_TO_REVIEW → DONE (human approve) -->
+                <path class="wf-edge" d="M440,528 C390,572 340,582 320,574" marker-end="url(#wf-arrow)" />
+                <text class="wf-edge-label" x="355" y="566">human &#183; approve</text>
 
                 <!-- nodes -->
                 <rect class="wf-node" x="200" y="14"  width="120" height="44" rx="8" stroke="var(--st_todo)" />
@@ -123,15 +138,21 @@
                 <rect class="wf-node" x="540" y="394" width="200" height="44" rx="8" stroke="var(--st_reject)" />
                 <text class="wf-node-label" x="640" y="421" text-anchor="middle">JUDGE_REJECTED</text>
 
-                <rect class="wf-node" x="200" y="484" width="120" height="44" rx="8" stroke="var(--st_done)" />
-                <text class="wf-node-label" x="260" y="511" text-anchor="middle">DONE</text>
+                <rect class="wf-node" x="420" y="484" width="210" height="44" rx="8" stroke="var(--st_human)" />
+                <text class="wf-node-label" x="525" y="511" text-anchor="middle">READY_TO_REVIEW</text>
+
+                <rect class="wf-node" x="200" y="574" width="120" height="44" rx="8" stroke="var(--st_done)" />
+                <text class="wf-node-label" x="260" y="601" text-anchor="middle">DONE</text>
               </svg>
             </div>
             <figcaption class="mt-3 text-[13px] text-muted leading-relaxed">
-              The nine allowed transitions, exactly as enforced by the gate. Solid arrows move a task forward;
-              dashed arrows are rework loops back to <span class="mono">IN_PROGRESS</span>. Any transition not
-              drawn here (for example skipping straight from <span class="mono">IMPLEMENTED</span> to
-              <span class="mono">JUDGE_PASSED</span>) is rejected.
+              The eleven allowed transitions, exactly as enforced by the gate. Solid arrows move a task forward;
+              dashed arrows are rework loops back to <span class="mono">IN_PROGRESS</span>. Two parallel paths
+              lead from <span class="mono">JUDGE_PASSED</span> to <span class="mono">DONE</span>: the direct
+              human-approve edge, and an optional <span class="mono">pr-bot</span> branch via
+              <span class="mono">READY_TO_REVIEW</span> (kept optional so the human is never blocked when the
+              pr-bot is offline). Any transition not drawn here (for example skipping straight from
+              <span class="mono">IMPLEMENTED</span> to <span class="mono">JUDGE_PASSED</span>) is rejected.
               <ul class="sr-only">
                 <li>TODO to IN_PROGRESS, by the implementer; the gate creates the task branch and an isolated worktree.</li>
                 <li>IN_PROGRESS to IMPLEMENTED, by the implementer, after committing code and tests inside the worktree.</li>
@@ -141,7 +162,9 @@
                 <li>SELF_CHECK_PASSED to JUDGE_PASSED, by the judge, with a literal VERDICT: PASS in the judge report.</li>
                 <li>SELF_CHECK_PASSED to JUDGE_REJECTED, by the judge, rejected with reasons.</li>
                 <li>JUDGE_REJECTED back to IN_PROGRESS: rework by the implementer.</li>
-                <li>JUDGE_PASSED to DONE, by the human only. No other actor can approve.</li>
+                <li>JUDGE_PASSED to DONE, by the human only &mdash; the direct optional path.</li>
+                <li>JUDGE_PASSED to READY_TO_REVIEW, by the pr-bot: opens the pull request and records its link.</li>
+                <li>READY_TO_REVIEW to DONE, by the human only &mdash; approves the PR.</li>
               </ul>
             </figcaption>
           </figure>
@@ -251,6 +274,23 @@
 
             <div class="rounded-xl border border-border bg-panel p-4">
               <div class="flex flex-wrap items-center gap-2">
+                <span class="mono text-[13px] font-semibold px-2 py-0.5 rounded bg-st_human/12 text-st_human">READY_TO_REVIEW</span>
+                <span class="text-[13px] text-muted">actor: pr-bot &rarr; human</span>
+              </div>
+              <p class="mt-2 text-[13px] text-muted leading-relaxed">
+                The optional pr-bot step: an agent opens the pull request, records its link
+                (<span class="mono text-text">pr_url</span>) via PATCH, and moves the task from
+                <span class="mono text-text">JUDGE_PASSED</span> to
+                <span class="mono text-text">READY_TO_REVIEW</span>. From here only the
+                <span class="text-text font-medium">human</span> can approve into
+                <span class="mono text-text">DONE</span>. The direct
+                <span class="mono text-text">JUDGE_PASSED &rarr; DONE</span> edge stays parallel so the human is
+                never blocked when the pr-bot is offline.
+              </p>
+            </div>
+
+            <div class="rounded-xl border border-border bg-panel p-4">
+              <div class="flex flex-wrap items-center gap-2">
                 <span class="mono text-[13px] font-semibold px-2 py-0.5 rounded bg-st_done/12 text-st_done">DONE</span>
                 <span class="text-[13px] text-muted">actor: human &mdash; only</span>
               </div>
@@ -322,6 +362,11 @@
                   <th scope="row" class="px-4 py-3 font-normal"><span class="mono text-[13px] px-2 py-0.5 rounded bg-st_human/12 text-st_human">judge</span></th>
                   <td class="px-4 py-3 mono text-muted">SELF_CHECK_PASSED &rarr; JUDGE_PASSED / JUDGE_REJECTED</td>
                   <td class="px-4 py-3 text-muted">verdict comment &middot; read</td>
+                </tr>
+                <tr>
+                  <th scope="row" class="px-4 py-3 font-normal"><span class="mono text-[13px] px-2 py-0.5 rounded bg-white/5 text-muted">pr-bot</span></th>
+                  <td class="px-4 py-3 mono text-muted">JUDGE_PASSED &rarr; READY_TO_REVIEW</td>
+                  <td class="px-4 py-3 text-muted">record pr_url &middot; read &mdash; no approvals, no code changes</td>
                 </tr>
                 <tr>
                   <th scope="row" class="px-4 py-3 font-normal"><span class="mono text-[13px] px-2 py-0.5 rounded bg-white/5 text-muted">runner</span></th>
