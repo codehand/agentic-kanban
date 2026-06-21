@@ -99,8 +99,9 @@ export function propose(
   }
 
   // 4. Lease guard: require caller to hold lease for non-human/non-gate transitions
-  // Exception: human role and self-check/judge roles (gate transitions) don't need lease
-  if (actor_role !== 'human' && actor_role !== 'self-check' && actor_role !== 'judge') {
+  // Exception: human + gate-side reactors (self-check/judge/pr-bot) don't claim a
+  // lease, so they're exempt. pr-bot reacts to JUDGE_PASSED (like judge/self-check).
+  if (actor_role !== 'human' && actor_role !== 'self-check' && actor_role !== 'judge' && actor_role !== 'pr-bot') {
     if (input.leaseRepo) {
       const leaseCheck = checkLease(task_id, actor_token_id, input.leaseRepo, now)
       if (!leaseCheck.hasLease) {
