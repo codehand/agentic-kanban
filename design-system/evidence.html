@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Agentic Kanban - Evidence TASK-002</title>
+<title>Agentic Kanban - Evidence</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
@@ -18,174 +18,211 @@
   <main class="flex-1 min-w-0 flex flex-col">
     <!-- breadcrumb top bar -->
     <header class="h-14 shrink-0 border-b border-border bg-panel/80 backdrop-blur flex items-center gap-2 px-4 text-[14px]">
-      <a href="index.html" class="text-muted hover:text-text">opf-hub</a>
+      <a href="index.html" class="text-muted hover:text-text" id="ev-crumb-project">opf-hub</a>
       <i class="ph ph-caret-right text-muted text-[13px]"></i>
-      <a href="index.html" class="mono text-muted hover:text-text">TASK-002</a>
+      <a href="index.html" class="mono text-muted hover:text-text" id="ev-crumb-key"></a>
       <i class="ph ph-caret-right text-muted text-[13px]"></i>
       <span class="font-medium">Evidence</span>
       <a href="index.html" class="ml-auto flex items-center gap-1.5 text-[13px] text-muted hover:text-text"><i class="ph ph-arrow-left text-[14px]"></i> Back to task</a>
     </header>
 
     <div class="flex-1 overflow-y-auto">
-      <div class="max-w-[860px] mx-auto px-6 py-6 space-y-5">
+      <!-- loading state -->
+      <div id="ev-loading" class="grid place-items-center py-16 text-muted text-[14px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[17px]"></i> Loading evidence&hellip;</span></div>
 
-        <!-- summary header -->
-        <div class="rounded-xl border border-border bg-panel p-4">
-          <div class="flex items-start justify-between gap-4">
-            <div>
-              <h1 class="text-[17px] font-semibold">Wire FREE subscribe e2e flow</h1>
-              <p class="mt-0.5 text-[13px] text-muted">Evidence run for <span class="mono text-text">TASK-002</span> across 2 repos</p>
-            </div>
-            <span class="inline-flex items-center gap-1.5 mono text-[13px] px-2.5 py-1.5 rounded-md bg-st_done/12 text-st_done"><i class="ph-fill ph-shield-check"></i> all required green</span>
-          </div>
-          <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 mono text-[13px] text-muted">
-            <span class="flex items-center gap-1.5"><i class="ph ph-clock"></i> measured 2026-06-08 14:21:07Z</span>
-            <span class="flex items-center gap-1.5"><i class="ph ph-robot"></i> by token <span class="text-text">runner</span></span>
-            <span class="flex items-center gap-1.5 text-st_done"><i class="ph-fill ph-lock-simple"></i> immutable &middot; written 0444</span>
-          </div>
+      <!-- empty state (task has no evidence yet) -->
+      <div id="ev-empty" class="hidden grid place-items-center py-16">
+        <div class="text-center max-w-[420px] px-6">
+          <i class="ph ph-seal-question text-muted text-[28px]"></i>
+          <p class="mt-2 text-[15px] font-medium">No evidence yet</p>
+          <p class="mt-1 text-[13px] text-muted leading-relaxed">This task has not produced an evidence run. Evidence appears once the runner submits build/test/ac results.</p>
         </div>
-
-        <!-- checks -->
-        <section>
-          <h2 class="text-[13px] uppercase tracking-wider text-muted mb-2">Checks</h2>
-          <div class="rounded-xl border border-border bg-panel overflow-hidden">
-            <table class="w-full text-[13px]">
-              <thead class="text-[13px] text-muted">
-                <tr class="border-b border-border">
-                  <th class="text-left font-medium px-4 py-2.5">Check</th>
-                  <th class="text-left font-medium px-4 py-2.5 hidden sm:table-cell">Command</th>
-                  <th class="text-left font-medium px-4 py-2.5">Mode</th>
-                  <th class="text-right font-medium px-4 py-2.5">Result</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-border mono">
-                <tr>
-                  <td class="px-4 py-2.5 flex items-center gap-2"><i class="ph-fill ph-hammer text-muted"></i> build</td>
-                  <td class="px-4 py-2.5 text-muted hidden sm:table-cell">go build ./...</td>
-                  <td class="px-4 py-2.5 text-text/70">required</td>
-                  <td class="px-4 py-2.5 text-right text-ev_pass">exit 0</td>
-                </tr>
-                <tr>
-                  <td class="px-4 py-2.5 flex items-center gap-2"><i class="ph-fill ph-test-tube text-muted"></i> test</td>
-                  <td class="px-4 py-2.5 text-muted hidden sm:table-cell">go test ./... -count=1</td>
-                  <td class="px-4 py-2.5 text-text/70">required</td>
-                  <td class="px-4 py-2.5 text-right text-ev_pass">exit 0</td>
-                </tr>
-                <tr>
-                  <td class="px-4 py-2.5 flex items-center gap-2"><i class="ph ph-magnifying-glass text-muted"></i> lint</td>
-                  <td class="px-4 py-2.5 text-muted hidden sm:table-cell">golangci-lint run</td>
-                  <td class="px-4 py-2.5 text-text/70">optional</td>
-                  <td class="px-4 py-2.5 text-right text-ev_pass">exit 0</td>
-                </tr>
-                <tr>
-                  <td class="px-4 py-2.5 flex items-center gap-2"><i class="ph ph-list-checks text-muted"></i> ac</td>
-                  <td class="px-4 py-2.5 text-muted hidden sm:table-cell">TASK-002.ac.sh</td>
-                  <td class="px-4 py-2.5 text-text/70">required</td>
-                  <td class="px-4 py-2.5 text-right text-ev_pass">exit 0</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <!-- coverage per repo -->
-        <section>
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="text-[13px] uppercase tracking-wider text-muted">Coverage <span class="normal-case tracking-normal">(threshold 80%, optional)</span></h2>
-            <span class="mono text-[13px] text-muted">aggregate = min across repos = <span class="text-ev_pass">84.2%</span></span>
-          </div>
-          <div class="rounded-xl border border-border bg-panel p-4 space-y-3.5">
-            <div>
-              <div class="flex items-center justify-between mono text-[13px] mb-1.5"><span>opf-auto-e2e</span><span class="text-ev_pass">86.0%</span></div>
-              <div class="h-1.5 rounded-full bg-panel2 overflow-hidden"><span class="block h-full bg-st_done" style="width:86%"></span></div>
-            </div>
-            <div>
-              <div class="flex items-center justify-between mono text-[13px] mb-1.5"><span>api-marketplace <span class="text-muted text-[13px]">(min)</span></span><span class="text-ev_pass">84.2%</span></div>
-              <div class="h-1.5 rounded-full bg-panel2 overflow-hidden"><span class="block h-full bg-st_done" style="width:84.2%"></span></div>
-            </div>
-          </div>
-        </section>
-
-        <!-- log digests -->
-        <section>
-          <h2 class="text-[13px] uppercase tracking-wider text-muted mb-2">Log digests</h2>
-          <div class="space-y-2">
-            <details class="rounded-xl border border-border bg-panel overflow-hidden" open>
-              <summary class="flex items-center gap-2 px-4 py-2.5 cursor-pointer text-[13px] select-none">
-                <i class="ph ph-caret-right det-caret text-muted text-[13px]"></i>
-                <i class="ph-fill ph-test-tube text-muted text-[14px]"></i> test.log
-                <span class="mono text-[13px] text-muted ml-auto">sha256 4e9b..a1c7</span>
-              </summary>
-              <div class="relative border-t border-border bg-bg">
-                <button class="absolute top-2 right-2 flex items-center gap-1 mono text-[13px] text-muted hover:text-text rounded px-1.5 py-1 bg-panel2 border border-border"><i class="ph ph-copy text-[13px]"></i> copy</button>
-                <pre class="px-4 py-3 mono text-[13px] leading-relaxed text-text/80 overflow-x-auto">== [opf-auto-e2e] go test ./... ==
-ok   subscribe        0.214s  coverage: 86.0% of statements
-ok   subscribe/free   0.061s  coverage: 90.4% of statements
-== [api-marketplace] go test ./... ==
-ok   entitlement      0.338s  coverage: 84.2% of statements
-PASS</pre>
-              </div>
-            </details>
-
-            <details class="rounded-xl border border-border bg-panel overflow-hidden">
-              <summary class="flex items-center gap-2 px-4 py-2.5 cursor-pointer text-[13px] select-none">
-                <i class="ph ph-caret-right det-caret text-muted text-[13px]"></i>
-                <i class="ph-fill ph-hammer text-muted text-[14px]"></i> build.log
-                <span class="mono text-[13px] text-muted ml-auto">sha256 7c01..ff3d</span>
-              </summary>
-              <div class="border-t border-border bg-bg">
-                <pre class="px-4 py-3 mono text-[13px] leading-relaxed text-text/80 overflow-x-auto">== [opf-auto-e2e] go build ./...  ==
-== [api-marketplace] go build ./...  ==
-(no output, exit 0)</pre>
-              </div>
-            </details>
-          </div>
-        </section>
-
-        <!-- manifest checksum table -->
-        <section>
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="text-[13px] uppercase tracking-wider text-muted">Manifest checksum</h2>
-            <span class="mono text-[13px] text-st_done flex items-center gap-1.5"><i class="ph-fill ph-shield-check"></i> 12/12 OK</span>
-          </div>
-          <div class="rounded-xl border border-border bg-panel overflow-hidden">
-            <table class="w-full text-[13px] mono">
-              <thead class="text-[13px] text-muted">
-                <tr class="border-b border-border"><th class="text-left font-medium px-4 py-2">File</th><th class="text-left font-medium px-4 py-2">sha256</th><th class="text-right font-medium px-4 py-2">Status</th></tr>
-              </thead>
-              <tbody class="divide-y divide-border">
-                <tr><td class="px-4 py-2 text-text/80">build.exit</td><td class="px-4 py-2 text-muted">e3b0c442..b855</td><td class="px-4 py-2 text-right text-ev_pass"><i class="ph ph-check"></i> OK</td></tr>
-                <tr><td class="px-4 py-2 text-text/80">test.exit</td><td class="px-4 py-2 text-muted">9f86d081..0a08</td><td class="px-4 py-2 text-right text-ev_pass"><i class="ph ph-check"></i> OK</td></tr>
-                <tr><td class="px-4 py-2 text-text/80">test.log</td><td class="px-4 py-2 text-muted">4e9b1f33..a1c7</td><td class="px-4 py-2 text-right text-ev_pass"><i class="ph ph-check"></i> OK</td></tr>
-                <tr><td class="px-4 py-2 text-text/80">coverage.pct</td><td class="px-4 py-2 text-muted">2c26b46b..e9d3</td><td class="px-4 py-2 text-right text-ev_pass"><i class="ph ph-check"></i> OK</td></tr>
-                <tr><td class="px-4 py-2 text-text/80">coverage-opf__auto__e2e.out</td><td class="px-4 py-2 text-muted">b94d27b9..b410</td><td class="px-4 py-2 text-right text-ev_pass"><i class="ph ph-check"></i> OK</td></tr>
-                <tr><td class="px-4 py-2 text-text/80">ac.exit</td><td class="px-4 py-2 text-muted">5e88489879..f3a2</td><td class="px-4 py-2 text-right text-ev_pass"><i class="ph ph-check"></i> OK</td></tr>
-              </tbody>
-            </table>
-          </div>
-          <p class="mt-2 mono text-[13px] text-muted leading-relaxed">If any file is edited after the run, its sha256 stops matching the manifest. The row turns <span class="text-ev_fail">red (mismatch)</span> and the gate rejects self-check and judge transitions.</p>
-        </section>
-
       </div>
+
+      <!-- error state -->
+      <div id="ev-error" class="hidden grid place-items-center py-16">
+        <div class="text-center max-w-[420px] px-6">
+          <i class="ph ph-warning text-ev_fail text-[28px]"></i>
+          <p class="mt-2 text-[15px] font-medium text-ev_fail">Couldn't load evidence</p>
+          <p class="mt-1 text-[13px] text-muted leading-relaxed" id="ev-error-msg"></p>
+        </div>
+      </div>
+
+      <!-- rendered evidence (filled by the inline renderer from live data) -->
+      <div id="ev-content" class="hidden max-w-[860px] mx-auto px-6 py-6 space-y-5"></div>
     </div>
   </main>
 </div>
 <script src="/api.js"></script>
 <script src="/shell.js"></script>
 <script>
-  /* evidence.js — Live data wiring for evidence page. Fetches from /api/evidence. */
+  /* evidence.js — Live data renderer for the evidence page.
+   *
+   * Resolves the project from the URL path (/<project>/evidence.html) and the
+   * task key from location.hash, fetches the LATEST evidence row plus the task
+   * detail (for the title), and renders everything into the DOM. Nothing is
+   * hardcoded — the page shows only what the API returned. Loading / empty
+   * (task has no evidence) / error states mirror the rest of design-system. */
   (function () {
     'use strict';
     var api = window.__kanban_api;
     if (!api) return;
+
+    function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+    function show(id) {
+      ['ev-loading', 'ev-empty', 'ev-error', 'ev-content'].forEach(function (x) {
+        var el = document.getElementById(x);
+        if (el) el.classList.toggle('hidden', x !== id);
+      });
+    }
+
+    function fmtPct(v) { return (typeof v === 'number') ? (v % 1 === 0 ? v + '.0%' : v + '%') : null; }
+
+    // One check row: exit code + required/optional mode. Optional checks can be
+    // null (lint not run) — render "n/a" rather than a fake pass.
+    function checkRow(icon, name, exit, required) {
+      var mode = required ? 'required' : 'optional';
+      var result, cls;
+      if (exit === null || exit === undefined) { result = 'n/a'; cls = 'text-muted'; }
+      else { result = 'exit ' + exit; cls = exit === 0 ? 'text-ev_pass' : 'text-ev_fail'; }
+      return '<tr>' +
+        '<td class="px-4 py-2.5 flex items-center gap-2"><i class="' + icon + ' text-muted"></i> ' + esc(name) + '</td>' +
+        '<td class="px-4 py-2.5 text-text/70">' + mode + '</td>' +
+        '<td class="px-4 py-2.5 text-right ' + cls + '">' + esc(result) + '</td>' +
+        '</tr>';
+    }
+
+    function render(taskKey, project, ev, title) {
+      // <title> + breadcrumb from the live task key + project.
+      document.title = 'Agentic Kanban - Evidence ' + taskKey;
+      document.getElementById('ev-crumb-project').textContent = project;
+      document.getElementById('ev-crumb-key').textContent = taskKey;
+
+      var allRequiredGreen = ev.build_exit === 0 && ev.test_exit === 0 && ev.ac_exit === 0;
+      var html = '';
+
+      // summary header
+      html += '<div class="rounded-xl border border-border bg-panel p-4">' +
+        '<div class="flex items-start justify-between gap-4">' +
+          '<div>' +
+            '<h1 class="text-[17px] font-semibold" id="ev-title">' + esc(title || taskKey) + '</h1>' +
+            '<p class="mt-0.5 text-[13px] text-muted">Evidence run for <span class="mono text-text">' + esc(taskKey) + '</span></p>' +
+          '</div>';
+      if (allRequiredGreen) {
+        html += '<span class="inline-flex items-center gap-1.5 mono text-[13px] px-2.5 py-1.5 rounded-md bg-st_done/12 text-st_done"><i class="ph-fill ph-shield-check"></i> all required green</span>';
+      } else {
+        html += '<span class="inline-flex items-center gap-1.5 mono text-[13px] px-2.5 py-1.5 rounded-md bg-ev_fail/12 text-ev_fail"><i class="ph-fill ph-warning"></i> required check failed</span>';
+      }
+      html += '</div>' +
+        '<div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 mono text-[13px] text-muted">';
+      if (ev.created_at) html += '<span class="flex items-center gap-1.5"><i class="ph ph-clock"></i> measured ' + esc(ev.created_at) + '</span>';
+      if (ev.submitted_by_token_id) html += '<span class="flex items-center gap-1.5"><i class="ph ph-robot"></i> by token <span class="text-text">' + esc(ev.submitted_by_token_id) + '</span></span>';
+      html += '<span class="flex items-center gap-1.5 text-st_done"><i class="ph-fill ph-lock-simple"></i> immutable &middot; written 0444</span>' +
+        '</div></div>';
+
+      // checks
+      html += '<section><h2 class="text-[13px] uppercase tracking-wider text-muted mb-2">Checks</h2>' +
+        '<div class="rounded-xl border border-border bg-panel overflow-hidden">' +
+        '<table class="w-full text-[13px]"><thead class="text-[13px] text-muted">' +
+          '<tr class="border-b border-border">' +
+            '<th class="text-left font-medium px-4 py-2.5">Check</th>' +
+            '<th class="text-left font-medium px-4 py-2.5">Mode</th>' +
+            '<th class="text-right font-medium px-4 py-2.5">Result</th>' +
+          '</tr></thead><tbody class="divide-y divide-border mono">';
+      html += checkRow('ph-fill ph-hammer', 'build', ev.build_exit, true);
+      html += checkRow('ph-fill ph-test-tube', 'test', ev.test_exit, true);
+      html += checkRow('ph ph-magnifying-glass', 'lint', ev.lint_exit, false);
+      html += checkRow('ph ph-list-checks', 'ac', ev.ac_exit, true);
+      html += '</tbody></table></div></section>';
+
+      // coverage (optional — handle null)
+      var pct = fmtPct(ev.coverage_pct);
+      html += '<section><div class="flex items-center justify-between mb-2">' +
+        '<h2 class="text-[13px] uppercase tracking-wider text-muted">Coverage <span class="normal-case tracking-normal">(optional)</span></h2>';
+      if (pct !== null) {
+        html += '<span class="mono text-[13px] text-ev_pass" id="ev-coverage">' + esc(pct) + '</span>';
+      } else {
+        html += '<span class="mono text-[13px] text-muted" id="ev-coverage">not measured</span>';
+      }
+      html += '</div>';
+      if (pct !== null) {
+        var width = Math.max(0, Math.min(100, ev.coverage_pct));
+        html += '<div class="rounded-xl border border-border bg-panel p-4">' +
+          '<div class="h-1.5 rounded-full bg-panel2 overflow-hidden"><span class="block h-full bg-st_done" style="width:' + width + '%"></span></div>' +
+          '</div>';
+      }
+      html += '</section>';
+
+      // log digests (parse logs_json: filename -> digest) when present
+      var logs = {};
+      try { logs = JSON.parse(ev.logs_json || '{}') || {}; } catch (e) { logs = {}; }
+      var logNames = Object.keys(logs);
+      if (logNames.length > 0) {
+        html += '<section><h2 class="text-[13px] uppercase tracking-wider text-muted mb-2">Log digests</h2>' +
+          '<div class="rounded-xl border border-border bg-panel overflow-hidden">' +
+          '<table class="w-full text-[13px] mono"><thead class="text-[13px] text-muted">' +
+            '<tr class="border-b border-border"><th class="text-left font-medium px-4 py-2">Log</th><th class="text-left font-medium px-4 py-2">Digest</th></tr>' +
+          '</thead><tbody class="divide-y divide-border">';
+        logNames.forEach(function (name) {
+          html += '<tr><td class="px-4 py-2 text-text/80">' + esc(name) + '</td><td class="px-4 py-2 text-muted">' + esc(logs[name]) + '</td></tr>';
+        });
+        html += '</tbody></table></div></section>';
+      }
+
+      // manifest checksum table (parse manifest_json -> .files: file -> sha256)
+      var manifest = {};
+      try { manifest = JSON.parse(ev.manifest_json || '{}') || {}; } catch (e) { manifest = {}; }
+      var files = (manifest && manifest.files) || {};
+      var fileNames = Object.keys(files);
+      html += '<section><div class="flex items-center justify-between mb-2">' +
+        '<h2 class="text-[13px] uppercase tracking-wider text-muted">Manifest checksum</h2>';
+      if (ev.manifest_checksum) {
+        html += '<span class="mono text-[13px] text-muted flex items-center gap-1.5"><i class="ph-fill ph-shield-check text-st_done"></i> ' + esc(ev.manifest_checksum) + '</span>';
+      }
+      html += '</div>';
+      if (fileNames.length > 0) {
+        html += '<div class="rounded-xl border border-border bg-panel overflow-hidden">' +
+          '<table class="w-full text-[13px] mono"><thead class="text-[13px] text-muted">' +
+            '<tr class="border-b border-border"><th class="text-left font-medium px-4 py-2">File</th><th class="text-left font-medium px-4 py-2">sha256</th></tr>' +
+          '</thead><tbody class="divide-y divide-border" id="ev-manifest-rows">';
+        fileNames.forEach(function (name) {
+          html += '<tr><td class="px-4 py-2 text-text/80">' + esc(name) + '</td><td class="px-4 py-2 text-muted">' + esc(files[name]) + '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+      } else {
+        html += '<div class="rounded-xl border border-border bg-panel p-4 text-[13px] text-muted">No manifest files recorded.</div>';
+      }
+      html += '<p class="mt-2 mono text-[13px] text-muted leading-relaxed">If any file is edited after the run, its sha256 stops matching the manifest. The row turns <span class="text-ev_fail">red (mismatch)</span> and the gate rejects self-check and judge transitions.</p>' +
+        '</section>';
+
+      document.getElementById('ev-content').innerHTML = html;
+      show('ev-content');
+    }
+
     // Project comes from the URL path (/<project>/evidence.html), task key from the hash.
     var project = window.projectFromPath ? window.projectFromPath() : '';
     var taskKey = (location.hash || '').replace('#', '');
-    if (!project || !taskKey) return;
-    api.getEvidence(project, taskKey).then(function (res) {
-      if (!res || !res.evidence) return;
-      console.log('[evidence] loaded', res.evidence);
-    }).catch(function () {});
+    if (!project || !taskKey) { show('ev-empty'); return; }
+
+    show('ev-loading');
+    // Fetch the task detail (for the title) and the evidence list in parallel.
+    Promise.all([
+      api.getEvidence(project, taskKey),
+      api.getTask(project, taskKey).catch(function () { return null; }),
+    ]).then(function (results) {
+      var evRes = results[0];
+      var taskRes = results[1];
+      if (!evRes || !evRes.evidence || evRes.evidence.length === 0) { show('ev-empty'); return; }
+      // The API returns evidence oldest-first (created_at ASC); the gate uses
+      // the latest row, so pick the last element.
+      var ev = evRes.evidence[evRes.evidence.length - 1];
+      var title = taskRes && taskRes.task ? taskRes.task.title : '';
+      render(taskKey, project, ev, title);
+    }).catch(function (err) {
+      document.getElementById('ev-error-msg').textContent = String(err);
+      show('ev-error');
+    });
   })();
 </script>
 </body>
