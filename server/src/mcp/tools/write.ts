@@ -490,7 +490,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
 
   // ---------- task.approve ----------
   mcp.registerTool('task.approve', {
-    description: 'Approve a JUDGE_PASSED task → DONE. Human-only.',
+    description: 'Approve a JUDGE_PASSED or READY_TO_REVIEW task → DONE. Human-only.',
     inputSchema: {
       project: z.string().min(1),
       key: z.string().min(1),
@@ -503,12 +503,20 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
     if (unmetApprove.length > 0) {
       throw new Error(`Task ${task.key} is blocked by unmet dependencies: ${formatUnmet(unmetApprove)}`)
     }
+    // Approve covers both the direct judge-pass path and the optional pr-bot
+    // path (TASK-051): a task is approvable from JUDGE_PASSED or READY_TO_REVIEW.
+    // `from` must match the task's actual state so the ALLOWED-table lookup picks
+    // the right edge (JUDGE_PASSED→DONE or READY_TO_REVIEW→DONE).
+    if (task.state !== 'JUDGE_PASSED' && task.state !== 'READY_TO_REVIEW') {
+      throw new Error(`Task is in state '${task.state}', expected 'JUDGE_PASSED' or 'READY_TO_REVIEW'`)
+    }
+    const from = task.state as TaskState
     const repo = makeTransitionRepo(ctx)
     const result = propose(
       {
         task_id: task.id,
-        current_state: task.state as TaskState,
-        from: 'JUDGE_PASSED',
+        current_state: from,
+        from,
         to: 'DONE',
         actor_role: ctx.auth.role as Role,
         actor_token_id: ctx.auth.token_id,
@@ -521,7 +529,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       task_id: task.id,
       project: proj.slug,
       key: task.key,
-      from_state: 'JUDGE_PASSED',
+      from_state: from,
       to_state: 'DONE',
       actor_role: ctx.auth.role as string,
       at: result.transition!.at,
