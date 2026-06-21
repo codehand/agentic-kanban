@@ -1,6 +1,6 @@
 import type { Db } from '../connection.js'
 
-export type TokenRole = 'human' | 'implementer' | 'self-check' | 'judge' | 'runner'
+export type TokenRole = 'human' | 'implementer' | 'self-check' | 'judge' | 'runner' | 'pr-bot'
 
 export interface Token {
   id: string

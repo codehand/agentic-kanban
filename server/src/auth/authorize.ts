@@ -1,7 +1,7 @@
 /**
  * Role -> permission mapping per TASK_HUB_DESIGN.md §3.
  *
- * Roles: human | implementer | self-check | judge | runner
+ * Roles: human | implementer | self-check | judge | runner | pr-bot
  *
  * Permissions defined by the design table:
  *   human       : approve→DONE, reset/remove, mint/revoke token, read-all
@@ -9,9 +9,10 @@
  *   self-check  : trigger evidence run, IMPLEMENTED→SELF_CHECK_*, (no code changes)
  *   judge       : SELF_CHECK_PASSED→JUDGE_*, comment verdict
  *   runner      : evidence.submit ONLY — no transition, no comment
+ *   pr-bot      : JUDGE_PASSED→READY_TO_REVIEW + set pr_url (task.update) + read
  */
 
-export type Role = 'human' | 'implementer' | 'self-check' | 'judge' | 'runner';
+export type Role = 'human' | 'implementer' | 'self-check' | 'judge' | 'runner' | 'pr-bot';
 
 export type Action =
   // Transitions
@@ -19,7 +20,8 @@ export type Action =
   | 'task.transition.in_progress_to_implemented'
   | 'task.transition.self_check'      // IMPLEMENTED -> SELF_CHECK_*
   | 'task.transition.judge'           // SELF_CHECK_PASSED -> JUDGE_*
-  | 'task.transition.approve'         // JUDGE_PASSED -> DONE
+  | 'task.transition.approve'         // JUDGE_PASSED/READY_TO_REVIEW -> DONE
+  | 'task.transition.ready_to_review' // JUDGE_PASSED -> READY_TO_REVIEW (pr-bot)
   | 'task.transition.rework'          // *_FAILED/*_REJECTED -> IN_PROGRESS
   // Token management
   | 'token.mint'
@@ -76,6 +78,13 @@ const PERMISSIONS: Record<Role, Set<Action>> = {
   ]),
   runner: new Set<Action>([
     'evidence.submit',
+    'read',
+  ]),
+  // pr-bot (TASK-051): records the PR link (task.update) and moves the task
+  // JUDGE_PASSED→READY_TO_REVIEW — nothing else (it can never self-approve).
+  'pr-bot': new Set<Action>([
+    'task.transition.ready_to_review',
+    'task.update',
     'read',
   ]),
 };
