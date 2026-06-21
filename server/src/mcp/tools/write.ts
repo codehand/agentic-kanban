@@ -48,6 +48,7 @@ import {
   estimateHoursSchema,
   tagsSchema,
   linkDocumentSchema,
+  prUrlSchema,
 } from '../../validation/task-attributes.js'
 
 const config = loadConfig()
@@ -177,9 +178,10 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
       estimate_hours: estimateHoursSchema.optional(),
       tags: tagsSchema.optional(),
       link_document: linkDocumentSchema.optional(),
+      pr_url: prUrlSchema.optional(),
       depends_on: z.array(z.string()).optional(),
     },
-  }, async ({ project, key, priority, complexity, estimate_hours, tags, link_document, depends_on }) => {
+  }, async ({ project, key, priority, complexity, estimate_hours, tags, link_document, pr_url, depends_on }) => {
     assertAuthorized(ctx.auth.role as Role, 'task.update')
     const { proj, task } = resolveTask(ctx, project, key)
     const patch: Record<string, unknown> = {}
@@ -188,6 +190,7 @@ export function registerWriteTools(mcp: McpServer, ctx: McpContext): void {
     if (estimate_hours !== undefined) patch.estimate_hours = estimate_hours
     if (tags !== undefined) patch.tags = tags
     if (link_document !== undefined) patch.link_document = link_document
+    if (pr_url !== undefined) patch.pr_url = pr_url
     if (depends_on !== undefined) {
       const depIds = validateDependsOn(ctx.db, proj.id, task.key, depends_on, task.id)
       setDependencies(ctx.db, task.id, depIds)
@@ -554,6 +557,7 @@ function transitionAction(from: string, to: string): Action {
     return 'task.transition.rework'
   }
   if (from === 'JUDGE_PASSED' && to === 'DONE') return 'task.transition.approve'
+  if (from === 'JUDGE_PASSED' && to === 'READY_TO_REVIEW') return 'task.transition.ready_to_review'
   // Fallback — gate will reject if truly invalid.
   return 'task.transition.rework'
 }

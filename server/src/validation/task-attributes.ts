@@ -29,6 +29,11 @@ export const tagsSchema = z.array(z.string())
 export const linkDocumentSchema = z.string().url().refine(isHttpUrl, {
   message: 'Must be an http(s) URL',
 })
+// pr_url mirrors REST PATCH validation: an http(s) URL string, or null to
+// clear it. Rejects javascript:/data:/file: the same way isHttpUrl does.
+export const prUrlSchema = z.string().url().refine(isHttpUrl, {
+  message: 'Must be an http(s) URL',
+}).nullable()
 
 export const taskAttributesSchema = z.object({
   priority: prioritySchema.nullable().optional(),
