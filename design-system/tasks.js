@@ -282,78 +282,19 @@
         html += '</div></section>';
       }
 
-      html += renderComments(res.comments || []);
+      // Timeline + Comments — shared renderers (drawer-sections.js) so this
+      // drawer renders identically to the board drawer (TASK-060).
+      html += window.__drawerSections.renderTimeline(res.timeline || []);
+      html += window.__drawerSections.renderComments(res.comments || []);
 
       document.getElementById('drawer-body').innerHTML = html;
-      wireComposer(project, key);
+      window.__drawerSections.wireComposer(api, project, key, function () {
+        refreshDrawerIfOpen(project, key);
+      });
     }).catch(function (err) {
       document.getElementById('drawer-body').innerHTML = '<p class="text-ev_fail text-[14px]">Failed to load task: ' + esc(String(err)) + '</p>';
     });
   };
-
-  /* Comments section: list each comment (author role, kind, verdict badge,
-   * markdown body, relative time) plus a composer. Empty list shows an
-   * explicit "no comments" state. */
-  function renderComments(comments) {
-    var html = '<section data-comments><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-chat-circle-text text-[14px]"></i> Comments</h3>';
-    if (!comments.length) {
-      html += '<p data-comments-empty class="text-[13px] text-muted mb-3">No comments yet.</p>';
-    } else {
-      html += '<ul data-comments-list class="space-y-2 mb-3">';
-      comments.forEach(function (c) {
-        html += '<li class="rounded-lg border border-border bg-panel2 p-2.5">';
-        html += '<div class="flex items-center gap-2 mb-1">';
-        html += '<span class="mono text-[13px] px-1.5 py-0.5 rounded bg-white/5 text-text/70">' + esc(c.author_role || '') + '</span>';
-        html += '<span class="mono text-[12px] text-muted">' + esc(c.kind || '') + '</span>';
-        if (c.kind === 'verdict' && c.verdict) {
-          var vcls = c.verdict === 'PASS' ? 'bg-ev_pass/15 text-ev_pass' : 'bg-ev_fail/15 text-ev_fail';
-          html += '<span class="mono text-[12px] px-1.5 py-0.5 rounded ' + vcls + '">' + esc(c.verdict) + '</span>';
-        }
-        html += '<span class="ml-auto mono text-[12px] text-muted">' + esc(relTime(c.created_at)) + '</span>';
-        html += '</div>';
-        html += '<div class="text-[13px]">' + renderMarkdown(c.body_md || '') + '</div>';
-        html += '</li>';
-      });
-      html += '</ul>';
-    }
-    // Composer: textarea + submit. Submit is disabled until there is text.
-    html += '<div class="space-y-2">';
-    html += '<textarea id="comment-input" rows="3" placeholder="Add a comment…" aria-label="Add a comment" class="w-full rounded-lg border border-border bg-panel2 px-2.5 py-2 text-[13px] outline-none focus:border-accent"></textarea>';
-    html += '<p id="comment-error" class="hidden text-[13px] text-ev_fail"></p>';
-    html += '<button id="comment-submit" type="button" disabled class="rounded-lg border border-border bg-panel2 px-3 py-1.5 text-[13px] text-accent disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/5">Comment</button>';
-    html += '</div></section>';
-    return html;
-  }
-
-  function wireComposer(project, key) {
-    var input = document.getElementById('comment-input');
-    var submit = document.getElementById('comment-submit');
-    var errEl = document.getElementById('comment-error');
-    if (!input || !submit) return;
-    input.addEventListener('input', function () {
-      submit.disabled = input.value.trim().length === 0;
-    });
-    submit.addEventListener('click', function () {
-      var text = input.value.trim();
-      if (!text) return; // empty input cannot be submitted
-      submit.disabled = true;
-      errEl.classList.add('hidden');
-      api.addComment(project, key, text).then(function (resp) {
-        if (resp && (resp.status === 200 || resp.status === 201)) {
-          window.__openDrawer(project, key); // refresh so the new comment appears
-          return;
-        }
-        var msg = resp && resp.body && resp.body.error ? resp.body.error : 'Failed to add comment';
-        errEl.textContent = msg;
-        errEl.classList.remove('hidden');
-        submit.disabled = false;
-      }).catch(function (err) {
-        errEl.textContent = 'Failed to add comment: ' + String(err);
-        errEl.classList.remove('hidden');
-        submit.disabled = false;
-      });
-    });
-  }
 
   window.closeDrawer = function () {
     var drawer = document.getElementById('drawer');
