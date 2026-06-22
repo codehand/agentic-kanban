@@ -14,6 +14,7 @@ import { z } from 'zod'
 import { randomBytes } from 'node:crypto'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { assertAuthorized, type Role, type Action } from '../../auth/authorize.js'
+import { commentAction } from '../../auth/comment-action.js'
 import { propose, type TransitionRepository } from '../../domain/gate.js'
 import { submit as submitEvidence, selfcheck as runSelfcheck } from '../../domain/evidence.js'
 import { validateAndChecksumManifest } from '../../domain/checksum.js'
@@ -568,18 +569,4 @@ function transitionAction(from: string, to: string): Action {
   if (from === 'JUDGE_PASSED' && to === 'READY_TO_REVIEW') return 'task.transition.ready_to_review'
   // Fallback — gate will reject if truly invalid.
   return 'task.transition.rework'
-}
-
-/** Map a comment kind to the required action. */
-function commentAction(kind: string): Action {
-  switch (kind) {
-    case 'narrative':
-      return 'comment.narrative'
-    case 'verdict':
-      return 'comment.verdict'
-    case 'review':
-      return 'comment.review'
-    default:
-      return 'comment.narrative'
-  }
 }

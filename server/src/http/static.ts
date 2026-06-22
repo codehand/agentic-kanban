@@ -54,7 +54,10 @@ export function mountStatic(
     const url = (req.url ?? '/').split('?')[0]
 
     // Skip API, MCP and health routes — let them be handled by other mounts.
-    if (url.startsWith('/api/') || url.startsWith('/mcp') || url === '/healthz' || url.startsWith('/healthz/')) {
+    // The MCP endpoint is exactly `/mcp` (and `/mcp/...`); match that segment
+    // precisely so project slugs that merely start with "mcp" (e.g.
+    // `/mcp-verify/index.html`) still serve their static pages.
+    if (url.startsWith('/api/') || url === '/mcp' || url.startsWith('/mcp/') || url === '/healthz' || url.startsWith('/healthz/')) {
       handle(req, res)
       return
     }

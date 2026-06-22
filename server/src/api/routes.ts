@@ -24,10 +24,11 @@ import type { Db } from '../db/connection.js'
 import { parseBearerHeader } from '../auth/parse.js'
 import { resolveBearer, type ResolvedToken } from '../auth/resolve.js'
 import { authorize, type Role } from '../auth/authorize.js'
+import { commentAction } from '../auth/comment-action.js'
 import { ScopeError, assertUnscoped, filterProjectsByScope, resolveProjectInScope, resolveProjectRef } from '../auth/scope.js'
 import { listProjects, getProjectBySlug, getProjectById, insertProject } from '../db/repositories/project.js'
 import { listTasksByProject, getTaskByKey, getTaskById, insertTask, updateTaskAttributes } from '../db/repositories/task.js'
-import { listCommentsByTask, insertComment } from '../db/repositories/comment.js'
+import { listCommentsByTask, insertComment, type CommentKind, type Verdict } from '../db/repositories/comment.js'
 import { getLatestEvidenceByTask, listEvidenceByTask } from '../db/repositories/evidence.js'
 import { listGitRefsByTask } from '../db/repositories/gitref.js'
 import { listTransitionsByTask } from '../db/repositories/transition.js'
@@ -668,11 +669,19 @@ async function handleRemove(db: Db, key: string, query: Record<string, string>, 
   sendJson(res, 200, { removed: true, key })
 }
 
+const COMMENT_KINDS: readonly CommentKind[] = ['narrative', 'verdict', 'review', 'note']
+
 async function handleAddComment(db: Db, key: string, query: Record<string, string>, auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): Promise<void> {
-  // The web UI authenticates as `human`, which holds `comment.review`; the
-  // endpoint therefore inserts a comment of kind 'review' (no new repository,
-  // same chokepoints as handleApprove/handleReset).
-  if (!authorize(auth.role as Role, 'comment.review')) {
+  const body = await readJsonBody(req)
+  // `kind` defaults to 'review' so the existing web-UI composer (body_md only,
+  // authenticated as `human`) keeps working unchanged.
+  const kind = typeof body?.['kind'] === 'string' ? body['kind'] : 'review'
+  if (!COMMENT_KINDS.includes(kind as CommentKind)) {
+    sendJson(res, 400, { error: `Invalid kind: ${kind}` }); return
+  }
+  // Authorize per kind via the SAME mapping the MCP `comment.add` tool uses, so
+  // REST and MCP comment surfaces stay in parity (human→review, judge→verdict…).
+  if (!authorize(auth.role as Role, commentAction(kind))) {
     sendJson(res, 403, { error: 'Forbidden' }); return
   }
   const projectRef = query['project']
@@ -688,17 +697,21 @@ async function handleAddComment(db: Db, key: string, query: Record<string, strin
   if (!task) {
     sendJson(res, 404, { error: `Task not found: ${key}` }); return
   }
-  const body = await readJsonBody(req)
   const bodyMd = typeof body?.['body_md'] === 'string' ? body['body_md'].trim() : ''
   if (!bodyMd) {
     sendJson(res, 422, { error: 'body_md is required' }); return
   }
+  // Only verdict comments carry a verdict value (PASS/REJECT).
+  const verdict = kind === 'verdict' && typeof body?.['verdict'] === 'string'
+    ? (body['verdict'] as Verdict)
+    : undefined
   const comment = insertComment(db, {
     id: `cm_${randomBytes(8).toString('hex')}`,
     task_id: task.id,
     author_role: auth.role,
     author_token_id: auth.token_id,
-    kind: 'review',
+    kind: kind as CommentKind,
+    verdict,
     body_md: bodyMd,
   })
   sendJson(res, 201, { comment })
