@@ -218,6 +218,7 @@
 <script src="/api.js"></script>
 <script src="/shell.js"></script>
 <script src="/md.js"></script>
+<script src="/drawer-sections.js"></script>
 <script>
   /* board.js — Live board wiring. Fetches tasks from /api/tasks and renders cards. */
   (function () {
@@ -598,23 +599,17 @@
           html += '</section>';
         }
 
-        // Timeline
-        if (res.timeline && res.timeline.length > 0) {
-          html += '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-3 flex items-center gap-1.5"><i class="ph ph-clock-counter-clockwise text-[14px]"></i> Timeline</h3>';
-          html += '<ol class="relative border-l border-border ml-1.5 space-y-4 pl-4">';
-          res.timeline.slice().reverse().forEach(function (tr) { // newest-first; copy so the original array stays untouched
-            var dotColor = tr.to_state === 'DONE' ? 'bg-st_done' : tr.to_state === 'JUDGE_PASSED' ? 'bg-st_human' : tr.actor_role === 'judge' ? 'bg-st_self' : 'bg-border';
-            html += '<li class="relative"><span class="absolute -left-[22px] top-1 w-3 h-3 rounded-full ' + dotColor + ' ring-4 ring-panel"></span>';
-            html += '<p class="text-[13px]"><span class="mono px-1.5 py-0.5 rounded bg-white/5 text-text/70">' + esc(tr.actor_role || '') + '</span> ';
-            html += '<span class="mono text-text/70">' + esc(tr.from_state || '') + '</span> &rarr; <span class="mono text-text">' + esc(tr.to_state || '') + '</span></p>';
-            if (tr.note) html += '<p class="mt-0.5 text-[13px] text-text/80">' + esc(tr.note) + '</p>';
-            html += '<p class="mt-0.5 mono text-[13px] text-muted">' + relTime(tr.at) + ' ago</p>';
-            html += '</li>';
-          });
-          html += '</ol></section>';
-        }
+        // Timeline + Comments — shared renderers (drawer-sections.js) so this
+        // drawer renders identically to the tasks-list drawer (TASK-060).
+        html += window.__drawerSections.renderTimeline(res.timeline || []);
+        html += window.__drawerSections.renderComments(res.comments || []);
 
         document.getElementById('drawer-body').innerHTML = html;
+        // Wire the comment composer: on a successful post, refetch the open
+        // drawer (same refresh path as actions) so the new comment appears.
+        window.__drawerSections.wireComposer(api, project, key, function () {
+          refreshDrawerIfOpen(project, key);
+        });
         // Populate edit form values (inline <script> tags don't execute via innerHTML)
         if (typeof window.__populateEditForm === 'function') window.__populateEditForm();
       }).catch(function (err) {
