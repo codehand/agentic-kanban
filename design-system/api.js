@@ -171,6 +171,24 @@
         body: JSON.stringify(patch),
       }).then(function (r) { return r ? r.json() : null; });
     },
+
+    // POST /api/tasks/:key/comments — add a review comment. Resolves
+    // {status, body} so the composer can surface a failed POST (e.g. 403)
+    // inline rather than silently swallowing it.
+    addComment: function (project, key, body) {
+      var qs = '?project=' + encodeURIComponent(project);
+      return apiFetch('/tasks/' + encodeURIComponent(key) + '/comments' + qs, {
+        method: 'POST',
+        headers: Object.assign(authHeaders(), { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ body_md: body || '' }),
+      }).then(function (r) {
+        if (!r) return null;
+        return r.json().then(
+          function (b) { return { status: r.status, body: b }; },
+          function () { return { status: r.status, body: null }; }
+        );
+      });
+    },
   };
 
   // --- SSE connection ---
