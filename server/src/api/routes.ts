@@ -13,6 +13,7 @@
  *   POST /api/tasks/:key/approve?project= — approve JUDGE_PASSED → DONE
  *   POST /api/tasks/:key/reset?project=   — reset task to IN_PROGRESS
  *   POST /api/tasks/:key/remove?project=  — remove task
+ *   POST /api/tasks/:key/comments?project= — add a review comment (human)
  *   DELETE /api/tokens/:id                — revoke a token (human only)
  *
  * All endpoints require bearer auth (401 if missing/invalid).
@@ -26,7 +27,7 @@ import { authorize, type Role } from '../auth/authorize.js'
 import { ScopeError, assertUnscoped, filterProjectsByScope, resolveProjectInScope, resolveProjectRef } from '../auth/scope.js'
 import { listProjects, getProjectBySlug, getProjectById, insertProject } from '../db/repositories/project.js'
 import { listTasksByProject, getTaskByKey, getTaskById, insertTask, updateTaskAttributes } from '../db/repositories/task.js'
-import { listCommentsByTask } from '../db/repositories/comment.js'
+import { listCommentsByTask, insertComment } from '../db/repositories/comment.js'
 import { getLatestEvidenceByTask, listEvidenceByTask } from '../db/repositories/evidence.js'
 import { listGitRefsByTask } from '../db/repositories/gitref.js'
 import { listTransitionsByTask } from '../db/repositories/transition.js'
@@ -667,6 +668,42 @@ async function handleRemove(db: Db, key: string, query: Record<string, string>, 
   sendJson(res, 200, { removed: true, key })
 }
 
+async function handleAddComment(db: Db, key: string, query: Record<string, string>, auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  // The web UI authenticates as `human`, which holds `comment.review`; the
+  // endpoint therefore inserts a comment of kind 'review' (no new repository,
+  // same chokepoints as handleApprove/handleReset).
+  if (!authorize(auth.role as Role, 'comment.review')) {
+    sendJson(res, 403, { error: 'Forbidden' }); return
+  }
+  const projectRef = query['project']
+  if (!projectRef) {
+    sendJson(res, 400, { error: 'project query param is required' }); return
+  }
+  // Shared scope chokepoint: scoped tokens 403 on anything but their own project.
+  const proj = resolveProjectInScope(db, auth, projectRef)
+  if (!proj) {
+    sendJson(res, 404, { error: `Project not found: ${projectRef}` }); return
+  }
+  const task = getTaskByKey(db, proj.id, key)
+  if (!task) {
+    sendJson(res, 404, { error: `Task not found: ${key}` }); return
+  }
+  const body = await readJsonBody(req)
+  const bodyMd = typeof body?.['body_md'] === 'string' ? body['body_md'].trim() : ''
+  if (!bodyMd) {
+    sendJson(res, 422, { error: 'body_md is required' }); return
+  }
+  const comment = insertComment(db, {
+    id: `cm_${randomBytes(8).toString('hex')}`,
+    task_id: task.id,
+    author_role: auth.role,
+    author_token_id: auth.token_id,
+    kind: 'review',
+    body_md: bodyMd,
+  })
+  sendJson(res, 201, { comment })
+}
+
 // ---------------------------------------------------------------------------
 // Router mount
 // ---------------------------------------------------------------------------
@@ -771,6 +808,10 @@ export function mountApiRoutes(
         const removeMatch = path.match(/^\/api\/tasks\/([^/]+)\/remove$/)
         if (removeMatch) {
           await handleRemove(db, decodeURIComponent(removeMatch[1]!), query, auth, req, res); return
+        }
+        const commentMatch = path.match(/^\/api\/tasks\/([^/]+)\/comments$/)
+        if (commentMatch) {
+          await handleAddComment(db, decodeURIComponent(commentMatch[1]!), query, auth, req, res); return
         }
       }
 
