@@ -543,10 +543,13 @@
         document.getElementById('drawer-state-badge').className = 'inline-flex items-center gap-1 mono text-[13px] px-1.5 py-0.5 rounded ' + st.cls;
         document.getElementById('drawer-state-badge').innerHTML = '<i class="ph' + (st.fill ? '-fill' : '') + ' ' + st.icon + ' text-[13px]"></i>' + esc(st.text);
 
-        // Show action buttons based on state
-        if (t.state === 'JUDGE_PASSED' || t.state === 'READY_TO_REVIEW') document.getElementById('btn-approve').classList.remove('hidden');
-        if (t.state === 'JUDGE_REJECTED' || t.state === 'SELF_CHECK_FAILED') document.getElementById('btn-reset').classList.remove('hidden');
-        document.getElementById('btn-remove').classList.remove('hidden');
+        // Show action buttons based on state. A DONE task is terminal and
+        // shows NO actions at all (no approve/reset/remove).
+        if (t.state !== 'DONE') {
+          if (t.state === 'JUDGE_PASSED' || t.state === 'READY_TO_REVIEW') document.getElementById('btn-approve').classList.remove('hidden');
+          if (t.state === 'JUDGE_REJECTED' || t.state === 'SELF_CHECK_FAILED') document.getElementById('btn-reset').classList.remove('hidden');
+          document.getElementById('btn-remove').classList.remove('hidden');
+        }
 
         // Render body
         var html = '';

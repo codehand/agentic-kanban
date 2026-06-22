@@ -67,7 +67,17 @@
   }
 
   var allItems = []; // {task, project}
+  var selectedTask = null; // {project, key, state} — the task open in the drawer
   var sortKey = null, sortDir = 'asc'; // null = default order (API order), unchanged
+
+  // Toast (mirrors index.html showToast): brief confirmation in the corner.
+  function showToast(msg) {
+    var t = document.getElementById('toast');
+    if (!t) return;
+    document.getElementById('toast-msg').textContent = msg;
+    t.classList.remove('hidden'); t.classList.add('flex');
+    setTimeout(function () { t.classList.add('hidden'); t.classList.remove('flex'); }, 3200);
+  }
 
   // State sorts by lifecycle stage (pipeline order), fail variant after pass.
   function stateRank(s) {
@@ -204,6 +214,7 @@
   window.__openDrawer = function (project, key) {
     var drawer = document.getElementById('drawer');
     var scrim = document.getElementById('scrim');
+    selectedTask = { project: project, key: key };
     drawer.classList.remove('translate-x-full');
     scrim.classList.remove('opacity-0', 'pointer-events-none');
     document.getElementById('drawer-key').textContent = key;
@@ -211,6 +222,11 @@
     document.getElementById('drawer-state-badge').innerHTML = '';
     document.getElementById('drawer-project').textContent = project;
     document.getElementById('drawer-updated').textContent = '';
+    // Reset action buttons to hidden each time the drawer (re)loads; state-gated
+    // reveal happens below once the task detail comes back.
+    document.getElementById('btn-approve').classList.add('hidden');
+    document.getElementById('btn-reset').classList.add('hidden');
+    document.getElementById('btn-remove').classList.add('hidden');
     document.getElementById('drawer-body').innerHTML = '<div class="grid place-items-center py-8 text-muted text-[14px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[17px]"></i> Loading…</span></div>';
 
     if (!api) return;
@@ -220,11 +236,20 @@
         return;
       }
       var t = res.task;
+      selectedTask.state = t.state;
       document.getElementById('drawer-title').textContent = t.title;
       document.getElementById('drawer-updated').textContent = relTime(t.updated_at);
       var st = STATE_LABEL[t.state] || { text: t.state, icon: 'ph-circle', cls: 'bg-white/5 text-muted' };
       document.getElementById('drawer-state-badge').className = 'inline-flex items-center gap-1 mono text-[13px] px-1.5 py-0.5 rounded ' + st.cls;
       document.getElementById('drawer-state-badge').innerHTML = '<i class="ph' + (st.fill ? '-fill' : '') + ' ' + st.icon + ' text-[13px]"></i>' + esc(st.text);
+
+      // Show human-action buttons based on state (identical gating to the board
+      // drawer). A DONE task is terminal and shows NO actions at all.
+      if (t.state !== 'DONE') {
+        if (t.state === 'JUDGE_PASSED' || t.state === 'READY_TO_REVIEW') document.getElementById('btn-approve').classList.remove('hidden');
+        if (t.state === 'JUDGE_REJECTED' || t.state === 'SELF_CHECK_FAILED') document.getElementById('btn-reset').classList.remove('hidden');
+        document.getElementById('btn-remove').classList.remove('hidden');
+      }
 
       var html = '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-file-text text-[14px]"></i> Spec</h3>';
       html += '<div class="text-[13px]">' + renderMarkdown(t.body_md || '(no spec)') + '</div></section>';
@@ -335,6 +360,74 @@
     var scrim = document.getElementById('scrim');
     drawer.classList.add('translate-x-full');
     scrim.classList.add('opacity-0', 'pointer-events-none');
+  };
+
+  // Refetch the open drawer (badge/buttons/body) for (project, key) when it is
+  // still the selected task — same refetch path the board drawer uses.
+  function refreshDrawerIfOpen(project, key) {
+    if (!selectedTask || !key || selectedTask.key !== key) return;
+    if (project && selectedTask.project !== project) return;
+    var drawer = document.getElementById('drawer');
+    if (drawer.classList.contains('translate-x-full')) return; // closed
+    window.__openDrawer(selectedTask.project, selectedTask.key);
+  }
+
+  // --- Human actions (mirror the board drawer in index.html) ---
+  var confirmEl = function () { return document.getElementById('confirm'); };
+
+  window.confirmApprove = function () {
+    if (!selectedTask) return;
+    document.getElementById('confirm-title').textContent = 'Approve ' + selectedTask.key + '?';
+    var c = confirmEl(); c.classList.remove('hidden'); c.classList.add('flex');
+  };
+  window.closeConfirm = function () {
+    var c = confirmEl(); c.classList.add('hidden'); c.classList.remove('flex');
+  };
+
+  window.doApprove = function () {
+    if (!selectedTask || !api) return;
+    window.closeConfirm();
+    var note = document.getElementById('confirm-note').value;
+    api.approveTask(selectedTask.project, selectedTask.key, note).then(function (res) {
+      if (res && res.task) {
+        showToast(selectedTask.key + ' marked DONE. MRs left open for manual merge.');
+        loadTasks();
+        refreshDrawerIfOpen(selectedTask.project, selectedTask.key);
+      } else {
+        showToast('Approve failed: ' + selectedTask.key);
+      }
+    }).catch(function (err) {
+      showToast('Approve failed: ' + String(err && err.message || err));
+    });
+  };
+
+  window.doReset = function () {
+    if (!selectedTask || !api) return;
+    api.resetTask(selectedTask.project, selectedTask.key).then(function (res) {
+      if (res && res.task) {
+        showToast(selectedTask.key + ' reset to IN_PROGRESS.');
+        setTimeout(function () { loadTasks(); window.closeDrawer(); }, 800);
+      } else {
+        showToast('Reset failed: ' + selectedTask.key);
+      }
+    }).catch(function (err) {
+      showToast('Reset failed: ' + String(err && err.message || err));
+    });
+  };
+
+  window.doRemove = function () {
+    if (!selectedTask || !api) return;
+    if (!confirm('Remove ' + selectedTask.key + '?')) return;
+    api.removeTask(selectedTask.project, selectedTask.key).then(function (res) {
+      if (res && res.removed) {
+        showToast(selectedTask.key + ' removed.');
+        setTimeout(function () { loadTasks(); window.closeDrawer(); }, 800);
+      } else {
+        showToast('Remove failed: ' + selectedTask.key);
+      }
+    }).catch(function (err) {
+      showToast('Remove failed: ' + String(err && err.message || err));
+    });
   };
 
   document.addEventListener('keydown', function (e) {
