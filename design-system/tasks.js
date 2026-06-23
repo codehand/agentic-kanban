@@ -225,6 +225,7 @@
     // Reset action buttons to hidden each time the drawer (re)loads; state-gated
     // reveal happens below once the task detail comes back.
     document.getElementById('btn-approve').classList.add('hidden');
+    document.getElementById('btn-reject').classList.add('hidden');
     document.getElementById('btn-reset').classList.add('hidden');
     document.getElementById('btn-remove').classList.add('hidden');
     document.getElementById('drawer-body').innerHTML = '<div class="grid place-items-center py-8 text-muted text-[14px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[17px]"></i> Loading…</span></div>';
@@ -246,7 +247,10 @@
       // Show human-action buttons based on state (identical gating to the board
       // drawer). A DONE task is terminal and shows NO actions at all.
       if (t.state !== 'DONE') {
-        if (t.state === 'JUDGE_PASSED' || t.state === 'READY_TO_REVIEW') document.getElementById('btn-approve').classList.remove('hidden');
+        if (t.state === 'JUDGE_PASSED' || t.state === 'READY_TO_REVIEW') {
+          document.getElementById('btn-approve').classList.remove('hidden');
+          document.getElementById('btn-reject').classList.remove('hidden');
+        }
         if (t.state === 'JUDGE_REJECTED' || t.state === 'SELF_CHECK_FAILED') document.getElementById('btn-reset').classList.remove('hidden');
         document.getElementById('btn-remove').classList.remove('hidden');
       }
@@ -315,6 +319,7 @@
 
   // --- Human actions (mirror the board drawer in index.html) ---
   var confirmEl = function () { return document.getElementById('confirm'); };
+  var rejectEl = function () { return document.getElementById('reject'); };
 
   window.confirmApprove = function () {
     if (!selectedTask) return;
@@ -339,6 +344,40 @@
       }
     }).catch(function (err) {
       showToast('Approve failed: ' + String(err && err.message || err));
+    });
+  };
+
+  // --- Reject (TASK-063): note is mandatory; submit stays disabled until set ---
+  window.confirmReject = function () {
+    if (!selectedTask) return;
+    document.getElementById('reject-title').textContent = 'Reject ' + selectedTask.key + '?';
+    var note = document.getElementById('reject-note');
+    note.value = '';
+    window.onRejectNoteInput();
+    var c = rejectEl(); c.classList.remove('hidden'); c.classList.add('flex');
+  };
+  window.closeReject = function () {
+    var c = rejectEl(); c.classList.add('hidden'); c.classList.remove('flex');
+  };
+  window.onRejectNoteInput = function () {
+    var note = document.getElementById('reject-note').value.trim();
+    document.getElementById('reject-submit').disabled = note.length === 0;
+  };
+  window.doReject = function () {
+    if (!selectedTask || !api) return;
+    var note = document.getElementById('reject-note').value.trim();
+    if (!note) return;
+    window.closeReject();
+    api.rejectTask(selectedTask.project, selectedTask.key, note).then(function (res) {
+      if (res && res.task) {
+        showToast(selectedTask.key + ' sent back to JUDGE_REJECTED.');
+        loadTasks();
+        refreshDrawerIfOpen(selectedTask.project, selectedTask.key);
+      } else {
+        showToast('Reject failed: ' + selectedTask.key);
+      }
+    }).catch(function (err) {
+      showToast('Reject failed: ' + String(err && err.message || err));
     });
   };
 

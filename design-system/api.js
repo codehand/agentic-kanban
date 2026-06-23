@@ -139,6 +139,18 @@
       }).then(function (r) { return r ? r.json() : null; });
     },
 
+    // POST /api/tasks/:key/reject — human review-stage reject. A note is
+    // mandatory server-side (400 if missing); the server records it as a
+    // comment and moves the task to JUDGE_REJECTED.
+    rejectTask: function (project, key, note) {
+      var qs = '?project=' + encodeURIComponent(project);
+      return apiFetch('/tasks/' + encodeURIComponent(key) + '/reject' + qs, {
+        method: 'POST',
+        headers: Object.assign(authHeaders(), { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ note: note || '' }),
+      }).then(function (r) { return r ? r.json() : null; });
+    },
+
     resetTask: function (project, key) {
       var qs = '?project=' + encodeURIComponent(project);
       return apiFetch('/tasks/' + encodeURIComponent(key) + '/reset' + qs, {

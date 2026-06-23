@@ -171,6 +171,9 @@
       <button id="btn-approve" onclick="confirmApprove()" class="hidden flex items-center gap-2 rounded-md bg-st_human px-3.5 h-9 text-[14px] font-semibold text-white hover:brightness-110 active:translate-y-px glow-human">
         <i class="ph-fill ph-check-circle text-[16px]"></i> Approve &rarr; Done
       </button>
+      <button id="btn-reject" onclick="confirmReject()" class="hidden flex items-center gap-2 rounded-md border border-st_reject/40 bg-panel2 px-3.5 h-9 text-[14px] font-semibold text-st_reject hover:bg-st_reject/10 active:translate-y-px">
+        <i class="ph-fill ph-x-circle text-[16px]"></i> Reject
+      </button>
       <button id="btn-reset" onclick="doReset()" class="hidden flex items-center gap-1.5 rounded-md border border-border bg-panel2 px-3 h-9 text-[13px] text-muted hover:text-text hover:border-borderlt">
         <i class="ph ph-arrow-counter-clockwise text-[15px]"></i> Reset
       </button>
@@ -209,6 +212,29 @@
   </div>
 </div>
 
+<!-- ============ REJECT DIALOG (TASK-063) — note required ============ -->
+<div id="reject" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/60 p-4">
+  <div class="w-full max-w-sm rounded-xl border border-st_reject/30 bg-panel p-5">
+    <div class="flex items-center gap-2.5">
+      <span class="grid place-items-center w-9 h-9 rounded-lg bg-st_reject/15 text-st_reject"><i class="ph-fill ph-x-circle text-[19px]"></i></span>
+      <h3 id="reject-title" class="text-[16px] font-semibold">Reject task?</h3>
+    </div>
+    <p class="mt-3 text-[13px] text-muted leading-relaxed">
+      This sends the task back to <span class="text-text font-medium">JUDGE_REJECTED</span> for rework. A reason is required so the implementer knows what to fix.
+    </p>
+    <div class="mt-3">
+      <label class="text-[13px] text-muted">Reason <span class="text-st_reject">*</span></label>
+      <textarea id="reject-note" rows="3" oninput="onRejectNoteInput()" class="mt-1 w-full rounded-md border border-border bg-panel2 px-2.5 py-2 text-[13px] text-text placeholder:text-muted outline-none focus:border-st_reject/60" placeholder="Missing integration test for the error path."></textarea>
+    </div>
+    <div class="mt-4 flex items-center justify-end gap-2">
+      <button onclick="closeReject()" class="rounded-md border border-border bg-panel2 px-3 h-9 text-[13px] text-muted hover:text-text">Cancel</button>
+      <button id="reject-submit" onclick="doReject()" disabled class="flex items-center gap-1.5 rounded-md bg-st_reject px-3.5 h-9 text-[13px] font-semibold text-white hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed">
+        <i class="ph-fill ph-x text-[15px]"></i> Confirm Reject
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ TOAST ============ -->
 <div id="toast" class="fixed bottom-4 right-4 z-[70] hidden items-center gap-2 rounded-lg border border-st_done/30 bg-panel px-3.5 py-2.5 text-[13px] shadow-lg">
   <i id="toast-icon" class="ph-fill ph-check-circle text-st_done text-[17px]"></i>
@@ -227,6 +253,7 @@
     var drawer = document.getElementById('drawer');
     var scrim  = document.getElementById('scrim');
     var confirmEl = document.getElementById('confirm');
+    var rejectEl = document.getElementById('reject');
     var selectedTask = null; // { project, key, state }
 
     // --- State → column mapping ---
@@ -525,6 +552,7 @@
       document.getElementById('drawer-project').textContent = project;
       document.getElementById('drawer-updated').textContent = '';
       document.getElementById('btn-approve').classList.add('hidden');
+      document.getElementById('btn-reject').classList.add('hidden');
       document.getElementById('btn-reset').classList.add('hidden');
       document.getElementById('btn-remove').classList.add('hidden');
       document.getElementById('drawer-body').innerHTML = '<div class="grid place-items-center py-8 text-muted text-[14px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[17px]"></i> Loading…</span></div>';
@@ -547,7 +575,10 @@
         // Show action buttons based on state. A DONE task is terminal and
         // shows NO actions at all (no approve/reset/remove).
         if (t.state !== 'DONE') {
-          if (t.state === 'JUDGE_PASSED' || t.state === 'READY_TO_REVIEW') document.getElementById('btn-approve').classList.remove('hidden');
+          if (t.state === 'JUDGE_PASSED' || t.state === 'READY_TO_REVIEW') {
+            document.getElementById('btn-approve').classList.remove('hidden');
+            document.getElementById('btn-reject').classList.remove('hidden');
+          }
           if (t.state === 'JUDGE_REJECTED' || t.state === 'SELF_CHECK_FAILED') document.getElementById('btn-reset').classList.remove('hidden');
           document.getElementById('btn-remove').classList.remove('hidden');
         }
@@ -652,6 +683,34 @@
           showToast('TASK', selectedTask.key + ' marked DONE. MRs left open for manual merge.');
           // Refresh board + drawer from the server (same refetch path the SSE
           // handlers use) so the open drawer shows the new state/timeline.
+          loadBoard();
+          refreshDrawerIfOpen(selectedTask.project, selectedTask.key);
+        }
+      });
+    };
+
+    // --- Reject (TASK-063): note is mandatory; submit stays disabled until set ---
+    window.confirmReject = function () {
+      if (!selectedTask) return;
+      document.getElementById('reject-title').textContent = 'Reject ' + selectedTask.key + '?';
+      var note = document.getElementById('reject-note');
+      note.value = '';
+      onRejectNoteInput();
+      rejectEl.classList.remove('hidden'); rejectEl.classList.add('flex');
+    };
+    window.closeReject = function () { rejectEl.classList.add('hidden'); rejectEl.classList.remove('flex'); };
+    window.onRejectNoteInput = function () {
+      var note = document.getElementById('reject-note').value.trim();
+      document.getElementById('reject-submit').disabled = note.length === 0;
+    };
+    window.doReject = function () {
+      if (!selectedTask || !api) return;
+      var note = document.getElementById('reject-note').value.trim();
+      if (!note) return;
+      closeReject();
+      api.rejectTask(selectedTask.project, selectedTask.key, note).then(function (res) {
+        if (res && res.task) {
+          showToast('reject', selectedTask.key + ' sent back to JUDGE_REJECTED.');
           loadBoard();
           refreshDrawerIfOpen(selectedTask.project, selectedTask.key);
         }

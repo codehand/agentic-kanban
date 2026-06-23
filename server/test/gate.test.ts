@@ -267,34 +267,46 @@ describe('AC5: ->IMPLEMENTED gitref guard', () => {
 
 describe('AC6: verdict guard', () => {
   it('rejects ->JUDGE_PASSED with no verdict comment', () => {
-    const err = guardVerdict('JUDGE_PASSED', [])
+    const err = guardVerdict('SELF_CHECK_PASSED', 'JUDGE_PASSED', [])
     expect(err).toBeTruthy()
     expect(err).toMatch(/verdict/i)
   })
 
   it('rejects ->JUDGE_PASSED with wrong verdict value', () => {
-    const err = guardVerdict('JUDGE_PASSED', [{ kind: 'verdict', verdict: 'REJECT' }])
+    const err = guardVerdict('SELF_CHECK_PASSED', 'JUDGE_PASSED', [{ kind: 'verdict', verdict: 'REJECT' }])
     expect(err).toBeTruthy()
   })
 
   it('rejects ->JUDGE_REJECTED with no verdict comment', () => {
-    const err = guardVerdict('JUDGE_REJECTED', [])
+    const err = guardVerdict('SELF_CHECK_PASSED', 'JUDGE_REJECTED', [])
     expect(err).toBeTruthy()
   })
 
   it('passes ->JUDGE_PASSED with verdict=PASS comment', () => {
-    const err = guardVerdict('JUDGE_PASSED', [{ kind: 'verdict', verdict: 'PASS' }])
+    const err = guardVerdict('SELF_CHECK_PASSED', 'JUDGE_PASSED', [{ kind: 'verdict', verdict: 'PASS' }])
     expect(err).toBeNull()
   })
 
   it('passes ->JUDGE_REJECTED with verdict=REJECT comment', () => {
-    const err = guardVerdict('JUDGE_REJECTED', [{ kind: 'verdict', verdict: 'REJECT' }])
+    const err = guardVerdict('SELF_CHECK_PASSED', 'JUDGE_REJECTED', [{ kind: 'verdict', verdict: 'REJECT' }])
     expect(err).toBeNull()
   })
 
   it('ignores non-verdict kind comments', () => {
-    const err = guardVerdict('JUDGE_PASSED', [{ kind: 'narrative', verdict: 'PASS' }])
+    const err = guardVerdict('SELF_CHECK_PASSED', 'JUDGE_PASSED', [{ kind: 'narrative', verdict: 'PASS' }])
     expect(err).toBeTruthy()
+  })
+
+  // TASK-063: the verdict requirement is scoped to the JUDGE's edge. The human
+  // review-stage reject edges carry no judge verdict comment and must be exempt.
+  it('exempts human JUDGE_PASSED -> JUDGE_REJECTED (no judge verdict required)', () => {
+    const err = guardVerdict('JUDGE_PASSED', 'JUDGE_REJECTED', [])
+    expect(err).toBeNull()
+  })
+
+  it('exempts human READY_TO_REVIEW -> JUDGE_REJECTED (no judge verdict required)', () => {
+    const err = guardVerdict('READY_TO_REVIEW', 'JUDGE_REJECTED', [])
+    expect(err).toBeNull()
   })
 
   it('rejects ->JUDGE_PASSED via propose() without verdict comment', () => {

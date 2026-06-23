@@ -360,3 +360,87 @@ describe('GET /api/evidence/:key', () => {
     expect(Array.isArray(body.evidence)).toBe(true)
   })
 })
+
+// ---------------------------------------------------------------------------
+// TASK-063: human reject at the review stage (JUDGE_PASSED/READY_TO_REVIEW
+// -> JUDGE_REJECTED). The reject edge carries NO judge verdict comment, so it
+// must pass the gate; a note is mandatory and is recorded as a comment.
+// ---------------------------------------------------------------------------
+
+describe('TASK-063: human reject JUDGE_PASSED/READY_TO_REVIEW -> JUDGE_REJECTED', () => {
+  const REJ_PROJECT = 'test-proj'
+
+  function seedRejectTask(id: string, key: string, state: string): void {
+    db.prepare('DELETE FROM task WHERE id = ?').run(id)
+    insertTask(db, { id, project_id: PROJECT_ID, key, title: 'Reject test', body_md: 'b', state: state as 'JUDGE_PASSED' })
+  }
+
+  it('POST /reject from JUDGE_PASSED transitions to JUDGE_REJECTED WITHOUT a judge verdict comment', async () => {
+    const id = 'task_reject_jp', key = 'TASK-REJ-1'
+    seedRejectTask(id, key, 'JUDGE_PASSED')
+    const res = await fetch(`${baseUrl}/api/tasks/${key}/reject?project=${REJ_PROJECT}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${humanSecret}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: 'Please add an integration test before merge.' }),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json() as { task: { state: string }; transition: { from_state: string; to_state: string; actor_role: string } }
+    expect(body.task.state).toBe('JUDGE_REJECTED')
+    expect(body.transition.from_state).toBe('JUDGE_PASSED')
+    expect(body.transition.to_state).toBe('JUDGE_REJECTED')
+    expect(body.transition.actor_role).toBe('human')
+
+    // The note is recorded as a comment the implementer can read.
+    const comments = db.prepare('SELECT body_md, author_role FROM comment WHERE task_id = ?').all(id) as Array<{ body_md: string; author_role: string }>
+    expect(comments.some((c) => c.body_md.includes('integration test') && c.author_role === 'human')).toBe(true)
+  })
+
+  it('POST /reject from READY_TO_REVIEW also transitions to JUDGE_REJECTED', async () => {
+    const id = 'task_reject_rtr', key = 'TASK-REJ-2'
+    seedRejectTask(id, key, 'READY_TO_REVIEW')
+    const res = await fetch(`${baseUrl}/api/tasks/${key}/reject?project=${REJ_PROJECT}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${humanSecret}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: 'Rework required.' }),
+    })
+    expect(res.status).toBe(200)
+    const taskAfter = db.prepare('SELECT state FROM task WHERE id = ?').get(id) as { state: string }
+    expect(taskAfter.state).toBe('JUDGE_REJECTED')
+  })
+
+  it('rejects with 400 when note is missing/empty', async () => {
+    const id = 'task_reject_nonote', key = 'TASK-REJ-3'
+    seedRejectTask(id, key, 'JUDGE_PASSED')
+    const res = await fetch(`${baseUrl}/api/tasks/${key}/reject?project=${REJ_PROJECT}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${humanSecret}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: '   ' }),
+    })
+    expect(res.status).toBe(400)
+    // State unchanged.
+    const taskAfter = db.prepare('SELECT state FROM task WHERE id = ?').get(id) as { state: string }
+    expect(taskAfter.state).toBe('JUDGE_PASSED')
+  })
+
+  it('rejects non-human role (implementer) with 403', async () => {
+    const id = 'task_reject_role', key = 'TASK-REJ-4'
+    seedRejectTask(id, key, 'JUDGE_PASSED')
+    const res = await fetch(`${baseUrl}/api/tasks/${key}/reject?project=${REJ_PROJECT}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${implSecret}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: 'should not pass' }),
+    })
+    expect(res.status).toBe(403)
+  })
+
+  it('rejects wrong state (IN_PROGRESS) with 409', async () => {
+    const id = 'task_reject_state', key = 'TASK-REJ-5'
+    seedRejectTask(id, key, 'IN_PROGRESS')
+    const res = await fetch(`${baseUrl}/api/tasks/${key}/reject?project=${REJ_PROJECT}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${humanSecret}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: 'too early' }),
+    })
+    expect(res.status).toBe(409)
+  })
+})

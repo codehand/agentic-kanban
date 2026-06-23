@@ -11,6 +11,7 @@
  * Write endpoints (bearer role = human only):
  *   POST /api/projects                     — create project (slug + name)
  *   POST /api/tasks/:key/approve?project= — approve JUDGE_PASSED → DONE
+ *   POST /api/tasks/:key/reject?project=  — reject review stage → JUDGE_REJECTED (note required)
  *   POST /api/tasks/:key/reset?project=   — reset task to IN_PROGRESS
  *   POST /api/tasks/:key/remove?project=  — remove task
  *   POST /api/tasks/:key/comments?project= — add a review comment (human)
@@ -646,6 +647,73 @@ async function handleReset(db: Db, key: string, query: Record<string, string>, a
   sendJson(res, 200, { task: updated ? taskToResult(db, updated) : null })
 }
 
+async function handleReject(db: Db, key: string, query: Record<string, string>, auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (auth.role !== 'human') {
+    sendJson(res, 403, { error: 'Only human role can reject tasks' }); return
+  }
+  const projectRef = query['project']
+  if (!projectRef) {
+    sendJson(res, 400, { error: 'project query param is required' }); return
+  }
+  // Shared scope chokepoint: scoped tokens 403 on anything but their own project.
+  const proj = resolveProjectInScope(db, auth, projectRef)
+  if (!proj) {
+    sendJson(res, 404, { error: `Project not found: ${projectRef}` }); return
+  }
+  const task = getTaskByKey(db, proj.id, key)
+  if (!task) {
+    sendJson(res, 404, { error: `Task not found: ${key}` }); return
+  }
+  // Reject is the review-stage counterpart of approve: available from the same
+  // two states (JUDGE_PASSED or READY_TO_REVIEW), sending the task back to
+  // JUDGE_REJECTED so the implementer can reset + rework.
+  const from = task.state as TaskState
+  if (from !== 'JUDGE_PASSED' && from !== 'READY_TO_REVIEW') {
+    sendJson(res, 409, { error: `Task is in state '${from}', expected 'JUDGE_PASSED' or 'READY_TO_REVIEW'` }); return
+  }
+  // A reason is mandatory: the implementer needs to know what to fix.
+  const body = await readJsonBody(req)
+  const note = typeof body?.['note'] === 'string' ? body['note'].trim() : ''
+  if (!note) {
+    sendJson(res, 400, { error: 'note is required' }); return
+  }
+  // Record the reason as a review comment first so it's visible to the
+  // implementer regardless of how the transition is later surfaced.
+  insertComment(db, {
+    id: `cm_${randomBytes(8).toString('hex')}`,
+    task_id: task.id,
+    author_role: auth.role,
+    author_token_id: auth.token_id,
+    kind: 'review',
+    body_md: note,
+  })
+  const repo = makeTransitionRepo(db)
+  const result = propose({
+    task_id: task.id,
+    current_state: from,
+    from,
+    to: 'JUDGE_REJECTED',
+    actor_role: 'human',
+    actor_token_id: auth.token_id,
+    note,
+  }, repo)
+  if (!result.ok) {
+    sendJson(res, 422, { error: result.error }); return
+  }
+  // Broadcast SSE event so other clients see the reject live.
+  broadcastTransition({
+    task_id: task.id,
+    project: proj.slug,
+    key: task.key,
+    from_state: from,
+    to_state: 'JUDGE_REJECTED',
+    actor_role: 'human',
+    at: result.transition!.at,
+  })
+  const updated = getTaskById(db, task.id)
+  sendJson(res, 200, { task: updated ? taskToResult(db, updated) : null, transition: result.transition })
+}
+
 async function handleRemove(db: Db, key: string, query: Record<string, string>, auth: ResolvedToken, _req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (auth.role !== 'human') {
     sendJson(res, 403, { error: 'Only human role can remove tasks' }); return
@@ -813,6 +881,10 @@ export function mountApiRoutes(
         const approveMatch = path.match(/^\/api\/tasks\/([^/]+)\/approve$/)
         if (approveMatch) {
           await handleApprove(db, decodeURIComponent(approveMatch[1]!), query, auth, req, res); return
+        }
+        const rejectMatch = path.match(/^\/api\/tasks\/([^/]+)\/reject$/)
+        if (rejectMatch) {
+          await handleReject(db, decodeURIComponent(rejectMatch[1]!), query, auth, req, res); return
         }
         const resetMatch = path.match(/^\/api\/tasks\/([^/]+)\/reset$/)
         if (resetMatch) {
