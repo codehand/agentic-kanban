@@ -50,6 +50,12 @@ export const ALLOWED: AllowedTransition[] = [
   // Same edges as the implementer rework rows above — only the actor differs.
   { from: 'SELF_CHECK_FAILED',  to: 'IN_PROGRESS',        role: 'human'       },
   { from: 'JUDGE_REJECTED',     to: 'IN_PROGRESS',        role: 'human'       },
+  // TASK-063: at the human-review gate the reviewer may REJECT instead of
+  // approve, sending the task back to JUDGE_REJECTED (implementer then resets
+  // it to IN_PROGRESS via the rows above). Unlike the judge's reject edge,
+  // these carry no judge verdict comment — guardVerdict is scoped accordingly.
+  { from: 'JUDGE_PASSED',       to: 'JUDGE_REJECTED',     role: 'human'       },
+  { from: 'READY_TO_REVIEW',    to: 'JUDGE_REJECTED',     role: 'human'       },
 ]
 
 /** Lookup: returns the required role for a given from→to pair, or null if not allowed. */

@@ -52,12 +52,19 @@ export function guardImplemented(
 // ---------------------------------------------------------------------------
 // Guard: →JUDGE_PASSED / →JUDGE_REJECTED
 // A comment with kind='verdict' and the matching verdict value must exist.
+//
+// Scope: this verdict requirement only governs the JUDGE's own edges out of
+// SELF_CHECK_PASSED. The human review-stage reject edges (TASK-063:
+// JUDGE_PASSED/READY_TO_REVIEW → JUDGE_REJECTED) carry no judge verdict comment,
+// so the guard is a no-op for them — without weakening the judge edge.
 // ---------------------------------------------------------------------------
 
 export function guardVerdict(
+  from: TaskState,
   to: TaskState,
   comments: Comment[],
 ): string | null {
+  if (from !== 'SELF_CHECK_PASSED') return null
   if (to !== 'JUDGE_PASSED' && to !== 'JUDGE_REJECTED') return null
   const expectedVerdict = to === 'JUDGE_PASSED' ? 'PASS' : 'REJECT'
   const found = comments.some(c => c.kind === 'verdict' && c.verdict === expectedVerdict)

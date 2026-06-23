@@ -125,8 +125,10 @@ export function propose(
   }
 
   // Guard →JUDGE_PASSED / →JUDGE_REJECTED
+  // guardVerdict is scoped to the judge's edge (from === 'SELF_CHECK_PASSED');
+  // the human review-stage reject edges (TASK-063) are exempt.
   if (to === 'JUDGE_PASSED' || to === 'JUDGE_REJECTED') {
-    const err = guardVerdict(to, input.comments ?? [])
+    const err = guardVerdict(from, to, input.comments ?? [])
     if (err) return { ok: false, error: err }
   }
 
