@@ -53,15 +53,25 @@
 
   /* Comments section: list each comment (author role, kind, verdict badge,
    * markdown body, relative time) plus a composer. Empty list shows an
-   * explicit "no comments" state. */
+   * explicit "no comments" state. TASK-062: render newest-first by sorting
+   * a copy on created_at descending — the caller's array is never mutated.
+   * Missing/invalid created_at sorts to the bottom; equal timestamps keep
+   * their original order (stable sort). */
   function renderComments(comments) {
     comments = comments || [];
+    var ordered = comments.slice().sort(function (a, b) {
+      var ta = a && a.created_at ? new Date(a.created_at).getTime() : 0;
+      var tb = b && b.created_at ? new Date(b.created_at).getTime() : 0;
+      if (ta !== ta) ta = 0; // NaN guard
+      if (tb !== tb) tb = 0;
+      return tb - ta; // descending: newest first
+    });
     var html = '<section data-comments><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-chat-circle-text text-[14px]"></i> Comments</h3>';
-    if (!comments.length) {
+    if (!ordered.length) {
       html += '<p data-comments-empty class="text-[13px] text-muted mb-3">No comments yet.</p>';
     } else {
       html += '<ul data-comments-list class="space-y-2 mb-3">';
-      comments.forEach(function (c) {
+      ordered.forEach(function (c) {
         html += '<li class="rounded-lg border border-border bg-panel2 p-2.5">';
         html += '<div class="flex items-center gap-2 mb-1">';
         html += '<span class="mono text-[13px] px-1.5 py-0.5 rounded bg-white/5 text-text/70">' + esc(c.author_role || '') + '</span>';
