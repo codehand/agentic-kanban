@@ -102,7 +102,7 @@ async function mockApi(page: Page): Promise<void> {
           updated_at: now,
           body_md: 'Spec body for the a11y drawer scan.',
           priority: 'P1',
-          complexity: 'M',
+          complexity: '3',
           estimate_hours: 4,
           tags: ['drawer', 'a11y'],
           link_document: 'https://example.com/spec',

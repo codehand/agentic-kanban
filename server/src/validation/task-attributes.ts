@@ -7,7 +7,7 @@
 import { z } from 'zod'
 
 export const VALID_PRIORITIES = ['P0', 'P1', 'P2', 'P3'] as const
-export const VALID_COMPLEXITIES = ['XS', 'S', 'M', 'L', 'XL'] as const
+export const VALID_COMPLEXITIES = ['1', '2', '3', '5', '8', '13', '21'] as const
 
 /**
  * True only for URLs whose scheme is http(s). Rejects javascript:, data:,
