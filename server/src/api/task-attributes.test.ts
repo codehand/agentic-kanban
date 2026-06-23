@@ -61,7 +61,7 @@ describe('TASK-021: task attributes', () => {
         key: 'TASK-ATTR-001',
         title: 'Task with attributes',
         priority: 'P1',
-        complexity: 'M',
+        complexity: '3',
         estimate_hours: 4.5,
         tags: ['backend', 'api'],
         link_document: 'https://docs.example.com/spec',
@@ -70,7 +70,7 @@ describe('TASK-021: task attributes', () => {
     expect(res.status).toBe(201)
     const body = await res.json() as { task: Record<string, unknown> }
     expect(body.task.priority).toBe('P1')
-    expect(body.task.complexity).toBe('M')
+    expect(body.task.complexity).toBe('3')
     expect(body.task.estimate_hours).toBe(4.5)
     expect(body.task.tags).toEqual(['backend', 'api'])
     expect(body.task.link_document).toBe('https://docs.example.com/spec')
@@ -83,7 +83,7 @@ describe('TASK-021: task attributes', () => {
     expect(res.status).toBe(200)
     const body = await res.json() as { task: Record<string, unknown> }
     expect(body.task.priority).toBe('P1')
-    expect(body.task.complexity).toBe('M')
+    expect(body.task.complexity).toBe('3')
     expect(body.task.tags).toEqual(['backend', 'api'])
   })
 
@@ -93,7 +93,7 @@ describe('TASK-021: task attributes', () => {
       headers: authHeaders(humanSecret),
       body: JSON.stringify({
         priority: 'P0',
-        complexity: 'XL',
+        complexity: '21',
         estimate_hours: 16,
         tags: ['urgent', 'critical'],
       }),
@@ -101,7 +101,7 @@ describe('TASK-021: task attributes', () => {
     expect(res.status).toBe(200)
     const body = await res.json() as { task: Record<string, unknown> }
     expect(body.task.priority).toBe('P0')
-    expect(body.task.complexity).toBe('XL')
+    expect(body.task.complexity).toBe('21')
     expect(body.task.estimate_hours).toBe(16)
     expect(body.task.tags).toEqual(['urgent', 'critical'])
     // link_document unchanged
@@ -183,6 +183,17 @@ describe('TASK-021: task attributes', () => {
       method: 'PATCH',
       headers: authHeaders(humanSecret),
       body: JSON.stringify({ priority: 'INVALID' }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  // TASK-064: an OLD T-shirt complexity value (valid before the Fibonacci switch)
+  // must now be rejected by the new enum on PATCH.
+  it('PATCH rejects an old T-shirt complexity value (L) after Fibonacci switch', async () => {
+    const res = await fetch(`${baseUrl}/api/tasks/TASK-ATTR-001?project=test-project`, {
+      method: 'PATCH',
+      headers: authHeaders(humanSecret),
+      body: JSON.stringify({ complexity: 'L' }),
     })
     expect(res.status).toBe(400)
   })

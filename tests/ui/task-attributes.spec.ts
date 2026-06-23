@@ -83,7 +83,7 @@ test.describe('TASK-021: Task Attributes UI', () => {
       title: 'Demonstrate task attributes',
       body_md: '## Purpose\nDemo task to show all 5 attributes.\n',
       priority: 'P1',
-      complexity: 'L',
+      complexity: '8',
       estimate_hours: 16,
       tags: ['feature', 'search', 'backend'],
       link_document: 'https://docs.example.com/search-spec',
@@ -125,12 +125,12 @@ test.describe('TASK-021: Task Attributes UI', () => {
     expect(prioOptions.some((t) => t.includes('P0'))).toBeTruthy();
     expect(prioOptions.some((t) => t.includes('P3'))).toBeTruthy();
 
-    // Complexity select with XS–XL options
+    // Complexity select with Fibonacci options
     const complexity = page.locator('#field-complexity');
     await expect(complexity).toBeVisible();
     const compOptions = await complexity.locator('option').allTextContents();
-    expect(compOptions.some((t) => t.includes('XS'))).toBeTruthy();
-    expect(compOptions.some((t) => t.includes('XL'))).toBeTruthy();
+    expect(compOptions.some((t) => t.includes('1'))).toBeTruthy();
+    expect(compOptions.some((t) => t.includes('21'))).toBeTruthy();
 
     // Estimate hours input (type=number, min=0)
     const estimate = page.locator('#field-estimate_hours');
@@ -148,13 +148,13 @@ test.describe('TASK-021: Task Attributes UI', () => {
 
     // Fill values and verify they persist in the form
     await priority.selectOption('P1');
-    await complexity.selectOption('M');
+    await complexity.selectOption('3');
     await estimate.fill('8');
     await page.locator('#field-tags').fill('backend, api');
     await linkDoc.fill('https://docs.example.com/test');
 
     expect(await priority.inputValue()).toBe('P1');
-    expect(await complexity.inputValue()).toBe('M');
+    expect(await complexity.inputValue()).toBe('3');
     expect(await estimate.inputValue()).toBe('8');
     expect(await page.locator('#field-tags').inputValue()).toBe('backend, api');
     expect(await linkDoc.inputValue()).toBe('https://docs.example.com/test');
@@ -201,8 +201,8 @@ test.describe('TASK-021: Task Attributes UI', () => {
     // Priority P1 badge displayed
     await expect(drawerBody.locator('span', { hasText: /^P1$/ }).first()).toBeVisible();
 
-    // Complexity L displayed
-    await expect(drawerBody.locator('span', { hasText: /^L$/ }).first()).toBeVisible();
+    // Complexity 8 displayed
+    await expect(drawerBody.locator('span', { hasText: /^8$/ }).first()).toBeVisible();
 
     // Estimate 16h displayed
     await expect(drawerBody.locator('span', { hasText: /^16h$/ }).first()).toBeVisible();
@@ -260,7 +260,7 @@ test.describe('TASK-021: Task Attributes UI', () => {
 
     // Verify current values are populated from the real task
     expect(await page.locator('#edit-priority').inputValue()).toBe('P1');
-    expect(await page.locator('#edit-complexity').inputValue()).toBe('L');
+    expect(await page.locator('#edit-complexity').inputValue()).toBe('8');
     expect(await page.locator('#edit-estimate_hours').inputValue()).toBe('16');
     expect(await page.locator('#edit-tags').inputValue()).toBe('feature, search, backend');
     expect(await page.locator('#edit-link_document').inputValue()).toBe('https://docs.example.com/search-spec');
@@ -284,7 +284,7 @@ test.describe('TASK-021: Task Attributes UI', () => {
     expect(body.task.priority).toBe('P0');
     expect(body.task.estimate_hours).toBe(24);
     // Untouched fields preserved
-    expect(body.task.complexity).toBe('L');
+    expect(body.task.complexity).toBe('8');
     expect(body.task.tags).toEqual(['feature', 'search', 'backend']);
   });
 });

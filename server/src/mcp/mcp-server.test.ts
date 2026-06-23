@@ -158,7 +158,7 @@ describe('TASK-021 AC12: task attributes via real MCP client (task.create + task
           key: attrKey,
           title: 'Attribute task created via MCP',
           priority: 'P1',
-          complexity: 'L',
+          complexity: '8',
           estimate_hours: 16,
           tags: ['feature', 'search', 'backend'],
           link_document: 'https://docs.example.com/search-spec',
@@ -167,7 +167,7 @@ describe('TASK-021 AC12: task attributes via real MCP client (task.create + task
       expect(res.isError).toBeFalsy()
       const created = JSON.parse((res.content as Array<{ text: string }>)[0].text) as Record<string, unknown>
       expect(created.priority).toBe('P1')
-      expect(created.complexity).toBe('L')
+      expect(created.complexity).toBe('8')
       expect(created.estimate_hours).toBe(16)
       expect(JSON.parse(created.tags as string)).toEqual(['feature', 'search', 'backend'])
       expect(created.link_document).toBe('https://docs.example.com/search-spec')
@@ -180,7 +180,7 @@ describe('TASK-021 AC12: task attributes via real MCP client (task.create + task
           tags: string; link_document: string
         }
       expect(row.priority).toBe('P1')
-      expect(row.complexity).toBe('L')
+      expect(row.complexity).toBe('8')
       expect(row.estimate_hours).toBe(16)
       expect(JSON.parse(row.tags)).toEqual(['feature', 'search', 'backend'])
       expect(row.link_document).toBe('https://docs.example.com/search-spec')
@@ -200,7 +200,7 @@ describe('TASK-021 AC12: task attributes via real MCP client (task.create + task
           key: attrKey,
           title: 'Attribute task to update via MCP',
           priority: 'P2',
-          complexity: 'S',
+          complexity: '2',
           estimate_hours: 4,
           tags: ['initial'],
           link_document: 'https://docs.example.com/initial',
@@ -232,7 +232,7 @@ describe('TASK-021 AC12: task attributes via real MCP client (task.create + task
         }
       expect(row.priority).toBe('P0')
       expect(JSON.parse(row.tags)).toEqual(['urgent', 'initial'])
-      expect(row.complexity).toBe('S')
+      expect(row.complexity).toBe('2')
       expect(row.estimate_hours).toBe(4)
       expect(row.link_document).toBe('https://docs.example.com/initial')
       // task.update must never touch state.
@@ -281,6 +281,45 @@ describe('TASK-021 AC12: task attributes via real MCP client (task.create + task
       // Priority must be unchanged in the DB.
       const row = db.prepare(`SELECT priority FROM task WHERE key = ?`).get(attrKey) as { priority: string }
       expect(row.priority).toBe('P3')
+    } finally {
+      await closeClient(c)
+    }
+  })
+
+  // TASK-064: an OLD T-shirt complexity value (valid before the Fibonacci
+  // switch) must now be rejected by the new enum and persist nothing.
+  it('task.update rejects an old T-shirt complexity value (L) and persists nothing', async () => {
+    const c = await makeClient(tokens.human.secret)
+    try {
+      const createRes = await c.client.callTool({
+        name: 'task.create',
+        arguments: {
+          project: 'test-project',
+          key: attrKey,
+          title: 'Attribute task for old-complexity test',
+          complexity: '5',
+        },
+      })
+      expect(createRes.isError).toBeFalsy()
+
+      // 'L' was a valid T-shirt value before TASK-064; the Fibonacci enum must
+      // reject it — either as a protocol InvalidParams error (callTool rejects)
+      // or as an isError tool result. Both count as rejection.
+      let rejected = false
+      try {
+        const res = await c.client.callTool({
+          name: 'task.update',
+          arguments: { project: 'test-project', key: attrKey, complexity: 'L' },
+        })
+        if (res.isError) rejected = true
+      } catch {
+        rejected = true
+      }
+      expect(rejected).toBe(true)
+
+      // Complexity must be unchanged in the DB.
+      const row = db.prepare(`SELECT complexity FROM task WHERE key = ?`).get(attrKey) as { complexity: string }
+      expect(row.complexity).toBe('5')
     } finally {
       await closeClient(c)
     }
