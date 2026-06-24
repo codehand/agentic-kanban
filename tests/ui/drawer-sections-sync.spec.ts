@@ -46,8 +46,9 @@ interface MockState {
 function timeline(): MockTransition[] {
   const now = Date.now();
   return [
-    { from_state: 'TODO', to_state: 'IN_PROGRESS', actor_role: 'implementer', at: new Date(now - 7200000).toISOString() },
+    { from_state: 'TODO', to_state: 'IN_PROGRESS', actor_role: 'implementer', at: new Date(now - 10800000).toISOString() },
     { from_state: 'IN_PROGRESS', to_state: 'IMPLEMENTED', actor_role: 'implementer', at: new Date(now - 3600000).toISOString() },
+    { from_state: 'JUDGE_PASSED', to_state: 'DONE', actor_role: 'human', at: new Date(now - 1800000).toISOString() },
   ];
 }
 
@@ -172,9 +173,24 @@ test.describe('TASK-060: both drawers render Timeline + Comments', () => {
       await expect(tl).toBeVisible();
       await expect(tl).toContainText('Timeline');
       const tlRows = tl.locator('ol > li');
-      await expect(tlRows).toHaveCount(2);
-      // Newest-first: the IMPLEMENTED transition is first.
-      await expect(tlRows.first()).toContainText('IMPLEMENTED');
+      await expect(tlRows).toHaveCount(3);
+      // Newest-first: the DONE transition (human) is first.
+      await expect(tlRows.first()).toContainText('DONE');
+
+      // --- TASK-065: agent icon + state chips ---
+      // Each row has an icon with data-agent-icon.
+      const icons = tl.locator('[data-agent-icon]');
+      await expect(icons).toHaveCount(3);
+      // Newest row is 'human' role -> ph-user; older rows are 'implementer' -> ph-robot.
+      await expect(icons.first()).toHaveClass(/ph-user/);
+      await expect(icons.nth(1)).toHaveClass(/ph-robot/);
+      // Each row has two state chips (data-state-chip); first row has DONE.
+      const chips = tlRows.first().locator('[data-state-chip]');
+      await expect(chips).toHaveCount(2);
+      await expect(chips.first()).toHaveText('JUDGE_PASSED');
+      await expect(chips.nth(1)).toHaveText('DONE');
+      // Chip carries a state-colored class (st_done text color for DONE).
+      await expect(chips.nth(1)).toHaveClass(/text-st_done/);
 
       // --- Comments: existing comment rendered, composer present ---
       const comments = page.locator('#drawer-body [data-comments]');

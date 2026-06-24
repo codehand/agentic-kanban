@@ -32,7 +32,48 @@
 
   /* Timeline section: transition history newest-first. Each row shows the
    * actor role and from_state → to_state plus relative time. Omitted entirely
-   * when there are no transitions (callers pass res.timeline). */
+   * when there are no transitions (callers pass res.timeline).
+   *
+   * TASK-065: each row now renders an agent/user icon BEFORE the role name
+   * (different Phosphor icon per actor_role; 'human' gets ph-user, agents get
+   * ph-robot / ph-gavel / ph-shield-check / …) and both from_state and
+   * to_state are wrapped in colored chips that mirror the state tokens
+   * (st_*) used on the board. */
+  var ROLE_ICON = {
+    'implementer': 'ph-robot',
+    'judge':       'ph-gavel',
+    'self-check':  'ph-shield-check',
+    'runner':      'ph-play-circle',
+    'pr-bot':      'ph-git-pull-request',
+    'human':       'ph-user',
+  };
+  var FALLBACK_ROLE_ICON = 'ph-question';
+
+  /* state → Tailwind classes mirroring the st_* tokens on the board.
+   * Background uses a low-alpha tint of the state color; text uses the state
+   * color itself. Matches STATE_META.cls in design-system/index.html. */
+  var STATE_CHIP = {
+    'TODO':                'bg-st_todo/15 text-st_todo',
+    'IN_PROGRESS':         'bg-st_prog/15 text-st_prog',
+    'IMPLEMENTED':         'bg-st_impl/15 text-st_impl',
+    'EVIDENCE':            'bg-st_self/15 text-st_self',
+    'SELF_CHECK_PASSED':   'bg-st_self/15 text-st_self',
+    'SELF_CHECK_FAILED':   'bg-st_selffail/15 text-st_selffail',
+    'JUDGE_REJECTED':      'bg-st_reject/15 text-st_reject',
+    'JUDGE_PASSED':        'bg-st_human/15 text-st_human',
+    'READY_TO_REVIEW':     'bg-st_human/15 text-st_human',
+    'DONE':                'bg-st_done/15 text-st_done',
+  };
+  var DEFAULT_CHIP = 'bg-white/10 text-text/70';
+
+  function stateChipCls(st) {
+    return STATE_CHIP[st] || DEFAULT_CHIP;
+  }
+
+  function roleIcon(role) {
+    return ROLE_ICON[role] || FALLBACK_ROLE_ICON;
+  }
+
   function renderTimeline(timeline) {
     timeline = timeline || [];
     if (!timeline.length) return '';
@@ -41,8 +82,13 @@
     timeline.slice().reverse().forEach(function (tr) { // newest-first; copy so the original array stays untouched
       var dotColor = tr.to_state === 'DONE' ? 'bg-st_done' : tr.to_state === 'JUDGE_PASSED' ? 'bg-st_human' : tr.actor_role === 'judge' ? 'bg-st_self' : 'bg-border';
       html += '<li class="relative"><span class="absolute -left-[22px] top-1 w-3 h-3 rounded-full ' + dotColor + ' ring-4 ring-panel"></span>';
-      html += '<p class="text-[13px]"><span class="mono px-1.5 py-0.5 rounded bg-white/5 text-text/70">' + esc(tr.actor_role || '') + '</span> ';
-      html += '<span class="mono text-text/70">' + esc(tr.from_state || '') + '</span> &rarr; <span class="mono text-text">' + esc(tr.to_state || '') + '</span></p>';
+      html += '<p class="text-[13px] flex items-center gap-1.5 flex-wrap">';
+      html += '<i class="ph ' + esc(roleIcon(tr.actor_role)) + ' text-[14px] text-text/60" data-agent-icon></i>';
+      html += '<span class="mono px-1.5 py-0.5 rounded bg-white/5 text-text/70">' + esc(tr.actor_role || '') + '</span> ';
+      html += '<span class="mono text-[12px] px-1.5 py-0.5 rounded ' + stateChipCls(tr.from_state) + '" data-state-chip>' + esc(tr.from_state || '') + '</span>';
+      html += '<span class="text-text/50">&rarr;</span>';
+      html += '<span class="mono text-[12px] px-1.5 py-0.5 rounded ' + stateChipCls(tr.to_state) + '" data-state-chip>' + esc(tr.to_state || '') + '</span>';
+      html += '</p>';
       if (tr.note) html += '<p class="mt-0.5 text-[13px] text-text/80">' + esc(tr.note) + '</p>';
       html += '<p class="mt-0.5 mono text-[13px] text-muted">' + esc(relTime(tr.at)) + '</p>';
       html += '</li>';
