@@ -49,6 +49,17 @@
         <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- populated by live data from /api/projects -->
         </div>
+
+        <form id="add-project-form" class="mt-4 hidden max-w-[360px]">
+          <label for="field-project-name" class="text-[13px] text-muted">Project name</label>
+          <input id="field-project-name" name="project-name" placeholder="my-project" autocomplete="off"
+            class="mt-1 w-full rounded-md border border-border bg-panel2 px-2.5 py-2 text-[13px] text-text placeholder:text-muted outline-none focus:border-accent/60" />
+          <p id="add-project-error" class="hidden mt-1.5 text-[13px] text-ev_fail"></p>
+          <button type="submit" id="btn-add-project-submit"
+            class="mt-2.5 w-full flex items-center justify-center gap-1.5 rounded-md bg-accent px-4 h-10 text-[14px] font-semibold text-white hover:bg-accent/90 active:translate-y-px">
+            <i class="ph ph-check text-[16px]"></i> Create project
+          </button>
+        </form>
       </div>
     </div>
   </main>
@@ -62,6 +73,10 @@
     if (!api) return;
     var heading = document.getElementById('projects-heading');
     var grid = document.getElementById('projects-grid');
+    var form = document.getElementById('add-project-form');
+    var input = document.getElementById('field-project-name');
+    var errEl = document.getElementById('add-project-error');
+    var submitBtn = document.getElementById('btn-add-project-submit');
 
     api.listProjects().then(function (res) {
       if (!res || !res.projects) { heading.textContent = 'No projects found'; return; }
@@ -81,9 +96,44 @@
       });
       // Add "add project" button
       grid.insertAdjacentHTML('beforeend',
-        '<button class="rounded-xl border border-dashed border-border bg-transparent p-4 text-muted hover:text-text hover:border-borderlt flex items-center justify-center gap-2 min-h-[148px]">' +
+        '<button type="button" id="btn-add-project" class="rounded-xl border border-dashed border-border bg-transparent p-4 text-muted hover:text-text hover:border-borderlt flex items-center justify-center gap-2 min-h-[148px]">' +
         '<i class="ph ph-plus-circle text-[19px]"></i> <span class="text-[14px]">Add project</span></button>');
+      document.getElementById('btn-add-project').addEventListener('click', function () {
+        form.classList.remove('hidden');
+        input.focus();
+      });
     }).catch(function () { heading.textContent = 'Failed to load projects'; });
+
+    // "Add project" → POST /api/projects → open the new project's board.
+    // Same slug rules and error surface as the first-run create form.
+    function showError(msg) {
+      errEl.textContent = msg;
+      errEl.classList.remove('hidden');
+    }
+
+    function slugify(s) {
+      return s.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      errEl.classList.add('hidden');
+      var name = input.value.trim();
+      var slug = slugify(name);
+      if (!slug) { showError('Enter a project name.'); return; }
+      submitBtn.disabled = true;
+      api.createProject({ slug: slug, name: name }).then(function (res) {
+        if (res && res.project) {
+          location.href = '/' + encodeURIComponent(res.project.slug) + '/index.html';
+        } else {
+          submitBtn.disabled = false;
+          showError((res && res.error) || 'Failed to create project.');
+        }
+      }).catch(function (err) {
+        submitBtn.disabled = false;
+        showError(String(err));
+      });
+    });
   })();
 </script>
 <script src="/shell.js"></script>
