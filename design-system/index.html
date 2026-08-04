@@ -52,9 +52,30 @@
       </div>
     </header>
 
-    <!-- across-projects strip (populated by live data) -->
+    <!-- across-projects strip (#board-strip-info populated by live data) -->
     <div id="board-strip" class="shrink-0 border-b border-border bg-panel/40 px-4 py-2 flex items-center gap-3 text-[13px]">
-      <span class="flex items-center gap-1.5 text-muted"><i class="ph ph-spinner text-[14px] animate-spin"></i> Loading&hellip;</span>
+      <div id="board-strip-info" class="min-w-0 flex-1 flex items-center gap-3">
+        <span class="flex items-center gap-1.5 text-muted"><i class="ph ph-spinner text-[14px] animate-spin"></i> Loading&hellip;</span>
+      </div>
+
+      <!-- column visibility menu. The panel is in the initial markup (only
+           `hidden` is toggled): the Tailwind Play CDN ships utilities it sees
+           at load, so classes injected later would get no CSS. -->
+      <div class="relative shrink-0">
+        <button id="btn-columns" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Show or hide columns" title="Show or hide columns"
+                class="grid place-items-center w-7 h-7 rounded-md text-muted hover:text-text hover:bg-white/5">
+          <i class="ph ph-dots-three-vertical text-[16px]"></i>
+        </button>
+        <div id="columns-menu" role="group" aria-label="Show or hide columns" class="hidden absolute right-0 top-full mt-2 z-30 w-56 rounded-lg border border-border bg-panel p-1.5 shadow-lg">
+          <p class="px-2 pb-1 text-[12px] uppercase tracking-wider text-muted">Columns</p>
+          <label class="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-white/5 cursor-pointer"><input type="checkbox" data-col-toggle="todo" checked class="accent-accent" /> Backlog</label>
+          <label class="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-white/5 cursor-pointer"><input type="checkbox" data-col-toggle="in_progress" checked class="accent-accent" /> In Progress</label>
+          <label class="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-white/5 cursor-pointer"><input type="checkbox" data-col-toggle="evidence" checked class="accent-accent" /> Self-Check</label>
+          <label class="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-white/5 cursor-pointer"><input type="checkbox" data-col-toggle="verdict" checked class="accent-accent" /> Judge Review</label>
+          <label class="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-white/5 cursor-pointer"><input type="checkbox" data-col-toggle="human" checked class="accent-accent" /> Awaiting Human</label>
+          <label class="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-white/5 cursor-pointer"><input type="checkbox" data-col-toggle="done" class="accent-accent" /> Done</label>
+        </div>
+      </div>
     </div>
 
     <!-- ============ KANBAN BOARD ============ -->
@@ -65,7 +86,7 @@
       <div class="flex gap-3 h-full p-3 min-w-max">
 
         <!-- COLUMN: Backlog -->
-        <section class="w-[290px] shrink-0 flex flex-col">
+        <section data-col="todo" class="w-[290px] shrink-0 flex flex-col">
           <div class="flex items-center justify-between px-1 pb-2 border-b-2 border-st_todo/50">
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_todo"></span>
@@ -78,7 +99,7 @@
         </section>
 
         <!-- COLUMN: In Progress -->
-        <section class="w-[290px] shrink-0 flex flex-col">
+        <section data-col="in_progress" class="w-[290px] shrink-0 flex flex-col">
           <div class="flex items-center justify-between px-1 pb-2 border-b-2 border-st_prog/50">
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_prog"></span>
@@ -91,7 +112,7 @@
         </section>
 
         <!-- COLUMN: Self-Check -->
-        <section class="w-[290px] shrink-0 flex flex-col">
+        <section data-col="evidence" class="w-[290px] shrink-0 flex flex-col">
           <div class="flex items-center justify-between px-1 pb-2 border-b-2 border-st_self/50">
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_self"></span>
@@ -104,7 +125,7 @@
         </section>
 
         <!-- COLUMN: Judge Review -->
-        <section class="w-[290px] shrink-0 flex flex-col">
+        <section data-col="verdict" class="w-[290px] shrink-0 flex flex-col">
           <div class="flex items-center justify-between px-1 pb-2 border-b-2 border-st_reject/50">
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_reject"></span>
@@ -117,7 +138,7 @@
         </section>
 
         <!-- COLUMN: Awaiting Human (HERO) -->
-        <section id="col-human" class="w-[300px] shrink-0 flex flex-col">
+        <section id="col-human" data-col="human" class="w-[300px] shrink-0 flex flex-col">
           <div class="flex items-center justify-between px-1 pb-2 border-b-2 border-st_human">
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_human heartbeat"></span>
@@ -129,8 +150,8 @@
           <div id="col-judge_passed" class="flex-1 overflow-y-auto pt-2 space-y-2 pr-0.5 rounded-lg"></div>
         </section>
 
-        <!-- COLUMN: Done -->
-        <section class="w-[290px] shrink-0 flex flex-col">
+        <!-- COLUMN: Done — hidden by default; toggled from the strip's column menu -->
+        <section data-col="done" class="hidden w-[290px] shrink-0 flex flex-col">
           <div class="flex items-center justify-between px-1 pb-2 border-b-2 border-st_done/50">
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-sm bg-st_done"></span>
@@ -427,7 +448,7 @@
       });
 
       // Update strip
-      var strip = document.getElementById('board-strip');
+      var strip = document.getElementById('board-strip-info');
       var projName = projects.length === 1 ? (projects[0].slug || projects[0].name) : projects.length + ' projects';
       strip.innerHTML =
         '<span class="flex items-center gap-1.5 text-st_human font-medium"><i class="ph-fill ph-hand-tap text-[15px]"></i> ' + humanCount + ' tasks awaiting you</span>' +
@@ -772,8 +793,40 @@
       });
     });
 
+    // --- Column visibility menu: each checkbox shows/hides one column ---
+    // The checkbox states in the markup ARE the defaults (Done off), so the
+    // board opens the same way on every load.
+    (function () {
+      var btn = document.getElementById('btn-columns');
+      var menu = document.getElementById('columns-menu');
+      if (!btn || !menu) return;
+
+      function openMenu(open) {
+        menu.classList.toggle('hidden', !open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      }
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        openMenu(menu.classList.contains('hidden'));
+      });
+      menu.addEventListener('click', function (e) { e.stopPropagation(); });
+      document.addEventListener('click', function () { openMenu(false); });
+      menu.addEventListener('change', function (e) {
+        var box = e.target;
+        if (!box || !box.getAttribute) return;
+        var col = box.getAttribute('data-col-toggle');
+        if (!col) return;
+        var section = document.querySelector('[data-col="' + col + '"]');
+        if (section) section.classList.toggle('hidden', !box.checked);
+      });
+      window.__closeColumnsMenu = function () { openMenu(false); };
+    })();
+
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') { closeConfirm(); closeDrawer(); }
+      if (e.key === 'Escape') {
+        closeConfirm(); closeDrawer();
+        if (window.__closeColumnsMenu) window.__closeColumnsMenu();
+      }
     });
 
     // Init
