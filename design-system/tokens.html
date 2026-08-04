@@ -19,9 +19,18 @@
     <header class="h-14 shrink-0 border-b border-border bg-panel/80 backdrop-blur flex items-center gap-3 px-4">
       <span class="text-[15px] font-semibold tracking-tight">Tokens</span>
       <span class="hidden sm:inline text-[13px] text-muted">role-scoped bearer tokens, server-enforced</span>
-      <button onclick="document.getElementById('mint').classList.toggle('hidden')" class="ml-auto flex items-center gap-1.5 rounded-md bg-accent px-3 h-9 text-[13px] font-medium text-white hover:bg-accent/90 active:translate-y-px">
-        <i class="ph ph-plus text-[15px]"></i> Mint token
-      </button>
+      <div class="ml-auto flex items-center gap-3">
+        <!-- show-all switch: off = only live tokens (default) -->
+        <button type="button" id="show-all-toggle" role="switch" aria-checked="false" class="flex items-center gap-2 text-[13px] font-medium text-muted hover:text-text">
+          <span id="show-all-track" class="relative w-9 h-5 rounded-full transition-colors" style="background: var(--border)" aria-hidden="true">
+            <span id="show-all-thumb" class="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-panel shadow transition-transform"></span>
+          </span>
+          Show all
+        </button>
+        <button onclick="document.getElementById('mint').classList.toggle('hidden')" class="flex items-center gap-1.5 rounded-md bg-accent px-3 h-9 text-[13px] font-medium text-white hover:bg-accent/90 active:translate-y-px">
+          <i class="ph ph-plus text-[15px]"></i> Mint token
+        </button>
+      </div>
     </header>
 
     <div class="flex-1 overflow-y-auto">
@@ -106,7 +115,7 @@
 
         <!-- tokens card grid -->
         <section>
-          <h2 class="text-[13px] uppercase tracking-wider text-muted mb-2">Active &amp; revoked tokens</h2>
+          <h2 id="tokens-heading" class="text-[13px] uppercase tracking-wider text-muted mb-2">Live tokens</h2>
           <ul id="tokens-grid" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 list-none p-0 m-0">
             <li class="rounded-xl border border-border bg-panel p-4 text-muted text-[13px]">Loading&hellip;</li>
           </ul>
@@ -162,6 +171,7 @@
     // --- Card grid rendering (TASK-041) ---
     var LIVE_WINDOW_MS = 5 * 60 * 1000; // "live" = authenticated within the last 5 min
     var tokens = [];
+    var showAll = false; // default: only live tokens are listed
 
     function esc(s) {
       return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -208,12 +218,22 @@
           : '<button type="button" data-revoke-id="' + esc(t.id) + '" class="flex items-center gap-1 rounded-md border border-border px-2.5 h-8 text-[13px] font-medium text-ev_fail hover:bg-ev_fail/10"><i class="ph ph-prohibit text-[13px]" aria-hidden="true"></i> Revoke</button>') +
         '</div></li>';
     }
+    function isLive(t) {
+      if (t.revoked_at || !t.last_used_at) return false;
+      var ts = Date.parse(t.last_used_at);
+      return isFinite(ts) && Date.now() - ts <= LIVE_WINDOW_MS;
+    }
     function renderTokens() {
       if (!tokens.length) {
-        grid.innerHTML = '<li class="rounded-xl border border-border bg-panel p-4 text-muted text-[13px]">No tokens found.</li>';
+        grid.innerHTML = '<li data-empty="none" class="rounded-xl border border-border bg-panel p-4 text-muted text-[13px]">No tokens found.</li>';
         return;
       }
-      grid.innerHTML = tokens.map(cardHtml).join('');
+      var shown = showAll ? tokens : tokens.filter(isLive);
+      if (!shown.length) {
+        grid.innerHTML = '<li data-empty="live" class="rounded-xl border border-border bg-panel p-4 text-muted text-[13px]">No live tokens. Turn on <span class="text-text font-medium">Show all</span> to see idle, never used and revoked tokens.</li>';
+        return;
+      }
+      grid.innerHTML = shown.map(cardHtml).join('');
     }
     function reloadTokens() {
       api.listTokens().then(function (res) {
@@ -224,6 +244,25 @@
       });
     }
     reloadTokens();
+
+    // --- Show-all switch: off (default) lists live tokens only ---
+    (function () {
+      var btn = document.getElementById('show-all-toggle');
+      var track = document.getElementById('show-all-track');
+      var thumb = document.getElementById('show-all-thumb');
+      var heading = document.getElementById('tokens-heading');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        showAll = !showAll;
+        btn.setAttribute('aria-checked', showAll ? 'true' : 'false');
+        // Inline styles, not Tailwind classes: the CDN build only ships utilities
+        // present in the initial markup, so classes added later never get CSS.
+        track.style.background = showAll ? 'var(--accent)' : 'var(--border)';
+        thumb.style.transform = showAll ? 'translateX(16px)' : 'translateX(0)';
+        if (heading) heading.textContent = showAll ? 'Active & revoked tokens' : 'Live tokens';
+        renderTokens();
+      });
+    })();
 
     // --- Revoke flow: confirm dialog -> DELETE /api/tokens/:id (TASK-041) ---
     var revokeEl = document.getElementById('revoke-confirm');

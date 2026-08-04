@@ -19,6 +19,7 @@
  *      card flips to revoked WITHOUT a full page reload; cancel sends nothing.
  *   5. Revoking the last active human token: the server's 409 error is
  *      surfaced visibly in the dialog and the card stays active.
+ *   6. "Show all" switch: off by default (live tokens only), on lists every token.
  */
 import { test, expect, type Page } from '@playwright/test';
 import type { Server } from 'node:http';
@@ -73,14 +74,22 @@ function closeApp(app: App): Promise<void> {
   });
 }
 
-/** Sign in as the human operator and open the tokens page. */
-async function openTokensPage(page: Page, app: App): Promise<void> {
+/**
+ * Sign in as the human operator and open the tokens page.
+ * The page lists live tokens only by default; pass { showAll: false } to keep
+ * that default, otherwise the "Show all" switch is flipped on first.
+ */
+async function openTokensPage(page: Page, app: App, opts: { showAll?: boolean } = {}): Promise<void> {
   await page.addInitScript((tok: string) => {
     localStorage.setItem('kanban_token', tok);
   }, app.human.secret);
   await page.goto(`${app.base}/tokens.html`);
-  // Cards rendered from the real GET /api/tokens.
-  await expect(page.locator('#tokens-grid > li[data-token-id]')).toHaveCount(4, { timeout: 10000 });
+  // Default view: only the human token is live (this page just authenticated with it).
+  await expect(page.locator('#tokens-grid > li[data-token-id]')).toHaveCount(1, { timeout: 10000 });
+  if (opts.showAll !== false) {
+    await page.getByRole('switch', { name: /show all/i }).click();
+    await expect(page.locator('#tokens-grid > li[data-token-id]')).toHaveCount(4);
+  }
 }
 
 function card(page: Page, tokenId: string) {
@@ -163,6 +172,59 @@ test.describe('TASK-041: tokens page — card grid + live status + revoke', () =
     // …then reload: the card now reports live (within the 5 min window).
     await page.reload();
     await expect(card(page, app.fresh.tokenId).locator('[data-status="live"]')).toHaveText('live', { timeout: 10000 });
+  });
+
+  test('"Show all" switch: off by default (live only), on lists every token', async ({ page }) => {
+    await openTokensPage(page, app, { showAll: false });
+
+    const toggle = page.getByRole('switch', { name: /show all/i });
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
+
+    // Default: only the live human token; idle / never used / revoked are hidden.
+    await expect(card(page, app.human.tokenId)).toBeVisible();
+    await expect(card(page, app.fresh.tokenId)).toHaveCount(0);
+    await expect(card(page, app.idle.tokenId)).toHaveCount(0);
+    await expect(card(page, app.retired.tokenId)).toHaveCount(0);
+
+    // On → all four.
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('#tokens-grid > li[data-token-id]')).toHaveCount(4);
+
+    // Off again → back to live only.
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
+    await expect(page.locator('#tokens-grid > li[data-token-id]')).toHaveCount(1);
+
+    // Reload resets the switch to off.
+    await page.reload();
+    await expect(page.getByRole('switch', { name: /show all/i })).toHaveAttribute('aria-checked', 'false');
+    await expect(page.locator('#tokens-grid > li[data-token-id]')).toHaveCount(1, { timeout: 10000 });
+  });
+
+  test('no live tokens: the grid explains the filter instead of looking empty', async ({ page }) => {
+    // Backdate the human token so nothing is live once the page loads. The page
+    // itself authenticates with it, so stub /api/tokens to keep the view stale.
+    await page.addInitScript((tok: string) => {
+      localStorage.setItem('kanban_token', tok);
+    }, app.human.secret);
+    await page.route('**/api/tokens', async (route) => {
+      if (route.request().method() !== 'GET') return route.continue();
+      const res = await route.fetch();
+      const body = await res.json();
+      const old = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
+      body.tokens.forEach((t: { last_used_at: string | null }) => {
+        if (t.last_used_at) t.last_used_at = old;
+      });
+      await route.fulfill({ response: res, json: body });
+    });
+    await page.goto(`${app.base}/tokens.html`);
+
+    await expect(page.locator('#tokens-grid [data-empty="live"]')).toContainText(/no live tokens/i, {
+      timeout: 10000,
+    });
+    await page.getByRole('switch', { name: /show all/i }).click();
+    await expect(page.locator('#tokens-grid > li[data-token-id]')).toHaveCount(4);
   });
 
   test('revoke flow: confirm dialog names role+label, card flips to revoked without reload; cancel is a no-op', async ({ page }) => {

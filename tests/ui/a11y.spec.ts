@@ -208,8 +208,10 @@ for (const theme of ['light', 'dark'] as const) {
       });
       await mockApi(page);
       await page.goto(server.url('tokens.html'));
-      // All four status renderings present: live, idle, never used, revoked.
+      // The page lists live tokens only by default — flip "Show all" on.
       await expect(page.locator('#tokens-grid [data-status="live"]')).toBeVisible({ timeout: 10000 });
+      await page.getByRole('switch', { name: /show all/i }).click();
+      // All four status renderings present: live, idle, never used, revoked.
       await expect(page.locator('#tokens-grid [data-status="idle"]')).toBeVisible();
       await expect(page.locator('#tokens-grid [data-status="never"]')).toBeVisible();
       await expect(page.locator('#tokens-grid [data-status="revoked"]')).toBeVisible();
