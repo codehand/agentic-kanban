@@ -162,6 +162,28 @@ function sendRpcError(res: ServerResponse, status: number, code: number, message
   res.end(body)
 }
 
+/** A live Streamable HTTP session, bound to the token that opened it. */
+interface Session {
+  transport: StreamableHTTPServerTransport
+  /** Token id from the InitializeRequest; later requests must present it. */
+  token_id: string
+}
+
+/**
+ * Reject a request that carries an Mcp-Session-Id this process does not know.
+ *
+ * This MUST be 404, not 400: the spec makes 404 the signal that a client's
+ * session is gone and it has to open a new one with an InitializeRequest.
+ * 400 reads as "malformed request", so a client can keep replaying a dead
+ * session id forever — every tool call after a hub restart then fails until
+ * the client process is restarted. The SDK's own transport draws the same
+ * line (404/-32001 unknown id vs 400 missing header), so answering 400 here
+ * also made this route disagree with the transport it wraps.
+ */
+function sendUnknownSession(res: ServerResponse): void {
+  sendRpcError(res, 404, -32001, 'Session not found — reinitialize')
+}
+
 /**
  * Mount the /mcp route onto the existing node:http router.
  *
@@ -174,8 +196,23 @@ export function mountMcpRoute(
   handle: (req: IncomingMessage, res: ServerResponse) => void,
   db: Db,
 ): (req: IncomingMessage, res: ServerResponse) => void {
-  // In-memory map of session-id → transport for stateful sessions.
-  const transports = new Map<string, StreamableHTTPServerTransport>()
+  // In-memory map of session-id → session for stateful sessions.
+  const sessions = new Map<string, Session>()
+
+  /**
+   * Resolve the transport for a session id presented by `token_id`.
+   *
+   * A session id belonging to a different token resolves to undefined — i.e.
+   * it is treated exactly like an unknown one. Tool handlers close over the
+   * auth context captured when the session was opened, so honouring another
+   * token's session id would run the call with the opener's role.
+   */
+  function lookup(sessionId: unknown, token_id: string): StreamableHTTPServerTransport | undefined {
+    if (typeof sessionId !== 'string') return undefined
+    const session = sessions.get(sessionId)
+    if (!session || session.token_id !== token_id) return undefined
+    return session.transport
+  }
 
   return async (req: IncomingMessage, res: ServerResponse) => {
     const url = req.url ?? '/'
@@ -200,10 +237,6 @@ export function mountMcpRoute(
     // SECURITY: do not log the bearer secret; log only the token id.
     logger.debug({ token_id: resolved.token_id, role: resolved.role }, 'mcp: authenticated')
 
-    // --- Build context + server -------------------------------------------
-    const ctx: McpContext = { db, auth: resolved }
-    const mcp = buildMcpServer(ctx)
-
     try {
       const method = (req.method ?? 'GET').toUpperCase()
 
@@ -219,29 +252,40 @@ export function mountMcpRoute(
           }
         }
 
-        // Session routing: if the request carries an Mcp-Session-Id header,
-        // look up the existing transport. Otherwise, if this is an
-        // initialize request, create a new transport; else reject.
+        // Session routing: reuse this token's existing transport if the
+        // request carries a live session id; otherwise open a new session for
+        // an InitializeRequest; otherwise reject.
         const sessionId = req.headers['mcp-session-id']
-        let transport: StreamableHTTPServerTransport | undefined
+        let transport = lookup(sessionId, resolved.token_id)
 
-        if (typeof sessionId === 'string' && transports.has(sessionId)) {
-          transport = transports.get(sessionId)!
-        } else if (!sessionId && parsedBody && isInitializeRequest(parsedBody)) {
-          transport = new StreamableHTTPServerTransport({
-            sessionIdGenerator: () => randomUUID(),
-            onsessioninitialized: (sid) => {
-              transports.set(sid, transport!)
-            },
-          })
-          transport.onclose = () => {
-            const sid = transport?.sessionId
-            if (sid) transports.delete(sid)
+        if (!transport) {
+          if (parsedBody && isInitializeRequest(parsedBody)) {
+            // Deliberately permissive about a stale Mcp-Session-Id on an
+            // initialize: the client is asking for a new session, and this is
+            // the one recovery path that does not depend on the client acting
+            // on the 404 above. Rejecting it would strand clients that replay
+            // their dead id when reconnecting.
+            const ctx: McpContext = { db, auth: resolved }
+            const mcp = buildMcpServer(ctx)
+            const created = new StreamableHTTPServerTransport({
+              sessionIdGenerator: () => randomUUID(),
+              onsessioninitialized: (sid) => {
+                sessions.set(sid, { transport: created, token_id: resolved.token_id })
+              },
+            })
+            created.onclose = () => {
+              const sid = created.sessionId
+              if (sid) sessions.delete(sid)
+            }
+            await mcp.connect(created)
+            transport = created
+          } else if (typeof sessionId === 'string') {
+            sendUnknownSession(res)
+            return
+          } else {
+            sendRpcError(res, 400, -32600, 'Missing Mcp-Session-Id header')
+            return
           }
-          await mcp.connect(transport)
-        } else {
-          sendRpcError(res, 400, -32600, 'Missing or invalid Mcp-Session-Id header')
-          return
         }
 
         await transport.handleRequest(req, res, parsedBody)
@@ -251,24 +295,32 @@ export function mountMcpRoute(
       if (method === 'GET') {
         // SSE stream for server-initiated notifications — requires session id.
         const sessionId = req.headers['mcp-session-id']
-        if (typeof sessionId !== 'string' || !transports.has(sessionId)) {
-          sendRpcError(res, 400, -32600, 'Missing or invalid Mcp-Session-Id for GET /mcp')
+        if (typeof sessionId !== 'string') {
+          sendRpcError(res, 400, -32600, 'Missing Mcp-Session-Id for GET /mcp')
           return
         }
-        const transport = transports.get(sessionId)!
+        const transport = lookup(sessionId, resolved.token_id)
+        if (!transport) {
+          sendUnknownSession(res)
+          return
+        }
         await transport.handleRequest(req, res)
         return
       }
 
       if (method === 'DELETE') {
         const sessionId = req.headers['mcp-session-id']
-        if (typeof sessionId === 'string' && transports.has(sessionId)) {
-          const transport = transports.get(sessionId)!
-          await transport.handleRequest(req, res)
-          transports.delete(sessionId)
+        if (typeof sessionId !== 'string') {
+          sendRpcError(res, 400, -32600, 'Missing Mcp-Session-Id for DELETE /mcp')
           return
         }
-        sendRpcError(res, 400, -32600, 'Missing or invalid Mcp-Session-Id for DELETE /mcp')
+        const transport = lookup(sessionId, resolved.token_id)
+        if (!transport) {
+          sendUnknownSession(res)
+          return
+        }
+        await transport.handleRequest(req, res)
+        sessions.delete(sessionId)
         return
       }
 
