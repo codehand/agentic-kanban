@@ -19,3 +19,6 @@ test-results/
 # SQLite sidecar (WAL mode) — *.db đã ignore nhưng không cover -shm/-wal
 *.db-shm
 *.db-wal
+
+# macOS Finder metadata
+.DS_Store
