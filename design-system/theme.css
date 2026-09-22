@@ -97,6 +97,13 @@ html.dark .skel::after {
 .drawer { transition: transform .26s cubic-bezier(.16,1,.3,1); }
 .scrim  { transition: opacity .26s ease; }
 
+/* TASK-069: fullscreen drawer. The drawer defaults to `sm:w-2/3`; this class
+ * (toggled by drawer-sections.js) widens it to the full viewport. Two class
+ * selectors beat Tailwind's single-class `sm:w-2/3`, so it wins on specificity
+ * regardless of stylesheet order. Width only — the open/close transform
+ * transition above is untouched. */
+.drawer.drawer-fullscreen { width: 100%; }
+
 /* details disclosure caret */
 .det-caret { transition: transform .15s ease; }
 details[open] > summary .det-caret { transform: rotate(90deg); }

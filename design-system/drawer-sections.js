@@ -175,6 +175,64 @@
     });
   }
 
+  /* ---- TASK-069: drawer fullscreen toggle -------------------------------
+   * The drawer is `w-full sm:w-2/3` by default. The [data-drawer-fullscreen]
+   * header button toggles `.drawer-fullscreen` on #drawer (width:100%, see
+   * theme.css) and persists the choice in localStorage, so the mode survives
+   * closing/reopening the drawer AND a page reload, identically on the board
+   * and the task-list page (both load this module).
+   *
+   * Self-wired via a delegated click listener: neither page needs an onclick.
+   */
+  var FULLSCREEN_KEY = 'kanban_drawer_fullscreen';
+
+  // localStorage can throw (Safari private mode, blocked third-party storage);
+  // the toggle must keep working in-session even when persistence is denied.
+  function readFullscreen() {
+    try { return localStorage.getItem(FULLSCREEN_KEY) === '1'; } catch (e) { return false; }
+  }
+  function writeFullscreen(on) {
+    try { localStorage.setItem(FULLSCREEN_KEY, on ? '1' : '0'); } catch (e) { /* ignore */ }
+  }
+
+  function applyFullscreen(on) {
+    var drawer = document.getElementById('drawer');
+    if (drawer) drawer.classList.toggle('drawer-fullscreen', on);
+    var btns = document.querySelectorAll('[data-drawer-fullscreen]');
+    for (var i = 0; i < btns.length; i++) {
+      var btn = btns[i];
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.setAttribute('aria-label', on ? 'Exit drawer fullscreen' : 'Expand drawer to fullscreen');
+      var icon = btn.querySelector('i');
+      if (icon) {
+        icon.classList.toggle('ph-arrows-in', on);
+        icon.classList.toggle('ph-arrows-out', !on);
+      }
+    }
+  }
+
+  function initFullscreen() {
+    applyFullscreen(readFullscreen()); // restore the stored mode on page load
+  }
+
+  document.addEventListener('click', function (ev) {
+    var target = ev.target;
+    if (!target || typeof target.closest !== 'function') return;
+    if (!target.closest('[data-drawer-fullscreen]')) return;
+    // Current mode comes from the DOM, not storage, so the toggle still flips
+    // both ways when localStorage writes are denied.
+    var drawer = document.getElementById('drawer');
+    var on = !(drawer && drawer.classList.contains('drawer-fullscreen'));
+    writeFullscreen(on);
+    applyFullscreen(on);
+  });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initFullscreen);
+  } else {
+    initFullscreen();
+  }
+
   window.__drawerSections = {
     renderTimeline: renderTimeline,
     renderComments: renderComments,
