@@ -91,7 +91,192 @@ describe('renderMarkdown — markdown features', () => {
   })
 })
 
+describe('renderMarkdown — GFM pipe tables', () => {
+  const table = '| Name | Qty | Note |\n|:---|:---:|---:|\n| a | 1 | x |\n| b | 2 | y |'
+
+  it('renders a header row, a body row per line and no literal pipes', () => {
+    const html = renderMarkdown(table)
+    expect(html).toContain('<table')
+    expect(html).toContain('<thead')
+    expect(html.match(/<th\b/g) ?? []).toHaveLength(3)
+    expect(html.match(/<tr\b/g) ?? []).toHaveLength(3)
+    expect(html).toContain('>Name</th>')
+    expect(html).toContain('>y</td>')
+    expect(html.replace(/<[^>]*>/g, '')).not.toContain('|')
+  })
+
+  it('maps :---/:---:/---: to left/center/right alignment classes', () => {
+    const html = renderMarkdown(table)
+    expect(html).toMatch(/<th[^>]*text-left[^>]*>Name<\/th>/)
+    expect(html).toMatch(/<th[^>]*text-center[^>]*>Qty<\/th>/)
+    expect(html).toMatch(/<th[^>]*text-right[^>]*>Note<\/th>/)
+  })
+
+  it('wraps the table so wide tables scroll instead of overflowing the drawer', () => {
+    expect(renderMarkdown(table)).toContain('overflow-x-auto')
+  })
+
+  it('accepts rows without outer pipes', () => {
+    const html = renderMarkdown('A | B\n--- | ---\n1 | 2')
+    expect(html).toContain('>A</th>')
+    expect(html).toContain('>B</th>')
+    expect(html).toContain('>1</td>')
+    expect(html).toContain('>2</td>')
+  })
+
+  it('normalises ragged body rows to the header width', () => {
+    const html = renderMarkdown('| A | B |\n|---|---|\n| only-one |\n| x | y | z |')
+    expect(html.match(/<tr\b/g) ?? []).toHaveLength(3)
+    expect(html.match(/<td\b/g) ?? []).toHaveLength(4) // 2 columns × 2 rows
+    expect(html).not.toContain('>z</td>') // extra cell truncated
+  })
+
+  it('does not treat pipe-bearing text as a table without a separator row', () => {
+    const html = renderMarkdown('a | b | c\nplain text line')
+    expect(html).not.toContain('<table')
+    expect(html).toContain('<p')
+    expect(html).toContain('a | b | c<br>plain text line')
+  })
+
+  it('ends the table at a blank line and keeps following text as a paragraph', () => {
+    const html = renderMarkdown('| A |\n|---|\n| 1 |\n\nafter')
+    expect(html.match(/<tr\b/g) ?? []).toHaveLength(2)
+    expect(html).toContain('</table>')
+    expect(html).toContain('>after</p>')
+  })
+
+  it('applies inline formatting inside cells', () => {
+    const html = renderMarkdown('| A |\n|---|\n| **bold** |')
+    expect(html).toContain('<strong')
+    expect(html).toContain('>bold</strong>')
+  })
+
+  it('renders links with query strings inside cells', () => {
+    const html = renderMarkdown('| A |\n|---|\n| [docs](https://example.com/?q=1) |')
+    expect(html).toContain('href="https://example.com/?q=1"')
+    expect(html).toContain('>docs</a>')
+  })
+
+  // Documented limitation: cells are split before inline() runs, so a pipe
+  // inside a code span still ends the cell. Asserted so the real behaviour is
+  // visible rather than pretended away.
+  it('KNOWN LIMITATION: a | inside an inline code span still splits the cell', () => {
+    const html = renderMarkdown('| A | B |\n|---|---|\n| `a|b` | c |')
+    expect(html).toContain('>`a</td>') // first cell keeps the opening backtick
+    expect(html).toContain('>b`</td>') // the code span is torn in two
+    expect(html).not.toContain('<code')
+  })
+})
+
+describe('renderMarkdown — blockquotes', () => {
+  it('collapses consecutive > lines into exactly one blockquote', () => {
+    const html = renderMarkdown('> first\n> second')
+    expect(html.match(/<blockquote/g) ?? []).toHaveLength(1)
+    expect(html).toContain('first<br>second')
+    expect(html).not.toContain('&gt; first')
+  })
+
+  it('starts a new blockquote after a blank line', () => {
+    const html = renderMarkdown('> one\n\n> two')
+    expect(html.match(/<blockquote/g) ?? []).toHaveLength(2)
+  })
+
+  it('applies inline formatting inside a quote', () => {
+    const html = renderMarkdown('> see `pnpm test`')
+    expect(html).toContain('<code')
+    expect(html).toContain('>pnpm test</code>')
+  })
+
+  it('keeps a nested >> as text of the single supported level', () => {
+    const html = renderMarkdown('>> deep')
+    expect(html.match(/<blockquote/g) ?? []).toHaveLength(1)
+    expect(html).toContain('&gt; deep')
+  })
+
+  it('does not swallow the paragraph that follows the quote', () => {
+    const html = renderMarkdown('> quoted\nplain')
+    expect(html).toContain('>quoted</blockquote>')
+    expect(html).toContain('>plain</p>')
+  })
+})
+
+describe('renderMarkdown — read-only checkbox lists', () => {
+  it('renders - [ ] / - [x] as disabled checkboxes with no literal brackets', () => {
+    const html = renderMarkdown('- [ ] todo\n- [x] done')
+    expect(html.match(/<input[^>]*type="checkbox"/g) ?? []).toHaveLength(2)
+    expect(html.match(/disabled/g) ?? []).toHaveLength(2)
+    expect(html.match(/checked/g) ?? []).toHaveLength(1)
+    expect(html).toMatch(/<input[^>]*checked[^>]*>\s*<span>done<\/span>/)
+    expect(html.replace(/<[^>]*>/g, '')).not.toMatch(/\[\s?\]|\[[xX]\]/)
+  })
+
+  it('accepts uppercase [X] and the * marker', () => {
+    const html = renderMarkdown('* [X] done')
+    expect(html.match(/checked/g) ?? []).toHaveLength(1)
+  })
+
+  it('drops the bullet for task lists but keeps it for plain lists', () => {
+    expect(renderMarkdown('- [ ] a')).toContain('list-none')
+    expect(renderMarkdown('- a')).toContain('list-disc')
+  })
+
+  it('is tested before the ul branch, so mixed lists split correctly', () => {
+    const html = renderMarkdown('- plain\n- [ ] task')
+    expect(html.match(/<ul/g) ?? []).toHaveLength(2)
+    expect(html).toContain('list-disc')
+    expect(html).toContain('list-none')
+    expect(html).toContain('>plain</li>')
+  })
+
+  it('applies inline formatting to the label', () => {
+    const html = renderMarkdown('- [x] ship **now**')
+    expect(html).toContain('<strong')
+    expect(html).toContain('>now</strong>')
+  })
+})
+
 describe('renderMarkdown — XSS neutralization (escape-first)', () => {
+  const payload = '<img src=x onerror=alert(1)><script>alert(2)</script>'
+
+  // An on*= handler only matters inside a real tag; escaped output keeps the
+  // inert literal text "onerror=" exactly like the paragraph branch does.
+  const handlerInTag = /<[^>]*\bon\w+\s*=/i
+
+  it('escapes raw HTML inside table cells', () => {
+    const html = renderMarkdown(`| h |\n|---|\n| ${payload} |`)
+    expect(html).not.toContain('<img')
+    expect(html).not.toContain('<script')
+    expect(html).not.toMatch(handlerInTag)
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
+  })
+
+  it('escapes raw HTML inside blockquotes', () => {
+    const html = renderMarkdown(`> ${payload}`)
+    expect(html).toContain('<blockquote')
+    expect(html).not.toContain('<img')
+    expect(html).not.toContain('<script')
+    expect(html).not.toMatch(handlerInTag)
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
+  })
+
+  it('escapes raw HTML inside checkbox labels', () => {
+    const html = renderMarkdown(`- [ ] ${payload}`)
+    expect(html).toContain('type="checkbox"')
+    expect(html).not.toContain('<img')
+    expect(html).not.toContain('<script')
+    expect(html).not.toMatch(handlerInTag)
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
+  })
+
+  it('does not diverge from the paragraph branch on the same text', () => {
+    const text = 'a=b'
+    expect(renderMarkdown(`| h |\n|---|\n| ${text} |`)).toContain(text)
+    expect(renderMarkdown(`> ${text}`)).toContain(text)
+    expect(renderMarkdown(`- [ ] ${text}`)).toContain(text)
+    expect(renderMarkdown(text)).toContain(text)
+  })
+
+
   it('escapes <script> tags so they are inert text', () => {
     const html = renderMarkdown('<script>alert(1)</script>')
     expect(html).not.toContain('<script')

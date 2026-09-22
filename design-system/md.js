@@ -2,8 +2,14 @@
  * Escape-first: the WHOLE input is HTML-escaped before any markdown transform,
  * so raw HTML in body_md can never reach the DOM (XSS-safe by construction).
  * Supports: headings #..####, **bold**, *italic*, `inline code`, fenced ```
- * code blocks, unordered (-/*) and ordered (1.) lists, [links](url) with an
- * http/https/relative-only href whitelist, paragraphs and line breaks.
+ * code blocks, unordered (-/*) and ordered (1.) lists, read-only checkbox
+ * lists (- [ ] / - [x]), GFM pipe tables with :---/:---:/---: alignment,
+ * single-level > blockquotes, [links](url) with an http/https/relative-only
+ * href whitelist, paragraphs and line breaks.
+ * Deliberate limitations: blockquotes are one level only (a nested >> stays as
+ * text of the first level); a `|` inside an inline code span still counts as a
+ * table cell boundary, because cells are split before inline() runs — doing it
+ * right would need a real tokenizer.
  * Loaded via <script src="/md.js"> in the browser (exposes window.renderMarkdown);
  * attaches to globalThis for the unit tests in tests/md-render.test.ts. */
 (function () {
@@ -51,11 +57,37 @@
     4: 'text-[13px] font-semibold text-text mt-3 mb-1 first:mt-0',
   };
 
+  /* Split one GFM table row into trimmed cells. Outer pipes are optional. */
+  function splitRow(line) {
+    var s = line.trim();
+    if (s.charAt(0) === '|') s = s.slice(1);
+    if (s.charAt(s.length - 1) === '|') s = s.slice(0, -1);
+    return s.split('|').map(function (c) { return c.trim(); });
+  }
+
+  /* A separator row is `|---|:---:|---:|`: every cell is only dashes with an
+   * optional leading/trailing colon. Returns the alignment per column, or null
+   * when the line is NOT a separator (then the caller keeps paragraph behaviour). */
+  function parseAligns(line) {
+    if (line == null || line.indexOf('|') === -1) return null;
+    var cells = splitRow(line);
+    if (!cells.length) return null;
+    var aligns = [];
+    for (var i = 0; i < cells.length; i++) {
+      var c = cells[i];
+      if (!/^:?-+:?$/.test(c)) return null;
+      var l = c.charAt(0) === ':';
+      var r = c.charAt(c.length - 1) === ':';
+      aligns.push(l && r ? 'center' : r ? 'right' : 'left');
+    }
+    return aligns;
+  }
+
   function renderMarkdown(mdText) {
     var lines = escapeHtml(mdText).split(/\r?\n/);
     var html = '';
     var para = [];   // pending paragraph lines
-    var list = null; // 'ul' | 'ol' | null
+    var list = null; // 'ul' | 'ol' | 'task' | null ('task' is a bullet-less <ul>)
 
     function flushPara() {
       if (para.length) {
@@ -64,7 +96,7 @@
       }
     }
     function closeList() {
-      if (list) { html += '</' + list + '>'; list = null; }
+      if (list) { html += '</' + (list === 'task' ? 'ul' : list) + '>'; list = null; }
     }
 
     for (var i = 0; i < lines.length; i++) {
@@ -84,6 +116,64 @@
         flushPara(); closeList();
         var lvl = m[1].length;
         html += '<h' + lvl + ' class="' + H_CLS[lvl] + '">' + inline(m[2]) + '</h' + lvl + '>';
+        continue;
+      }
+
+      // GFM pipe table: current line has pipes AND the next one is a separator.
+      if (line.indexOf('|') !== -1) {
+        var aligns = parseAligns(lines[i + 1]);
+        if (aligns) {
+          flushPara(); closeList();
+          var headers = splitRow(line);
+          var cols = headers.length;
+          while (aligns.length < cols) aligns.push('left');
+          var cell = function (tag, text, col, cls) {
+            return '<' + tag + ' class="' + cls + ' text-' + aligns[col] + '">' + inline(text) + '</' + tag + '>';
+          };
+          var thCls = 'px-2.5 py-1.5 border-b border-border font-semibold text-text whitespace-nowrap';
+          var tdCls = 'px-2.5 py-1.5 border-t border-border align-top';
+          var table = '<div class="overflow-x-auto mb-2"><table class="w-full border-collapse text-[13px] text-text/90"><thead><tr>';
+          for (var c = 0; c < cols; c++) table += cell('th', headers[c], c, thCls);
+          table += '</tr></thead><tbody>';
+          i++; // consume the separator row
+          while (i + 1 < lines.length && lines[i + 1].indexOf('|') !== -1 && !/^\s*$/.test(lines[i + 1])) {
+            i++;
+            var cells = splitRow(lines[i]);
+            table += '<tr>';
+            // ragged rows are normalised to the header width: pad / truncate
+            for (var k = 0; k < cols; k++) table += cell('td', k < cells.length ? cells[k] : '', k, tdCls);
+            table += '</tr>';
+          }
+          html += table + '</tbody></table></div>';
+          continue;
+        }
+      }
+
+      // Blockquote: consecutive `>` lines collapse into ONE <blockquote>.
+      // (`>` is already escaped to `&gt;` by escapeHtml.) Single level only.
+      m = line.match(/^\s*&gt;\s?(.*)$/);
+      if (m) {
+        flushPara(); closeList();
+        var quoted = [m[1]];
+        var qm;
+        while (i + 1 < lines.length && (qm = lines[i + 1].match(/^\s*&gt;\s?(.*)$/))) {
+          quoted.push(qm[1]); i++;
+        }
+        html += '<blockquote class="border-l-2 border-accent/60 pl-3 py-0.5 mb-2 text-text/75 italic text-[13px] leading-relaxed">'
+          + quoted.map(inline).join('<br>') + '</blockquote>';
+        continue;
+      }
+
+      // Read-only checkbox list — MUST be tested before the plain `ul` branch
+      // below, which would otherwise swallow it and print a literal "[ ]".
+      m = line.match(/^\s*[-*]\s+\[([ xX])\]\s*(.*)$/);
+      if (m) {
+        flushPara();
+        if (list !== 'task') { closeList(); html += '<ul class="list-none pl-0 space-y-1 text-text/90 text-[13px] mb-2">'; list = 'task'; }
+        html += '<li class="flex items-start gap-2 leading-relaxed">'
+          + '<input type="checkbox" disabled' + (m[1] === ' ' ? '' : ' checked')
+          + ' class="mt-[3px] shrink-0 cursor-default accent-accent">'
+          + '<span>' + inline(m[2]) + '</span></li>';
         continue;
       }
 
