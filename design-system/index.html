@@ -171,7 +171,7 @@
 <!-- ============ TASK DETAIL DRAWER (S2) ============ -->
 <div id="scrim" class="scrim fixed inset-0 bg-black/50 opacity-0 pointer-events-none z-40" onclick="closeDrawer()"></div>
 
-<aside id="drawer" class="drawer fixed top-0 right-0 h-full w-full sm:w-[520px] bg-panel border-l border-border z-50 translate-x-full flex flex-col">
+<aside id="drawer" class="drawer fixed top-0 right-0 h-full w-full sm:w-2/3 bg-panel border-l border-border z-50 translate-x-full flex flex-col">
 
   <!-- drawer header -->
   <div class="shrink-0 border-b border-border">
@@ -184,6 +184,7 @@
         <h2 id="drawer-title" class="mt-1.5 text-[18px] font-semibold leading-tight tracking-tight"></h2>
         <p class="mt-1 text-[13px] text-muted">in <span id="drawer-project" class="text-text"></span> &middot; updated <span id="drawer-updated" class="mono"></span></p>
       </div>
+      <button type="button" data-drawer-fullscreen aria-pressed="false" aria-label="Expand drawer to fullscreen" class="grid place-items-center w-8 h-8 rounded-md text-muted hover:bg-white/5 shrink-0"><i class="ph ph-arrows-out text-[17px]"></i></button>
       <button onclick="closeDrawer()" aria-label="Close drawer" class="grid place-items-center w-8 h-8 rounded-md text-muted hover:bg-white/5 shrink-0"><i class="ph ph-x text-[17px]"></i></button>
     </div>
 
