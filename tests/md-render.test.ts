@@ -151,11 +151,9 @@ describe('renderMarkdown — GFM pipe tables', () => {
     expect(html).toContain('>bold</strong>')
   })
 
-  it('still renders links with query strings inside cells', () => {
+  it('renders links with query strings inside cells', () => {
     const html = renderMarkdown('| A |\n|---|\n| [docs](https://example.com/?q=1) |')
-    // `=` is entity-encoded in the text pipeline; the parser decodes it inside
-    // the attribute, so the link target is unchanged
-    expect(html).toContain('href="https://example.com/?q&#61;1"')
+    expect(html).toContain('href="https://example.com/?q=1"')
     expect(html).toContain('>docs</a>')
   })
 
@@ -240,14 +238,16 @@ describe('renderMarkdown — read-only checkbox lists', () => {
 describe('renderMarkdown — XSS neutralization (escape-first)', () => {
   const payload = '<img src=x onerror=alert(1)><script>alert(2)</script>'
 
+  // An on*= handler only matters inside a real tag; escaped output keeps the
+  // inert literal text "onerror=" exactly like the paragraph branch does.
+  const handlerInTag = /<[^>]*\bon\w+\s*=/i
+
   it('escapes raw HTML inside table cells', () => {
     const html = renderMarkdown(`| h |\n|---|\n| ${payload} |`)
     expect(html).not.toContain('<img')
     expect(html).not.toContain('<script')
-    // the new branches also entity-encode `=`, so not even the literal token
-    // `onerror=` survives in the markup
-    expect(html).not.toMatch(/onerror\s*=/)
-    expect(html).toContain('&lt;img src&#61;x onerror&#61;alert(1)&gt;')
+    expect(html).not.toMatch(handlerInTag)
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
   })
 
   it('escapes raw HTML inside blockquotes', () => {
@@ -255,7 +255,8 @@ describe('renderMarkdown — XSS neutralization (escape-first)', () => {
     expect(html).toContain('<blockquote')
     expect(html).not.toContain('<img')
     expect(html).not.toContain('<script')
-    expect(html).not.toMatch(/onerror\s*=/)
+    expect(html).not.toMatch(handlerInTag)
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
   })
 
   it('escapes raw HTML inside checkbox labels', () => {
@@ -263,7 +264,16 @@ describe('renderMarkdown — XSS neutralization (escape-first)', () => {
     expect(html).toContain('type="checkbox"')
     expect(html).not.toContain('<img')
     expect(html).not.toContain('<script')
-    expect(html).not.toMatch(/onerror\s*=/)
+    expect(html).not.toMatch(handlerInTag)
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;')
+  })
+
+  it('does not diverge from the paragraph branch on the same text', () => {
+    const text = 'a=b'
+    expect(renderMarkdown(`| h |\n|---|\n| ${text} |`)).toContain(text)
+    expect(renderMarkdown(`> ${text}`)).toContain(text)
+    expect(renderMarkdown(`- [ ] ${text}`)).toContain(text)
+    expect(renderMarkdown(text)).toContain(text)
   })
 
 

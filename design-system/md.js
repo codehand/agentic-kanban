@@ -50,17 +50,6 @@
     return s.replace(/\u0000(\d+)\u0000/g, function (m, i) { return codes[+i]; });
   }
 
-  /* inline() for the branches added for task specs (table cells, blockquote
-   * lines, checkbox labels). Identical output except that `=` in the SOURCE
-   * text is entity-encoded first, so an escaped payload such as
-   * `&lt;img src=x onerror=alert(1)&gt;` cannot even leave the literal token
-   * `onerror=` in the markup. Purely defensive: the text was already inert
-   * (escape-first), and `&#61;` renders as `=` — including inside the href of
-   * a generated link, where entities are decoded by the parser. */
-  function inlineSpec(s) {
-    return inline(s.replace(/=/g, '&#61;'));
-  }
-
   var H_CLS = {
     1: 'text-[17px] font-semibold text-text mt-4 mb-1.5 first:mt-0',
     2: 'text-[15px] font-semibold text-text mt-4 mb-1.5 first:mt-0',
@@ -139,7 +128,7 @@
           var cols = headers.length;
           while (aligns.length < cols) aligns.push('left');
           var cell = function (tag, text, col, cls) {
-            return '<' + tag + ' class="' + cls + ' text-' + aligns[col] + '">' + inlineSpec(text) + '</' + tag + '>';
+            return '<' + tag + ' class="' + cls + ' text-' + aligns[col] + '">' + inline(text) + '</' + tag + '>';
           };
           var thCls = 'px-2.5 py-1.5 border-b border-border font-semibold text-text whitespace-nowrap';
           var tdCls = 'px-2.5 py-1.5 border-t border-border align-top';
@@ -171,7 +160,7 @@
           quoted.push(qm[1]); i++;
         }
         html += '<blockquote class="border-l-2 border-accent/60 pl-3 py-0.5 mb-2 text-text/75 italic text-[13px] leading-relaxed">'
-          + quoted.map(inlineSpec).join('<br>') + '</blockquote>';
+          + quoted.map(inline).join('<br>') + '</blockquote>';
         continue;
       }
 
@@ -184,7 +173,7 @@
         html += '<li class="flex items-start gap-2 leading-relaxed">'
           + '<input type="checkbox" disabled' + (m[1] === ' ' ? '' : ' checked')
           + ' class="mt-[3px] shrink-0 cursor-default accent-accent">'
-          + '<span>' + inlineSpec(m[2]) + '</span></li>';
+          + '<span>' + inline(m[2]) + '</span></li>';
         continue;
       }
 
