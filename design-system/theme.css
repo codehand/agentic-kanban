@@ -1,5 +1,5 @@
 /* Agentic Kanban - shared styles. Fonts + custom layers + motion (reduced-motion safe). */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 /* ---- Light palette (default) ---- */
 :root {
@@ -56,7 +56,6 @@ html.dark {
 html.dark .bg-accent, html.dark .bg-st_human, html.dark .bg-ev_fail { color: var(--bg); }
 
 html, body { background: var(--bg); }
-body { font-feature-settings: "cv11", "ss01"; }
 .mono { font-variant-numeric: tabular-nums; }
 
 /* faint console grid on empty surfaces */
