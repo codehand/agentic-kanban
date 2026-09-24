@@ -8,6 +8,7 @@
  * 'design-system/<file>' when the first segment is not a real file
  * (the segment is the project id; pages read it from the URL path).
  * '/<project-id>' and '/<project-id>/' map to index.html.
+ * '/<project-id>/t/<KEY>' and '/t/<KEY>' map to task.html (TASK-073).
  */
 import { readFileSync, statSync, existsSync } from 'node:fs'
 import { join, extname } from 'node:path'
@@ -22,6 +23,8 @@ const MIME: Record<string, string> = {
   '.svg':  'image/svg+xml',
   '.ico':  'image/x-icon',
 }
+
+const TASK_PAGE_RE = /^(?:\/[^/.]+)?\/t\/[^/.]+$/
 
 function serveFile(abs: string, res: ServerResponse): boolean {
   if (!existsSync(abs)) return false
@@ -73,7 +76,13 @@ export function mountStatic(
     // 1. Direct file match (e.g. /index.html, /theme.css).
     if (serveFile(join(staticDir, relPath), res)) return
 
-    // 2. Project-prefixed path: strip the first segment when it is not a
+    // 2. Full-screen task detail page (TASK-073): '/<project>/t/<KEY>' and
+    //    bare '/t/<KEY>' serve task.html. <KEY> (and <project>) is exactly one
+    //    segment with no '.', so '/<p>/t/<KEY>/extra', '/<p>/t/' and
+    //    '/<p>/t/x.js' keep their old behaviour.
+    if (TASK_PAGE_RE.test(relPath) && serveFile(join(staticDir, 'task.html'), res)) return
+
+    // 3. Project-prefixed path: strip the first segment when it is not a
     //    real file and has no extension (project ids never contain dots).
     //    '/<project>/index.html' -> 'index.html', '/<project>/' -> 'index.html'.
     const segments = relPath.split('/').filter(Boolean)

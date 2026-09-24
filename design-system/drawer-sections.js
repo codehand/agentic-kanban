@@ -1,14 +1,24 @@
-/* drawer-sections.js — shared Comments + Timeline renderers for both task
- * drawers (board index.html + tasks-list tasks.js).
+/* drawer-sections.js — shared task-detail renderers for both task drawers
+ * (board index.html + tasks-list tasks.js) and the full-screen task page
+ * (task.html, served at /<project>/t/<KEY>).
  *
  * TASK-060: the two drawers each rendered only half of the task-detail payload
  * (board had Timeline, tasks-list had Comments). This module is the single
  * source of truth for BOTH sections so the drawers render identical output and
- * cannot drift again. Loaded via <script src="/drawer-sections.js"> in both
- * pages (after /api.js,/shell.js,/md.js, before the page's own drawer script).
+ * cannot drift again. Loaded via <script src="/drawer-sections.js"> in every
+ * page that shows task detail (after /api.js,/shell.js,/md.js, before the
+ * page's own script).
  *
- * Exposes window.__drawerSections = { renderTimeline, renderComments, wireComposer }.
- * Uses the global renderMarkdown (from /md.js) for comment bodies.
+ * TASK-073: the remaining board-drawer sections (Attributes display + inline
+ * edit, Spec, Depends on, Repos & MR, Evidence), the state badge labels and the
+ * state-gated action buttons moved here too, so the board drawer and task.html
+ * call the same functions instead of a third copy.
+ *
+ * Exposes window.__drawerSections = { renderTimeline, renderComments,
+ * wireComposer, taskHref, STATE_LABEL, stateLabel, showActions,
+ * renderAttributes, populateEditForm, toggleEditAttributes, saveAttributes,
+ * renderSpec, renderDependsOn, renderGitrefs, renderEvidence }.
+ * Uses the global renderMarkdown (from /md.js) for spec and comment bodies.
  */
 (function () {
   'use strict';
@@ -233,9 +243,234 @@
     initFullscreen();
   }
 
+  /* ---- TASK-073: shared task-detail sections -----------------------------
+   * Moved verbatim from the board drawer (index.html) so the drawer's HTML
+   * output is unchanged; the only difference is that Depends-on chips are now
+   * real links to the full-screen task page instead of drawer-reopen buttons.
+   */
+
+  // Returns the URL only if it is an http(s) URL; otherwise '' so callers can
+  // neutralize the href (defense against javascript:/data: stored XSS).
+  function safeHttpHref(u) { try { return /^https?:$/.test(new URL(u).protocol) ? u : ''; } catch (e) { return ''; } }
+
+  /* Root-relative URL of the full-screen task page: /<project>/t/<KEY>, each
+   * segment URL-encoded. Used by every task-key surface (board card, tasks
+   * row, drawer header, depends-on chip). */
+  function taskHref(project, key) {
+    return '/' + encodeURIComponent(project) + '/t/' + encodeURIComponent(key);
+  }
+
+  var STATE_LABEL = {
+    'TODO': { text: 'TODO', icon: 'ph-circle', cls: 'bg-white/5 text-st_todo' },
+    'IN_PROGRESS': { text: 'IN_PROGRESS', icon: 'ph-circle-notch', cls: 'bg-st_prog/12 text-st_prog', fill: true },
+    'IMPLEMENTED': { text: 'IMPLEMENTED', icon: 'ph-check-circle', cls: 'bg-st_impl/12 text-st_impl', fill: true },
+    'EVIDENCE': { text: 'EVIDENCE', icon: 'ph-seal-check', cls: 'bg-st_self/12 text-st_self', fill: true },
+    'SELF_CHECK_PASSED': { text: 'SELF_CHECK_PASSED', icon: 'ph-shield-check', cls: 'bg-st_self/12 text-st_self', fill: true },
+    'SELF_CHECK_FAILED': { text: 'SELF_CHECK_FAILED', icon: 'ph-warning', cls: 'bg-st_selffail/12 text-st_selffail', fill: true },
+    'JUDGE_REJECTED': { text: 'JUDGE_REJECTED', icon: 'ph-x-circle', cls: 'bg-st_reject/12 text-st_reject', fill: true },
+    'JUDGE_PASSED': { text: 'JUDGE_PASSED', icon: 'ph-gavel', cls: 'bg-st_human/15 text-st_human', fill: true },
+    'READY_TO_REVIEW': { text: 'READY_TO_REVIEW', icon: 'ph-git-pull-request', cls: 'bg-st_human/15 text-st_human', fill: true },
+    'DONE': { text: 'DONE', icon: 'ph-check-fat', cls: 'bg-st_done/12 text-st_done', fill: true },
+  };
+
+  function stateLabel(state) {
+    return STATE_LABEL[state] || { text: state, icon: 'ph-circle', cls: 'bg-white/5 text-muted' };
+  }
+
+  /* Show the human-action buttons (#btn-approve/#btn-reject/#btn-reset/
+   * #btn-remove) allowed for `state`. A DONE task is terminal and shows NO
+   * actions at all (no approve/reset/remove). */
+  function showActions(state) {
+    var review = state === 'JUDGE_PASSED' || state === 'READY_TO_REVIEW';
+    var reset = state === 'JUDGE_REJECTED' || state === 'SELF_CHECK_FAILED';
+    var rules = { 'btn-approve': review, 'btn-reject': review, 'btn-reset': reset, 'btn-remove': state !== 'DONE' };
+    Object.keys(rules).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.classList.toggle('hidden', !rules[id]);
+    });
+  }
+
+  // --- Task attribute display/edit helpers ---
+  var PRIO_COLORS = { P0: 'bg-ev_fail/15 text-ev_fail', P1: 'bg-orange-500/15 text-orange-800 dark:text-orange-400', P2: 'bg-yellow-500/15 text-yellow-800 dark:text-yellow-400', P3: 'bg-blue-500/15 text-blue-700 dark:text-blue-400' };
+
+  function renderAttributesDisplay(t) {
+    var tags = Array.isArray(t.tags) ? t.tags : [];
+    var rows = '';
+    rows += '<div class="flex items-center gap-2 py-1"><span class="text-[13px] text-muted w-24 shrink-0">Priority</span>' + (t.priority ? '<span role="img" aria-label="Priority ' + esc(t.priority) + '" class="mono text-[12px] px-1.5 py-0.5 rounded ' + (PRIO_COLORS[t.priority] || 'bg-white/5 text-muted') + '">' + esc(t.priority) + '</span>' : '<span class="text-[13px] text-muted">—</span>') + '</div>';
+    rows += '<div class="flex items-center gap-2 py-1"><span class="text-[13px] text-muted w-24 shrink-0">Complexity</span><span class="text-[13px]">' + esc(t.complexity || '—') + '</span></div>';
+    rows += '<div class="flex items-center gap-2 py-1"><span class="text-[13px] text-muted w-24 shrink-0">Estimate</span><span class="text-[13px]">' + (t.estimate_hours != null ? esc(String(t.estimate_hours)) + 'h' : '—') + '</span></div>';
+    rows += '<div class="flex items-center gap-2 py-1 flex-wrap"><span class="text-[13px] text-muted w-24 shrink-0">Tags</span>';
+    if (tags.length > 0) { tags.forEach(function (tag) { rows += '<span class="mono text-[11px] px-1.5 py-0.5 rounded bg-white/5 text-muted">' + esc(tag) + '</span>'; }); }
+    else { rows += '<span class="text-[13px] text-muted">—</span>'; }
+    rows += '</div>';
+    rows += '<div class="flex items-center gap-2 py-1"><span class="text-[13px] text-muted w-24 shrink-0">Link Doc</span>';
+    if (t.link_document) {
+      var safeDoc = safeHttpHref(t.link_document);
+      if (safeDoc) { rows += '<a href="' + esc(safeDoc) + '" target="_blank" rel="noopener noreferrer" class="text-[13px] text-accent hover:underline truncate max-w-[250px]">' + esc(t.link_document) + '</a>'; }
+      else { rows += '<span class="text-[13px] text-muted truncate max-w-[250px]">' + esc(t.link_document) + '</span>'; }
+    }
+    else { rows += '<span class="text-[13px] text-muted">—</span>'; }
+    rows += '</div>';
+    // PR link (TASK-051): recorded by the pr-bot via PATCH; UI only displays.
+    if (t.pr_url) {
+      rows += '<div class="flex items-center gap-2 py-1"><span class="text-[13px] text-muted w-24 shrink-0">PR</span>';
+      var safePr = safeHttpHref(t.pr_url);
+      if (safePr) { rows += '<a href="' + esc(safePr) + '" target="_blank" rel="noopener noreferrer" class="text-[13px] text-accent hover:underline truncate max-w-[250px]"><i class="ph ph-git-pull-request text-[13px]"></i> Open PR</a>'; }
+      else { rows += '<span class="text-[13px] text-muted truncate max-w-[250px]">' + esc(t.pr_url) + '</span>'; }
+      rows += '</div>';
+    }
+    return '<div id="attrs-display" class="rounded-lg border border-border bg-panel2 divide-y divide-border px-3 mb-2">' + rows + '</div>';
+  }
+
+  function renderAttributesEdit(t) {
+    var tags = Array.isArray(t.tags) ? t.tags : [];
+    var h = '<div id="attrs-edit" class="hidden rounded-lg border border-accent/30 bg-panel2 p-3 space-y-2 mb-2">';
+    h += '<div class="grid grid-cols-2 gap-2">';
+    h += '<div><label class="text-[12px] text-muted block mb-1">Priority</label><select id="edit-priority" class="w-full rounded-md border border-border bg-panel px-2 h-8 text-[13px] outline-none"><option value="">—</option><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option><option value="P3">P3</option></select></div>';
+    h += '<div><label class="text-[12px] text-muted block mb-1">Complexity</label><select id="edit-complexity" class="w-full rounded-md border border-border bg-panel px-2 h-8 text-[13px] outline-none"><option value="">—</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="8">8</option><option value="13">13</option><option value="21">21</option></select></div>';
+    h += '</div>';
+    h += '<div><label class="text-[12px] text-muted block mb-1">Estimate (hours)</label><input id="edit-estimate_hours" type="number" min="0" step="0.5" class="w-full rounded-md border border-border bg-panel px-2 h-8 text-[13px] outline-none" /></div>';
+    h += '<div><label class="text-[12px] text-muted block mb-1">Tags (comma-separated)</label><input id="edit-tags" type="text" class="w-full rounded-md border border-border bg-panel px-2 h-8 text-[13px] outline-none" /></div>';
+    h += '<div><label class="text-[12px] text-muted block mb-1">Link Document (URL)</label><input id="edit-link_document" type="url" class="w-full rounded-md border border-border bg-panel px-2 h-8 text-[13px] outline-none" /></div>';
+    h += '<div class="flex items-center gap-2 pt-1"><button onclick="window.__saveAttributes()" class="rounded-md bg-accent px-3 h-8 text-[13px] font-medium text-white hover:bg-accent/90">Save</button><button onclick="window.__toggleEditAttributes()" class="rounded-md border border-border px-3 h-8 text-[13px] text-muted hover:text-text">Cancel</button><span id="edit-attrs-msg" class="text-[12px] text-muted"></span></div>';
+    h += '</div>';
+    // Store initial values in data attributes so they can be applied after innerHTML insertion
+    // (inline <script> tags don't execute when set via innerHTML)
+    h += '<div id="attrs-edit-data" style="display:none" data-priority="' + esc(t.priority || '') + '" data-complexity="' + esc(t.complexity || '') + '" data-estimate="' + (t.estimate_hours != null ? t.estimate_hours : '') + '" data-tags="' + esc(tags.join(', ')) + '" data-link="' + esc(t.link_document || '') + '"></div>';
+    return h;
+  }
+
+  /* Attributes section (display + hidden inline edit form). The inline
+   * onclick handlers call window.__toggleEditAttributes / __saveAttributes,
+   * which each page binds (see toggleEditAttributes / saveAttributes). */
+  function renderAttributes(t) {
+    var html = '<section id="drawer-attributes"><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-sliders text-[14px]"></i> Attributes <button onclick="window.__toggleEditAttributes()" id="btn-edit-attrs" class="ml-auto text-[12px] normal-case tracking-normal text-accent hover:underline">Edit</button></h3>';
+    html += renderAttributesDisplay(t);
+    html += renderAttributesEdit(t);
+    html += '</section>';
+    return html;
+  }
+
+  // Populate edit form values (inline <script> tags don't execute via innerHTML)
+  function populateEditForm() {
+    var data = document.getElementById('attrs-edit-data');
+    if (!data) return;
+    var ep = document.getElementById('edit-priority');
+    var ec = document.getElementById('edit-complexity');
+    var ee = document.getElementById('edit-estimate_hours');
+    var et = document.getElementById('edit-tags');
+    var el = document.getElementById('edit-link_document');
+    if (ep) ep.value = data.dataset.priority || '';
+    if (ec) ec.value = data.dataset.complexity || '';
+    if (ee) ee.value = data.dataset.estimate || '';
+    if (et) et.value = data.dataset.tags || '';
+    if (el) el.value = data.dataset.link || '';
+  }
+
+  function toggleEditAttributes() {
+    var display = document.getElementById('attrs-display');
+    var edit = document.getElementById('attrs-edit');
+    var btn = document.getElementById('btn-edit-attrs');
+    if (!edit) return;
+    var hidden = edit.classList.contains('hidden');
+    if (hidden) { edit.classList.remove('hidden'); if (display) display.classList.add('hidden'); if (btn) btn.textContent = 'Cancel'; }
+    else { edit.classList.add('hidden'); if (display) display.classList.remove('hidden'); if (btn) btn.textContent = 'Edit'; }
+  }
+
+  /* PATCH the edited attributes of (project, key) via api.updateTask; on
+   * success shows "Saved!" and calls onSaved() 600ms later so the page can
+   * refetch/re-render the task. */
+  function saveAttributes(api, project, key, onSaved) {
+    var msg = document.getElementById('edit-attrs-msg');
+    var patch = {};
+    var p = document.getElementById('edit-priority').value;
+    if (p) patch.priority = p;
+    var c = document.getElementById('edit-complexity').value;
+    if (c) patch.complexity = c;
+    var e = document.getElementById('edit-estimate_hours').value;
+    if (e) patch.estimate_hours = parseFloat(e);
+    var t = document.getElementById('edit-tags').value.trim();
+    if (t) patch.tags = t.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    var l = document.getElementById('edit-link_document').value.trim();
+    if (l) patch.link_document = l;
+    if (Object.keys(patch).length === 0) { if (msg) { msg.textContent = 'Nothing to save.'; msg.className = 'text-[12px] text-muted'; } return; }
+    api.updateTask(project, key, patch).then(function (res) {
+      if (res && res.task) {
+        if (msg) { msg.textContent = 'Saved!'; msg.className = 'text-[12px] text-ev_pass'; }
+        setTimeout(function () { if (typeof onSaved === 'function') onSaved(); }, 600);
+      } else {
+        if (msg) { msg.textContent = 'Save failed.'; msg.className = 'text-[12px] text-ev_fail'; }
+      }
+    }).catch(function (err) {
+      if (msg) { msg.textContent = 'Error: ' + err.message; msg.className = 'text-[12px] text-ev_fail'; }
+    });
+  }
+
+  // Spec section
+  function renderSpec(t) {
+    var html = '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-file-text text-[14px]"></i> Spec</h3>';
+    html += '<div class="text-[13px]">' + md(t.body_md || '(no spec)') + '</div></section>';
+    return html;
+  }
+
+  /* Depends on section (only when the task declares dependencies). Each chip
+   * is a real link to the upstream task's full-screen page (TASK-073). */
+  function renderDependsOn(project, deps) {
+    if (!deps || deps.length === 0) return '';
+    var html = '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-link text-[14px]"></i> Depends on</h3><div class="flex flex-wrap gap-1.5">';
+    deps.forEach(function (dep) {
+      html += '<a href="' + esc(taskHref(project, dep)) + '" class="mono text-[13px] rounded border border-border bg-panel2 px-1.5 py-0.5 text-accent hover:underline">' + esc(dep) + '</a>';
+    });
+    html += '</div></section>';
+    return html;
+  }
+
+  // Gitrefs (with PR link from mr_url)
+  function renderGitrefs(gitrefs) {
+    if (!gitrefs || gitrefs.length === 0) return '';
+    var html = '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-git-branch text-[14px]"></i> Repos &amp; MR</h3><div class="space-y-2">';
+    gitrefs.forEach(function (g) {
+      html += '<div class="rounded-lg border border-border bg-panel2 p-2.5"><span class="mono text-[13px] font-medium">' + esc(g.repo || '') + '</span>';
+      if (g.branch) html += '<div class="mt-1 mono text-[13px] text-muted">' + esc(g.branch) + '</div>';
+      if (g.head_sha) html += '<div class="mt-0.5 mono text-[13px] text-muted">' + esc(g.head_sha.substring(0, 7)) + '</div>';
+      if (g.mr_url) { var safeMr = safeHttpHref(g.mr_url); if (safeMr) html += '<div class="mt-1"><a href="' + esc(safeMr) + '" target="_blank" rel="noopener noreferrer" class="text-[13px] text-accent hover:underline flex items-center gap-1"><i class="ph ph-link text-[13px]"></i> PR/MR link</a></div>'; else html += '<div class="mt-1 text-[13px] text-muted flex items-center gap-1"><i class="ph ph-link text-[13px]"></i> ' + esc(g.mr_url) + '</div>'; }
+      html += '</div>';
+    });
+    html += '</div></section>';
+    return html;
+  }
+
+  /* Evidence (build/test exits) + "View full evidence" link. The caller
+   * passes the link href: the board keeps its page-relative
+   * 'evidence.html#<KEY>', task.html (two levels deep) passes the absolute
+   * '/<project>/evidence.html#<KEY>'. */
+  function renderEvidence(ev, evidenceHref) {
+    if (!ev) return '';
+    var html = '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-seal-check text-[14px]"></i> Evidence</h3>';
+    html += '<div class="rounded-lg border border-border bg-panel2 divide-y divide-border">';
+    if (ev.build_exit !== undefined) html += '<div class="flex items-center justify-between px-3 py-2"><span class="flex items-center gap-1.5 text-[13px] text-muted"><i class="ph-fill ph-hammer text-[14px]"></i> build</span><span class="mono text-[13px] ' + (ev.build_exit === 0 ? 'text-ev_pass' : 'text-ev_fail') + '">exit ' + ev.build_exit + '</span></div>';
+    if (ev.test_exit !== undefined) html += '<div class="flex items-center justify-between px-3 py-2"><span class="flex items-center gap-1.5 text-[13px] text-muted"><i class="ph-fill ph-test-tube text-[14px]"></i> test</span><span class="mono text-[13px] ' + (ev.test_exit === 0 ? 'text-ev_pass' : 'text-ev_fail') + '">exit ' + ev.test_exit + '</span></div>';
+    html += '</div>';
+    html += '<a href="' + esc(evidenceHref) + '" class="mt-2 flex items-center gap-1.5 text-[13px] text-accent hover:underline"><i class="ph ph-caret-right text-[13px]"></i> View full evidence</a>';
+    html += '</section>';
+    return html;
+  }
+
   window.__drawerSections = {
     renderTimeline: renderTimeline,
     renderComments: renderComments,
     wireComposer: wireComposer,
+    taskHref: taskHref,
+    STATE_LABEL: STATE_LABEL,
+    stateLabel: stateLabel,
+    showActions: showActions,
+    renderAttributes: renderAttributes,
+    populateEditForm: populateEditForm,
+    toggleEditAttributes: toggleEditAttributes,
+    saveAttributes: saveAttributes,
+    renderSpec: renderSpec,
+    renderDependsOn: renderDependsOn,
+    renderGitrefs: renderGitrefs,
+    renderEvidence: renderEvidence,
   };
 })();

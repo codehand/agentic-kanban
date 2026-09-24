@@ -118,7 +118,8 @@ test.describe('TASK-050: Depends on section in task drawer', () => {
 
     const drawerBody = page.locator('#drawer-body');
     await expect(drawerBody.getByRole('heading', { name: 'Depends on' })).toBeVisible();
-    await expect(drawerBody.locator('button', { hasText: DEP_KEY }).first()).toBeVisible();
+    // TASK-073: the chip is a link (<a>) to the task page, no longer a <button>.
+    await expect(drawerBody.locator('a', { hasText: DEP_KEY }).first()).toBeVisible();
   });
 
   test('flat-list drawer renders Depends on + the dependency key', async ({ page }) => {
@@ -137,10 +138,13 @@ test.describe('TASK-050: Depends on section in task drawer', () => {
 
     const drawerBody = page.locator('#drawer-body');
     await expect(drawerBody.getByRole('heading', { name: 'Depends on' })).toBeVisible();
-    await expect(drawerBody.locator('button', { hasText: DEP_KEY }).first()).toBeVisible();
+    // TASK-073: the chip is a link (<a>) to the task page, no longer a <button>.
+    await expect(drawerBody.locator('a', { hasText: DEP_KEY }).first()).toBeVisible();
   });
 
-  test('dependency chip click opens the upstream task drawer', async ({ page }) => {
+  // TASK-073: the chip used to re-open the drawer on the upstream task; it is
+  // now a real link to the upstream task's full-screen page /<project>/t/<DEP>.
+  test('dependency chip click opens the upstream task full-screen page', async ({ page }) => {
     await page.goto(`${BASE}/${PROJECT}/index.html`);
 
     await page.locator('article', { hasText: MAIN_KEY }).first().click();
@@ -153,10 +157,13 @@ test.describe('TASK-050: Depends on section in task drawer', () => {
       { timeout: 15000 },
     );
 
-    // Clicking the chip re-opens the drawer for the upstream task.
-    await page.locator('#drawer-body button', { hasText: DEP_KEY }).first().click();
+    // Clicking the chip navigates to the upstream task's full-screen page.
+    const chip = page.locator('#drawer-body a', { hasText: DEP_KEY }).first();
+    await expect(chip).toHaveAttribute('href', `/${PROJECT}/t/${DEP_KEY}`);
+    await chip.click();
+    await page.waitForURL(`**/${PROJECT}/t/${DEP_KEY}`, { timeout: 15000 });
     await page.waitForFunction(
-      () => (document.getElementById('drawer-title')?.textContent || '').includes('Upstream dependency'),
+      () => (document.getElementById('task-title')?.textContent || '').includes('Upstream dependency'),
       { timeout: 15000 },
     );
   });
