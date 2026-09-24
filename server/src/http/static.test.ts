@@ -8,6 +8,8 @@
  *   - '/<project>/theme.css' serves the asset with the right Content-Type.
  *   - /api/*, /mcp and /healthz fall through to the next handler.
  *   - Unknown deep paths and path traversal fall through (no file leak).
+ *   - TASK-073: '/<project>/t/<KEY>' and '/t/<KEY>' serve task.html; other
+ *     shapes under '/t/' keep their old (fall-through) behaviour.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http'
@@ -19,6 +21,8 @@ import { mountStatic } from './static.js'
 const INDEX_BODY = '<!doctype html><title>board</title>INDEX_MARKER'
 const TASKS_BODY = '<!doctype html><title>tasks</title>TASKS_MARKER'
 const CSS_BODY = ':root { --x: 1; }'
+const TASK_BODY = '<!doctype html><title>task</title>TASK_PAGE_MARKER'
+const EVIDENCE_BODY = '<!doctype html><title>evidence</title>EVIDENCE_MARKER'
 
 let server: Server
 let baseUrl: string
@@ -34,6 +38,8 @@ beforeAll(async () => {
   writeFileSync(join(staticDir, 'index.html'), INDEX_BODY)
   writeFileSync(join(staticDir, 'tasks.html'), TASKS_BODY)
   writeFileSync(join(staticDir, 'theme.css'), CSS_BODY)
+  writeFileSync(join(staticDir, 'task.html'), TASK_BODY)
+  writeFileSync(join(staticDir, 'evidence.html'), EVIDENCE_BODY)
 
   server = createServer(mountStatic(fallthrough, staticDir))
   await new Promise<void>((resolve) => {
@@ -126,5 +132,81 @@ describe('AC3: path-based project routing', () => {
       req.end()
     })
     expect(status).toBe(404)
+  })
+})
+
+/** Raw GET (no URL normalisation, unlike fetch()) -> status + body. */
+async function rawGet(path: string): Promise<{ status: number; body: string }> {
+  const { request } = await import('node:http')
+  return new Promise((resolve, reject) => {
+    const req = request(`${baseUrl}`, { path }, (res) => {
+      let body = ''
+      res.setEncoding('utf8')
+      res.on('data', (c: string) => (body += c))
+      res.on('end', () => resolve({ status: res.statusCode ?? 0, body }))
+    })
+    req.on('error', reject)
+    req.end()
+  })
+}
+
+describe('TASK-073: full-screen task page route', () => {
+  it('serves task.html at /<project>/t/<KEY> as text/html', async () => {
+    const res = await fetch(`${baseUrl}/opf-hub/t/TASK-001`)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('text/html')
+    expect(await res.text()).toBe(TASK_BODY)
+  })
+
+  it('serves task.html for URL-encoded project / key segments', async () => {
+    const res = await fetch(`${baseUrl}/my%20proj/t/KEY%20X`)
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe(TASK_BODY)
+  })
+
+  it('serves task.html at bare /t/<KEY> (page resolves the project)', async () => {
+    const res = await fetch(`${baseUrl}/t/TASK-001`)
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe(TASK_BODY)
+  })
+
+  it('does not map other /t/ shapes to task.html', async () => {
+    for (const path of [
+      '/opf-hub/t/TASK-001/extra',
+      '/opf-hub/t/',
+      '/opf-hub/t',
+      '/opf-hub/t/x.js',
+      '/opf-hub/t/..%2F..',
+      '/opf-hub/t/../index.html',
+      '/opf-hub/t/TASK-001/',
+      '/a/b/t/TASK-001',
+    ]) {
+      const res = await rawGet(path)
+      expect(res.body, path).not.toBe(TASK_BODY)
+      expect(res.status, path).toBe(404)
+    }
+  })
+
+  it('keeps the existing pages and routes unchanged', async () => {
+    const cases: Array<[string, string]> = [
+      ['/', INDEX_BODY],
+      ['/index.html', INDEX_BODY],
+      ['/opf-hub/index.html', INDEX_BODY],
+      ['/opf-hub/', INDEX_BODY],
+      ['/opf-hub/tasks.html', TASKS_BODY],
+      ['/opf-hub/evidence.html', EVIDENCE_BODY],
+      ['/opf-hub/theme.css', CSS_BODY],
+      ['/task.html', TASK_BODY], // direct file match still first
+    ]
+    for (const [path, body] of cases) {
+      const res = await rawGet(path)
+      expect(res.status, path).toBe(200)
+      expect(res.body, path).toBe(body)
+    }
+    for (const path of ['/api/tasks/TASK-001', '/mcp', '/healthz']) {
+      const res = await rawGet(path)
+      expect(res.status, path).toBe(404)
+      expect(JSON.parse(res.body).error, path).toBe('fell-through')
+    }
   })
 })

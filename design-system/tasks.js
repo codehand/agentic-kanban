@@ -140,13 +140,19 @@
       tr.tabIndex = 0;
       tr.className = 'cursor-pointer border-b border-border/60 hover:bg-white/5 focus:bg-white/5 outline-none';
       tr.setAttribute('aria-label', t.key + ' ' + t.title + ' ' + t.state);
+      // The key cell is a real link to the full-screen page /<project>/t/<KEY>
+      // (TASK-073); the rest of the row still opens the drawer.
       tr.innerHTML =
-        '<td class="py-2.5 pr-3 mono text-[13px] text-muted">' + esc(t.key) + '</td>' +
+        '<td class="py-2.5 pr-3 mono text-[13px] text-muted"><a href="' + esc(window.__drawerSections.taskHref(slug, t.key)) + '" class="hover:text-accent hover:underline">' + esc(t.key) + '</a></td>' +
         '<td class="py-2.5 pr-3 text-[14px]">' + esc(t.title) + '</td>' +
         '<td class="py-2.5 pr-3">' + pipelineHtml(t.state) + '</td>' +
         '<td class="py-2.5 mono text-[13px] text-muted text-right">' + esc(relTime(t.updated_at)) + '</td>';
-      tr.addEventListener('click', function () { window.__openDrawer(slug, t.key); });
+      tr.addEventListener('click', function (e) {
+        if (e.target.closest && e.target.closest('a')) return; // key link navigates instead
+        window.__openDrawer(slug, t.key);
+      });
       tr.addEventListener('keydown', function (e) {
+        if (e.target !== tr) return; // Enter on the focused key link follows the link
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); window.__openDrawer(slug, t.key); }
       });
       tbody.appendChild(tr);
@@ -218,6 +224,7 @@
     drawer.classList.remove('translate-x-full');
     scrim.classList.remove('opacity-0', 'pointer-events-none');
     document.getElementById('drawer-key').textContent = key;
+    document.getElementById('drawer-key').setAttribute('href', window.__drawerSections.taskHref(project, key));
     document.getElementById('drawer-title').textContent = 'Loading…';
     document.getElementById('drawer-state-badge').innerHTML = '';
     document.getElementById('drawer-project').textContent = project;
@@ -258,13 +265,8 @@
       var html = '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-file-text text-[14px]"></i> Spec</h3>';
       html += '<div class="text-[13px]">' + renderMarkdown(t.body_md || '(no spec)') + '</div></section>';
 
-      if (t.depends_on && t.depends_on.length > 0) {
-        html += '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-link text-[14px]"></i> Depends on</h3><div class="flex flex-wrap gap-1.5">';
-        t.depends_on.forEach(function (dep) {
-          html += '<button type="button" onclick="window.__openDrawer(\'' + esc(project) + '\', \'' + esc(dep) + '\')" class="mono text-[13px] rounded border border-border bg-panel2 px-1.5 py-0.5 text-accent hover:underline">' + esc(dep) + '</button>';
-        });
-        html += '</div></section>';
-      }
+      // Depends-on chips link to each upstream task's full-screen page (shared renderer).
+      html += window.__drawerSections.renderDependsOn(project, t.depends_on);
 
       if (res.gitrefs && res.gitrefs.length > 0) {
         html += '<section><h3 class="text-[13px] uppercase tracking-wider text-muted mb-2 flex items-center gap-1.5"><i class="ph ph-git-branch text-[14px]"></i> Repos &amp; MR</h3><div class="space-y-2">';
