@@ -23,7 +23,9 @@
 (function () {
   'use strict';
 
-  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  // Also escapes quotes: several renderers put task data inside attribute
+  // values (href, data-*), and the public share view (TASK-076) renders them.
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
 
   // Self-contained relative time so the two drawers render identical strings
   // regardless of each page's own relTime helper ("5m ago").

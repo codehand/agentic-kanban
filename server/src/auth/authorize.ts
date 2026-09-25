@@ -4,7 +4,7 @@
  * Roles: human | implementer | self-check | judge | runner | pr-bot
  *
  * Permissions defined by the design table:
- *   human       : approve→DONE, reset/remove, mint/revoke token, read-all
+ *   human       : approve→DONE, reset/remove, mint/revoke token, share link, read-all
  *   implementer : claim task, TODO→IN_PROGRESS→IMPLEMENTED, comment narrative, set gitref
  *   self-check  : trigger evidence run, IMPLEMENTED→SELF_CHECK_*, (no code changes)
  *   judge       : SELF_CHECK_PASSED→JUDGE_*, comment verdict
@@ -38,6 +38,7 @@ export type Action =
   | 'task.update'
   | 'task.reset'
   | 'task.remove'
+  | 'task.share'      // mint a read-only share link (TASK-076)
   | 'gitref.set'
   // Read
   | 'read';
@@ -47,6 +48,7 @@ const PERMISSIONS: Record<Role, Set<Action>> = {
     'task.transition.approve',
     'task.reset',
     'task.remove',
+    'task.share',
     'task.create',
     'task.update',
     'token.mint',

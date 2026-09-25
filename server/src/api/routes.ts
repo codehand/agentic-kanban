@@ -7,6 +7,7 @@
  *   GET /api/tasks/:key?project= — get task detail (spec + gitrefs + evidence + timeline)
  *   GET /api/evidence/:key?project= — list evidence for a task
  *   GET /api/tokens            — list tokens (active + revoked, with last_used_at)
+ *   GET /api/share-origin      — LAN origin for share links (human only)
  *
  * Write endpoints (bearer role = human only):
  *   POST /api/projects                     — create project (slug + name)
@@ -15,12 +16,16 @@
  *   POST /api/tasks/:key/reset?project=   — reset task to IN_PROGRESS
  *   POST /api/tasks/:key/remove?project=  — remove task
  *   POST /api/tasks/:key/comments?project= — add a review comment (human)
+ *   POST /api/tasks/:key/shares?project=  — create a read-only share link (human)
  *   DELETE /api/tokens/:id                — revoke a token (human only)
  *
- * All endpoints require bearer auth (401 if missing/invalid).
+ * All endpoints require bearer auth (401 if missing/invalid), except the
+ * public read-only share link GET /api/share/:token (TASK-076) and the SSE
+ * stream (bearer optional).
  */
 import { IncomingMessage, ServerResponse } from 'node:http'
-import { randomBytes } from 'node:crypto'
+import { randomBytes, createHash } from 'node:crypto'
+import { networkInterfaces } from 'node:os'
 import type { Db } from '../db/connection.js'
 import { parseBearerHeader } from '../auth/parse.js'
 import { resolveBearer, type ResolvedToken } from '../auth/resolve.js'
@@ -39,6 +44,7 @@ import { mintToken as mintTokenFn, revokeTokenById, type Role as MintRole } from
 import { propose, type TransitionRepository } from '../domain/gate.js'
 import type { TaskState } from '../domain/statemachine.js'
 import { listDependencyIds, setDependencies } from '../db/repositories/dependency.js'
+import { insertShare, getShareByHash } from '../db/repositories/share.js'
 import { validateDependsOn, unmetDependencies, formatUnmet, DependencyError } from '../domain/dependencies.js'
 import { handleSseStream, broadcastCreated, broadcastTransition, broadcastRemoved } from './stream.js'
 import { VALID_PRIORITIES, VALID_COMPLEXITIES, isHttpUrl } from '../validation/task-attributes.js'
@@ -786,6 +792,106 @@ async function handleAddComment(db: Db, key: string, query: Record<string, strin
 }
 
 // ---------------------------------------------------------------------------
+// Read-only share links (TASK-076)
+// ---------------------------------------------------------------------------
+
+/** Client-generated share token: >= 16 random bytes, base64url. */
+const SHARE_TOKEN_RE = /^[A-Za-z0-9_-]{22,64}$/
+/** Allowed TTLs in seconds; null (forever) is accepted separately. */
+const SHARE_TTLS: ReadonlySet<number> = new Set([300, 900, 3600, 86400])
+/** One body for every public-share miss (unknown / expired / task removed). */
+const SHARE_NOT_FOUND = { error: 'Not found' }
+
+function hashShareToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex')
+}
+
+async function handleCreateShare(db: Db, key: string, query: Record<string, string>, auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (!authorize(auth.role as Role, 'task.share')) {
+    sendJson(res, 403, { error: 'Only human role can share tasks' }); return
+  }
+  const projectRef = query['project']
+  if (!projectRef) {
+    sendJson(res, 400, { error: 'project query param is required' }); return
+  }
+  // Shared scope chokepoint: scoped tokens 403 on anything but their own project.
+  const proj = resolveProjectInScope(db, auth, projectRef)
+  if (!proj) {
+    sendJson(res, 404, { error: `Project not found: ${projectRef}` }); return
+  }
+  const task = getTaskByKey(db, proj.id, key)
+  if (!task) {
+    sendJson(res, 404, { error: `Task not found: ${key}` }); return
+  }
+  const body = await readJsonBody(req)
+  const token = body?.['token']
+  if (typeof token !== 'string' || !SHARE_TOKEN_RE.test(token)) {
+    sendJson(res, 400, { error: 'Invalid token. Must match ^[A-Za-z0-9_-]{22,64}$' }); return
+  }
+  const ttl = body?.['ttl']
+  if (!(body && 'ttl' in body) || (ttl !== null && (typeof ttl !== 'number' || !SHARE_TTLS.has(ttl)))) {
+    sendJson(res, 400, { error: `Invalid ttl. Must be one of: ${[...SHARE_TTLS].join(', ')}, null` }); return
+  }
+  const tokenHash = hashShareToken(token)
+  if (getShareByHash(db, tokenHash)) {
+    sendJson(res, 409, { error: 'Share token already exists' }); return
+  }
+  // Expiry is computed on the SERVER clock at POST time, never taken from the client.
+  const expiresAt = ttl === null ? null : new Date(Date.now() + ttl * 1000).toISOString()
+  insertShare(db, { token_hash: tokenHash, task_id: task.id, expires_at: expiresAt, created_by: auth.token_id })
+  sendJson(res, 201, { expires_at: expiresAt })
+}
+
+/**
+ * PUBLIC (no bearer): the shared task's detail payload. Expiry is checked
+ * against the server clock on every request. Unknown, expired and
+ * removed-task links all get the same 404 body, so a probe cannot tell a link
+ * that once existed from one that never did.
+ */
+function handleGetShare(db: Db, token: string, res: ServerResponse): void {
+  if (!SHARE_TOKEN_RE.test(token)) {
+    sendJson(res, 404, SHARE_NOT_FOUND); return
+  }
+  const share = getShareByHash(db, hashShareToken(token))
+  if (!share || (share.expires_at !== null && Date.parse(share.expires_at) <= Date.now())) {
+    sendJson(res, 404, SHARE_NOT_FOUND); return
+  }
+  const task = getTaskById(db, share.task_id)
+  const proj = task ? getProjectById(db, task.project_id) : undefined
+  if (!task || !proj) {
+    sendJson(res, 404, SHARE_NOT_FOUND); return
+  }
+  sendJson(res, 200, {
+    task: taskToResult(db, task),
+    gitrefs: listGitRefsByTask(db, task.id),
+    evidence: getLatestEvidenceByTask(db, task.id),
+    comments: listCommentsByTask(db, task.id),
+    timeline: listTransitionsByTask(db, task.id),
+    project: proj.slug,
+    expires_at: share.expires_at,
+  })
+}
+
+/** First non-internal IPv4 address, or null when the host has no LAN IP. */
+function lanIpv4(): string | null {
+  for (const addrs of Object.values(networkInterfaces())) {
+    for (const a of addrs ?? []) {
+      if (!a.internal && (a.family === 'IPv4' || (a.family as unknown) === 4)) return a.address
+    }
+  }
+  return null
+}
+
+function handleShareOrigin(auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): void {
+  if (!authorize(auth.role as Role, 'task.share')) {
+    sendJson(res, 403, { error: 'Only human role can share tasks' }); return
+  }
+  const ip = lanIpv4()
+  // localPort = the port this server is actually listening on.
+  sendJson(res, 200, { origin: ip ? `http://${ip}:${req.socket.localPort}` : null })
+}
+
+// ---------------------------------------------------------------------------
 // Router mount
 // ---------------------------------------------------------------------------
 
@@ -829,6 +935,20 @@ export function mountApiRoutes(
       return
     }
 
+    // Public read-only share link (TASK-076) — the ONLY bearer-less JSON route.
+    // Any Authorization header is ignored; the link token itself is the grant.
+    const shareMatch = path.match(/^\/api\/share\/([^/]+)$/)
+    if (shareMatch && (req.method ?? 'GET').toUpperCase() === 'GET') {
+      try {
+        // No decodeURIComponent: valid tokens are plain base64url, and anything
+        // percent-encoded simply fails the token format check (-> 404).
+        handleGetShare(db, shareMatch[1]!, res)
+      } catch {
+        sendJson(res, 500, { error: 'Internal server error' })
+      }
+      return
+    }
+
     // All other /api endpoints require bearer auth
     const secret = parseBearerHeader(req)
     if (!secret) {
@@ -854,6 +974,9 @@ export function mountApiRoutes(
         }
         if (path === '/api/tokens') {
           handleGetTokens(db, query, auth, res); return
+        }
+        if (path === '/api/share-origin') {
+          handleShareOrigin(auth, req, res); return
         }
         // GET /api/tasks/:key
         const taskMatch = path.match(/^\/api\/tasks\/([^/]+)$/)
@@ -897,6 +1020,10 @@ export function mountApiRoutes(
         const commentMatch = path.match(/^\/api\/tasks\/([^/]+)\/comments$/)
         if (commentMatch) {
           await handleAddComment(db, decodeURIComponent(commentMatch[1]!), query, auth, req, res); return
+        }
+        const shareCreateMatch = path.match(/^\/api\/tasks\/([^/]+)\/shares$/)
+        if (shareCreateMatch) {
+          await handleCreateShare(db, decodeURIComponent(shareCreateMatch[1]!), query, auth, req, res); return
         }
       }
 
