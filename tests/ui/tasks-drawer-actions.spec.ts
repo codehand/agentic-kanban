@@ -124,6 +124,7 @@ test.describe('TASK-058: human actions in the tasks-list drawer', () => {
 
     await expect(page.locator('#btn-approve')).toBeVisible();
     await expect(page.locator('#btn-reset')).toBeHidden();
+    await page.locator('#btn-more').click(); // TASK-077: Remove is inside the three-dots menu
     await expect(page.locator('#btn-remove')).toBeVisible();
 
     await page.locator('#btn-approve').click();
@@ -134,6 +135,8 @@ test.describe('TASK-058: human actions in the tasks-list drawer', () => {
     await expect(page.locator('#drawer-state-badge')).toContainText('DONE', { timeout: 5000 });
     await expect(page.locator('#btn-approve')).toBeHidden();
     await expect(page.locator('#btn-reset')).toBeHidden();
+    await page.locator('#btn-more').click(); // TASK-077: Remove is inside the three-dots menu
+    await expect(page.locator('#more-menu')).toBeVisible();
     await expect(page.locator('#btn-remove')).toBeHidden();
   });
 
@@ -144,6 +147,7 @@ test.describe('TASK-058: human actions in the tasks-list drawer', () => {
 
     await expect(page.locator('#btn-reset')).toBeVisible();
     await expect(page.locator('#btn-approve')).toBeHidden();
+    await page.locator('#btn-more').click(); // TASK-077: Remove is inside the three-dots menu
     await expect(page.locator('#btn-remove')).toBeVisible();
 
     await page.locator('#btn-reset').click();
@@ -168,6 +172,8 @@ test.describe('TASK-058: human actions in the tasks-list drawer', () => {
 
     await expect(page.locator('#btn-approve')).toBeHidden();
     await expect(page.locator('#btn-reset')).toBeHidden();
+    await page.locator('#btn-more').click(); // TASK-077: Remove is inside the three-dots menu
+    await expect(page.locator('#more-menu')).toBeVisible();
     await expect(page.locator('#btn-remove')).toBeHidden();
   });
 

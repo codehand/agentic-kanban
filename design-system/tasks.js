@@ -235,6 +235,7 @@
     document.getElementById('btn-reject').classList.add('hidden');
     document.getElementById('btn-reset').classList.add('hidden');
     document.getElementById('btn-remove').classList.add('hidden');
+    document.getElementById('menu-share').classList.add('hidden'); // until the task loads
     document.getElementById('drawer-body').innerHTML = '<div class="grid place-items-center py-8 text-muted text-[14px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[17px]"></i> Loading…</span></div>';
 
     if (!api) return;
@@ -253,6 +254,8 @@
 
       // Show human-action buttons based on state (identical gating to the board
       // drawer). A DONE task is terminal and shows NO actions at all.
+      // Share (three-dots menu) is allowed in every state, DONE included.
+      document.getElementById('menu-share').classList.remove('hidden');
       if (t.state !== 'DONE') {
         if (t.state === 'JUDGE_PASSED' || t.state === 'READY_TO_REVIEW') {
           document.getElementById('btn-approve').classList.remove('hidden');
@@ -411,6 +414,13 @@
       showToast('Remove failed: ' + String(err && err.message || err));
     });
   };
+
+  // --- Three-dots menu + Share dialog (TASK-077), shared with task.html ---
+  window.__shareDialog.mount({
+    task: function () { return selectedTask; },
+    onRemove: function () { window.doRemove(); },
+    toast: function (msg) { showToast(msg); },
+  });
 
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') window.closeDrawer();

@@ -84,20 +84,8 @@
             <button id="btn-reset" onclick="doReset()" class="hidden flex items-center gap-1.5 rounded-md border border-border bg-panel2 px-3 h-9 text-[13px] text-muted hover:text-text hover:border-borderlt">
               <i class="ph ph-arrow-counter-clockwise text-[15px]"></i> Reset
             </button>
-            <!-- three-dots menu (TASK-076): Share + Remove -->
-            <div class="relative ml-auto">
-              <button id="btn-more" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="more-menu" aria-label="More actions" title="More actions" class="grid place-items-center w-9 h-9 rounded-md border border-border bg-panel2 text-muted hover:text-text hover:border-borderlt">
-                <i class="ph ph-dots-three text-[18px]"></i>
-              </button>
-              <div id="more-menu" role="menu" aria-label="Task actions" class="hidden absolute right-0 top-full mt-1 z-50 w-44 rounded-md border border-border bg-panel2 shadow-lg py-1">
-                <button id="menu-share" type="button" role="menuitem" tabindex="-1" class="w-full flex items-center gap-2 px-2.5 py-2 text-left text-[13px] text-text hover:bg-white/5 focus:bg-white/5 outline-none">
-                  <i class="ph ph-share-network text-[15px]"></i> Share
-                </button>
-                <button id="btn-remove" type="button" role="menuitem" tabindex="-1" title="Remove (guarded)" class="w-full flex items-center gap-2 px-2.5 py-2 text-left text-[13px] text-st_reject hover:bg-st_reject/10 focus:bg-st_reject/10 outline-none">
-                  <i class="ph ph-trash text-[15px]"></i> Remove
-                </button>
-              </div>
-            </div>
+            <!-- three-dots menu (TASK-076): Share + Remove, injected by share-dialog.js -->
+            <div data-share-menu class="relative ml-auto"></div>
           </div>
         </div>
 
@@ -153,39 +141,6 @@
   </div>
 </div>
 
-<!-- ============ SHARE DIALOG (TASK-076) — read-only link with TTL ============ -->
-<div id="share" class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/60 p-4">
-  <div role="dialog" aria-modal="true" aria-labelledby="share-title" class="w-full max-w-md rounded-xl border border-accent/30 bg-panel p-5">
-    <div class="flex items-center gap-2.5">
-      <span class="grid place-items-center w-9 h-9 rounded-lg bg-accent/15 text-accent"><i class="ph ph-share-network text-[19px]"></i></span>
-      <h3 id="share-title" class="text-[16px] font-semibold">Share task</h3>
-    </div>
-    <p class="mt-3 text-[13px] text-muted leading-relaxed">
-      Anyone on your network with this link can view the task <span class="text-text font-medium">read-only</span> until it expires. The link only works after you click <span class="text-text font-medium">Share</span>.
-    </p>
-    <fieldset class="mt-3">
-      <legend class="text-[13px] text-muted">Link expires after</legend>
-      <div id="share-ttl" class="mt-1 grid grid-cols-5 gap-1 rounded-md border border-border bg-panel2 p-1">
-        <label class="cursor-pointer"><input type="radio" name="share-ttl" value="300" class="sr-only peer" checked /><span class="block rounded px-2 py-1.5 text-center text-[13px] text-muted peer-checked:bg-accent peer-checked:text-white dark:peer-checked:text-bg peer-focus-visible:ring-2 peer-focus-visible:ring-accent/60 hover:text-text">5m</span></label>
-        <label class="cursor-pointer"><input type="radio" name="share-ttl" value="900" class="sr-only peer" /><span class="block rounded px-2 py-1.5 text-center text-[13px] text-muted peer-checked:bg-accent peer-checked:text-white dark:peer-checked:text-bg peer-focus-visible:ring-2 peer-focus-visible:ring-accent/60 hover:text-text">15m</span></label>
-        <label class="cursor-pointer"><input type="radio" name="share-ttl" value="3600" class="sr-only peer" /><span class="block rounded px-2 py-1.5 text-center text-[13px] text-muted peer-checked:bg-accent peer-checked:text-white dark:peer-checked:text-bg peer-focus-visible:ring-2 peer-focus-visible:ring-accent/60 hover:text-text">1h</span></label>
-        <label class="cursor-pointer"><input type="radio" name="share-ttl" value="86400" class="sr-only peer" /><span class="block rounded px-2 py-1.5 text-center text-[13px] text-muted peer-checked:bg-accent peer-checked:text-white dark:peer-checked:text-bg peer-focus-visible:ring-2 peer-focus-visible:ring-accent/60 hover:text-text">24h</span></label>
-        <label class="cursor-pointer"><input type="radio" name="share-ttl" value="forever" class="sr-only peer" /><span class="block rounded px-2 py-1.5 text-center text-[13px] text-muted peer-checked:bg-accent peer-checked:text-white dark:peer-checked:text-bg peer-focus-visible:ring-2 peer-focus-visible:ring-accent/60 hover:text-text">Forever</span></label>
-      </div>
-    </fieldset>
-    <div class="mt-3">
-      <label for="share-url" class="text-[13px] text-muted">Share link</label>
-      <input id="share-url" type="text" readonly spellcheck="false" class="mt-1 w-full rounded-md border border-border bg-panel2 px-2.5 h-9 mono text-[13px] text-text outline-none focus:border-accent/60" />
-    </div>
-    <div class="mt-4 flex items-center justify-end gap-2">
-      <button id="share-cancel" type="button" class="rounded-md border border-border bg-panel2 px-3 h-9 text-[13px] text-muted hover:text-text">Cancel</button>
-      <button id="share-submit" type="button" class="flex items-center gap-1.5 rounded-md bg-accent px-3.5 h-9 text-[13px] font-semibold text-white hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed">
-        <i class="ph ph-share-network text-[15px]"></i> Share
-      </button>
-    </div>
-  </div>
-</div>
-
 <!-- ============ TOAST ============ -->
 <div id="toast" class="fixed bottom-4 right-4 z-[70] hidden items-center gap-2 rounded-lg border border-st_done/30 bg-panel px-3.5 py-2.5 text-[13px] shadow-lg">
   <i id="toast-icon" class="ph-fill ph-check-circle text-st_done text-[17px]"></i>
@@ -196,6 +151,7 @@
 <script src="/shell.js"></script>
 <script src="/md.js"></script>
 <script src="/drawer-sections.js"></script>
+<script src="/share-dialog.js"></script>
 <script>
   /* task.html — full-screen task detail (TASK-073). Same sections, actions and
    * gating as the board drawer, rendered by the shared drawer-sections.js. */
@@ -385,130 +341,15 @@
       }).catch(function (err) { showToast('Remove failed: ' + String(err && err.message || err)); });
     };
 
-    // --- Three-dots menu (TASK-076): Share + Remove ---
-    var moreBtn = document.getElementById('btn-more');
-    var moreMenu = document.getElementById('more-menu');
-    var shareEl = document.getElementById('share');
-
-    function menuItems() {
-      return Array.prototype.filter.call(moreMenu.querySelectorAll('[role="menuitem"]'), function (el) { return !el.classList.contains('hidden'); });
-    }
-    function menuOpen() { return !moreMenu.classList.contains('hidden'); }
-    function openMenu() {
-      moreMenu.classList.remove('hidden');
-      moreBtn.setAttribute('aria-expanded', 'true');
-      var items = menuItems();
-      if (items.length) items[0].focus();
-    }
-    function closeMenu(refocus) {
-      if (!menuOpen()) return;
-      moreMenu.classList.add('hidden');
-      moreBtn.setAttribute('aria-expanded', 'false');
-      if (refocus) moreBtn.focus();
-    }
-    moreBtn.addEventListener('click', function () { menuOpen() ? closeMenu(true) : openMenu(); });
-    moreMenu.addEventListener('keydown', function (e) {
-      var items = menuItems(), i = items.indexOf(document.activeElement);
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        var n = items.length, next = e.key === 'ArrowDown' ? (i + 1) % n : (i - 1 + n) % n;
-        if (n) items[next].focus();
-      } else if (e.key === 'Tab') {
-        closeMenu(false);
-      }
-    });
-    document.addEventListener('click', function (e) {
-      if (menuOpen() && !moreBtn.contains(e.target) && !moreMenu.contains(e.target)) closeMenu(false);
-    });
-    document.getElementById('menu-share').addEventListener('click', function () { closeMenu(false); openShare(); });
-    // Refocus the trigger first: a dismissed confirm() must leave focus on #btn-more, not <body>.
-    document.getElementById('btn-remove').addEventListener('click', function () { closeMenu(true); window.doRemove(); });
-
-    // --- Share dialog (TASK-076) ---
-    // The link token is generated here (CSPRNG, 24 bytes -> 32 base64url chars)
-    // but only becomes usable once the server accepts it on "Share".
-    var LOCAL_HOSTS = { 'localhost': 1, '127.0.0.1': 1, '::1': 1, '[::1]': 1 };
-    var shareToken = '';
-    var lanOrigin; // undefined = not asked yet; null = server has none
-
-    function newShareToken() {
-      var bytes = new Uint8Array(24), bin = '';
-      crypto.getRandomValues(bytes);
-      for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-      return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    }
-    function setShareUrl(origin) {
-      document.getElementById('share-url').value = origin + '/s/' + shareToken;
-    }
-    function selectedTtl() {
-      var v = shareEl.querySelector('input[name="share-ttl"]:checked').value;
-      return v === 'forever' ? null : Number(v);
-    }
-    function shareFocusables() {
-      return Array.prototype.filter.call(shareEl.querySelectorAll('input[name="share-ttl"]:checked, #share-url, button'), function (el) { return !el.disabled; });
-    }
-    function openShare() {
-      if (!current) return;
-      shareToken = newShareToken(); // fresh token on every open; TTL changes keep it
-      document.getElementById('share-title').textContent = 'Share ' + current.key;
-      shareEl.querySelector('input[name="share-ttl"][value="300"]').checked = true;
-      document.getElementById('share-submit').disabled = false;
-      var local = LOCAL_HOSTS[location.hostname] === 1;
-      setShareUrl(local && lanOrigin ? lanOrigin : location.origin);
-      shareEl.classList.remove('hidden'); shareEl.classList.add('flex');
-      shareEl.querySelector('input[name="share-ttl"]:checked').focus();
-      // Opened via localhost: a localhost link is useless to anyone else, so
-      // ask the server for its LAN origin (asked once per page).
-      if (local && lanOrigin === undefined && api && api.getShareOrigin) {
-        var token = shareToken;
-        api.getShareOrigin().then(function (res) {
-          lanOrigin = res && typeof res.origin === 'string' ? res.origin : null;
-          if (lanOrigin && token === shareToken) setShareUrl(lanOrigin);
-        }).catch(function () { lanOrigin = null; });
-      }
-    }
-    function shareOpen() { return !shareEl.classList.contains('hidden'); }
-    function closeShare() {
-      if (!shareOpen()) return;
-      shareEl.classList.add('hidden'); shareEl.classList.remove('flex');
-      moreBtn.focus();
-    }
-    function fmtExpiry(iso) { return iso ? new Date(iso).toLocaleString() : 'never'; }
-    document.getElementById('share-cancel').addEventListener('click', closeShare);
-    shareEl.addEventListener('click', function (e) { if (e.target === shareEl) closeShare(); });
-    shareEl.addEventListener('keydown', function (e) { // keep Tab inside the dialog
-      if (e.key !== 'Tab') return;
-      var f = shareFocusables(), first = f[0], last = f[f.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    });
-    document.getElementById('share-url').addEventListener('focus', function (e) { e.target.select(); });
-    document.getElementById('share-submit').addEventListener('click', function () {
-      if (!current || !api) return;
-      var btn = document.getElementById('share-submit');
-      var url = document.getElementById('share-url').value;
-      btn.disabled = true;
-      api.createShare(current.project, current.key, shareToken, selectedTtl()).then(function (resp) {
-        if (!resp || resp.status !== 201) {
-          btn.disabled = false;
-          btn.focus(); // disabling dropped focus to <body>; keep it inside the open dialog
-          showToast('Share failed: ' + ((resp && resp.body && resp.body.error) || 'link not activated'));
-          return;
-        }
-        var exp = resp.body ? resp.body.expires_at : null;
-        var msg = exp ? 'Share link active until ' + fmtExpiry(exp) + '.' : 'Share link active (never expires).';
-        closeShare();
-        var copy = navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(url) : Promise.reject();
-        copy.then(function () { showToast(msg + ' Copied to clipboard.'); }, function () { showToast(msg); });
-      }).catch(function (err) {
-        btn.disabled = false;
-        btn.focus();
-        showToast('Share failed: ' + String(err && err.message || err));
-      });
+    // --- Three-dots menu + Share dialog (TASK-076), shared with the drawers ---
+    window.__shareDialog.mount({
+      task: function () { return current; },
+      onRemove: window.doRemove,
+      toast: showToast,
     });
 
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') { window.closeConfirm(); window.closeReject(); closeShare(); closeMenu(true); }
+      if (e.key === 'Escape') { window.closeConfirm(); window.closeReject(); } // dialog/menu: share-dialog.js
     });
 
     // --- Init ---
