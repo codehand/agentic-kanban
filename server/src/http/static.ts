@@ -9,6 +9,7 @@
  * (the segment is the project id; pages read it from the URL path).
  * '/<project-id>' and '/<project-id>/' map to index.html.
  * '/<project-id>/t/<KEY>' and '/t/<KEY>' map to task.html (TASK-073).
+ * '/s/<token>' maps to share.html, the read-only share viewer (TASK-076).
  */
 import { readFileSync, statSync, existsSync } from 'node:fs'
 import { join, extname } from 'node:path'
@@ -25,6 +26,7 @@ const MIME: Record<string, string> = {
 }
 
 const TASK_PAGE_RE = /^(?:\/[^/.]+)?\/t\/[^/.]+$/
+const SHARE_PAGE_RE = /^\/s\/[^/.]+$/
 
 function serveFile(abs: string, res: ServerResponse): boolean {
   if (!existsSync(abs)) return false
@@ -81,6 +83,11 @@ export function mountStatic(
     //    segment with no '.', so '/<p>/t/<KEY>/extra', '/<p>/t/' and
     //    '/<p>/t/x.js' keep their old behaviour.
     if (TASK_PAGE_RE.test(relPath) && serveFile(join(staticDir, 'task.html'), res)) return
+
+    // 2b. Read-only share viewer (TASK-076): '/s/<token>' (exactly one segment,
+    //     no '.') serves share.html; the page itself validates the link via
+    //     GET /api/share/<token>.
+    if (SHARE_PAGE_RE.test(relPath) && serveFile(join(staticDir, 'share.html'), res)) return
 
     // 3. Project-prefixed path: strip the first segment when it is not a
     //    real file and has no extension (project ids never contain dots).

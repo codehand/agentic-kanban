@@ -167,6 +167,29 @@
       }).then(function (r) { return r ? r.json() : null; });
     },
 
+    // POST /api/tasks/:key/shares (TASK-076) — activate a read-only share
+    // link. ttl is 300|900|3600|86400 or null (forever). Resolves
+    // {status, body} so the dialog can surface a failed activation.
+    createShare: function (project, key, token, ttl) {
+      var qs = '?project=' + encodeURIComponent(project);
+      return apiFetch('/tasks/' + encodeURIComponent(key) + '/shares' + qs, {
+        method: 'POST',
+        headers: Object.assign(authHeaders(), { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ token: token, ttl: ttl }),
+      }).then(function (r) {
+        if (!r) return null;
+        return r.json().then(
+          function (b) { return { status: r.status, body: b }; },
+          function () { return { status: r.status, body: null }; }
+        );
+      });
+    },
+
+    // GET /api/share-origin (TASK-076) — {origin: 'http://<lan-ip>:<port>'|null}.
+    getShareOrigin: function () {
+      return apiFetch('/share-origin').then(function (r) { return r && r.ok ? r.json() : null; });
+    },
+
     createTask: function (payload) {
       return apiFetch('/tasks', {
         method: 'POST',

@@ -255,6 +255,9 @@ test.describe('TASK-073: full-screen task page at /<project>/t/<KEY>', () => {
       await page.goto(server.url(`${PROJECT}/t/${KEY}`));
       await expectDetail(page, KEY, TITLE);
       await expect(page.locator('#task-state-badge')).toHaveText(state);
+      // TASK-076: Remove lives in the three-dots menu — open it first.
+      await page.locator('#btn-more').click();
+      await expect(page.locator('#more-menu')).toBeVisible();
       for (const id of ['btn-approve', 'btn-reject', 'btn-reset', 'btn-remove']) {
         if (visible.includes(id)) await expect(page.locator('#' + id), `${state}: ${id}`).toBeVisible();
         else await expect(page.locator('#' + id), `${state}: ${id}`).toBeHidden();
@@ -303,6 +306,8 @@ test.describe('TASK-073: full-screen task page at /<project>/t/<KEY>', () => {
     const approves = callsTo(db, 'POST', `/api/tasks/${KEY}/approve`);
     expect(approves).toHaveLength(1);
     expect(approves[0]!.body).toEqual({ note: 'Ship it.' });
+    await page.locator('#btn-more').click(); // TASK-076: Remove is inside the menu
+    await expect(page.locator('#more-menu')).toBeVisible();
     for (const id of ['btn-approve', 'btn-reject', 'btn-reset', 'btn-remove']) {
       await expect(page.locator('#' + id)).toBeHidden();
     }
@@ -316,11 +321,13 @@ test.describe('TASK-073: full-screen task page at /<project>/t/<KEY>', () => {
 
     // Dismissing the confirm does nothing.
     page.once('dialog', (d) => d.dismiss());
+    await page.locator('#btn-more').click(); // TASK-076: Remove is inside the menu
     await page.locator('#btn-remove').click();
     await page.waitForTimeout(200);
     expect(callsTo(db, 'POST', `/api/tasks/${KEY}/remove`)).toHaveLength(0);
 
     page.once('dialog', (d) => d.accept());
+    await page.locator('#btn-more').click();
     await page.locator('#btn-remove').click();
     await page.waitForURL(`**/${PROJECT}/index.html`);
     expect(callsTo(db, 'POST', `/api/tasks/${KEY}/remove`)).toHaveLength(1);
