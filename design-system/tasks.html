@@ -114,9 +114,8 @@
       <button id="btn-reset" onclick="doReset()" class="hidden flex items-center gap-1.5 rounded-md border border-border bg-panel2 px-3 h-9 text-[13px] text-muted hover:text-text hover:border-borderlt">
         <i class="ph ph-arrow-counter-clockwise text-[15px]"></i> Reset
       </button>
-      <button id="btn-remove" onclick="doRemove()" aria-label="Remove task (guarded)" class="hidden ml-auto grid place-items-center w-9 h-9 rounded-md border border-border bg-panel2 text-muted hover:text-st_reject hover:border-st_reject/40" title="Remove (guarded)">
-        <i class="ph ph-trash text-[15px]"></i>
-      </button>
+      <!-- three-dots menu (TASK-077): Share + Remove, injected by share-dialog.js -->
+      <div data-share-menu class="relative ml-auto"></div>
     </div>
   </div>
   <div id="drawer-body" class="flex-1 overflow-y-auto px-5 py-4 space-y-5 text-[14px]">
@@ -180,6 +179,7 @@
 <script src="/shell.js"></script>
 <script src="/md.js"></script>
 <script src="/drawer-sections.js"></script>
+<script src="/share-dialog.js"></script>
 <script>
   /* Project scoping: under /<project>/tasks.html only that project's tasks are
    * listed (same pattern as the board). Redirects use the shared helper in

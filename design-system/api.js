@@ -185,11 +185,6 @@
       });
     },
 
-    // GET /api/share-origin (TASK-076) — {origin: 'http://<lan-ip>:<port>'|null}.
-    getShareOrigin: function () {
-      return apiFetch('/share-origin').then(function (r) { return r && r.ok ? r.json() : null; });
-    },
-
     createTask: function (payload) {
       return apiFetch('/tasks', {
         method: 'POST',

@@ -281,11 +281,12 @@
 
   /* Show the human-action buttons (#btn-approve/#btn-reject/#btn-reset/
    * #btn-remove) allowed for `state`. A DONE task is terminal and shows NO
-   * actions at all (no approve/reset/remove). */
+   * actions at all (no approve/reset/remove). Share (#menu-share, the
+   * three-dots menu) is read-only and allowed in every state. */
   function showActions(state) {
     var review = state === 'JUDGE_PASSED' || state === 'READY_TO_REVIEW';
     var reset = state === 'JUDGE_REJECTED' || state === 'SELF_CHECK_FAILED';
-    var rules = { 'btn-approve': review, 'btn-reject': review, 'btn-reset': reset, 'btn-remove': state !== 'DONE' };
+    var rules = { 'btn-approve': review, 'btn-reject': review, 'btn-reset': reset, 'btn-remove': state !== 'DONE', 'menu-share': true };
     Object.keys(rules).forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.classList.toggle('hidden', !rules[id]);

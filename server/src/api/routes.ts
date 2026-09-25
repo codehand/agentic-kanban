@@ -7,7 +7,6 @@
  *   GET /api/tasks/:key?project= — get task detail (spec + gitrefs + evidence + timeline)
  *   GET /api/evidence/:key?project= — list evidence for a task
  *   GET /api/tokens            — list tokens (active + revoked, with last_used_at)
- *   GET /api/share-origin      — LAN origin for share links (human only)
  *
  * Write endpoints (bearer role = human only):
  *   POST /api/projects                     — create project (slug + name)
@@ -25,7 +24,6 @@
  */
 import { IncomingMessage, ServerResponse } from 'node:http'
 import { randomBytes, createHash } from 'node:crypto'
-import { networkInterfaces } from 'node:os'
 import type { Db } from '../db/connection.js'
 import { parseBearerHeader } from '../auth/parse.js'
 import { resolveBearer, type ResolvedToken } from '../auth/resolve.js'
@@ -872,25 +870,6 @@ function handleGetShare(db: Db, token: string, res: ServerResponse): void {
   })
 }
 
-/** First non-internal IPv4 address, or null when the host has no LAN IP. */
-function lanIpv4(): string | null {
-  for (const addrs of Object.values(networkInterfaces())) {
-    for (const a of addrs ?? []) {
-      if (!a.internal && (a.family === 'IPv4' || (a.family as unknown) === 4)) return a.address
-    }
-  }
-  return null
-}
-
-function handleShareOrigin(auth: ResolvedToken, req: IncomingMessage, res: ServerResponse): void {
-  if (!authorize(auth.role as Role, 'task.share')) {
-    sendJson(res, 403, { error: 'Only human role can share tasks' }); return
-  }
-  const ip = lanIpv4()
-  // localPort = the port this server is actually listening on.
-  sendJson(res, 200, { origin: ip ? `http://${ip}:${req.socket.localPort}` : null })
-}
-
 // ---------------------------------------------------------------------------
 // Router mount
 // ---------------------------------------------------------------------------
@@ -974,9 +953,6 @@ export function mountApiRoutes(
         }
         if (path === '/api/tokens') {
           handleGetTokens(db, query, auth, res); return
-        }
-        if (path === '/api/share-origin') {
-          handleShareOrigin(auth, req, res); return
         }
         // GET /api/tasks/:key
         const taskMatch = path.match(/^\/api\/tasks\/([^/]+)$/)

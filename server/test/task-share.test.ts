@@ -10,7 +10,8 @@
  *   (e) a share token is not a bearer: /api/tasks/:key with it -> 401.
  *   (f) the DB stores only the SHA-256 hash, never the raw token.
  *   (g) mountStatic serves /s/<token> with the share page.
- *   plus GET /api/share-origin shape + role gate.
+ *   plus: GET /api/share-origin is gone (TASK-077) — the share link origin is
+ *   the owner's location.origin, so the route 404s like any unknown /api path.
  *
  * Runs a real node:http server (createHttpServer) over an in-memory SQLite DB.
  * Expiry is exercised with an expires_at in the past (no real sleeping).
@@ -327,20 +328,17 @@ describe('(g) static /s/<token> serves the share page', () => {
   })
 })
 
-describe('GET /api/share-origin', () => {
-  it('human: {origin} is a LAN http origin on the listening port, or null', async () => {
-    const res = await fetch(`${baseUrl}/api/share-origin`, { headers: { Authorization: `Bearer ${human.secret}` } })
-    expect(res.status).toBe(200)
-    const { origin } = (await res.json()) as { origin: string | null }
-    const port = new URL(baseUrl).port
-    if (origin !== null) {
-      expect(origin).toMatch(new RegExp(`^http://\\d{1,3}(\\.\\d{1,3}){3}:${port}$`))
-      expect(origin).not.toContain('127.0.0.1')
-    }
+describe('GET /api/share-origin is removed (TASK-077)', () => {
+  it('human bearer -> 404, same as any unknown /api/* path', async () => {
+    const headers = { Authorization: `Bearer ${human.secret}` }
+    const res = await fetch(`${baseUrl}/api/share-origin`, { headers })
+    expect(res.status).toBe(404)
+    const unknown = await fetch(`${baseUrl}/api/no-such-route`, { headers })
+    expect(unknown.status).toBe(404)
+    expect(await res.json()).toEqual(await unknown.json())
   })
 
-  it('non-human -> 403, no auth -> 401', async () => {
-    expect((await fetch(`${baseUrl}/api/share-origin`, { headers: { Authorization: `Bearer ${judge.secret}` } })).status).toBe(403)
+  it('auth still runs first: no auth -> 401', async () => {
     expect((await fetch(`${baseUrl}/api/share-origin`)).status).toBe(401)
   })
 })

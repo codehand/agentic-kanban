@@ -6,8 +6,12 @@
  *       the menu runs the guarded flow (accept -> POST remove, dismiss -> none);
  *       keyboard: Enter opens, arrows move, Esc closes and refocuses #btn-more.
  *   (2) the Share dialog: default 5m, all 5 TTL options, a NEW /s/<token> URL
- *       (never the detail URL), LAN origin (mocked) used when opened via a
- *       loopback host, and Share POSTs exactly {token, ttl} for the chosen ttl.
+ *       (never the detail URL) on location.origin (TASK-077: no LAN lookup,
+ *       no /api/share-origin call), the localhost warning when served from
+ *       127.0.0.1, and Share POSTs exactly {token, ttl} for the chosen ttl.
+ *       TASK-077 flow: copy disabled before Share; after Share the dialog
+ *       stays open (Active status, TTL + Share locked, copy enabled + focused,
+ *       Cancel -> Close); the copy button writes the URL to the clipboard.
  * Viewer side (design-system/share.html at /s/<token>):
  *   (3) no kanban_token, no signin redirect, task content rendered, every CTA
  *       and every rail link disabled / non-navigating, and no /api/* request
@@ -27,7 +31,7 @@ const PROJECT = 'opf-hub';
 const KEY = 'TASK-076A';
 const TITLE = 'Shareable task';
 const DEP = 'TASK-076DEP';
-const LAN = 'http://192.168.77.5:3000';
+const LOCAL_WARNING = 'You opened this page via localhost, so this link only works on this machine. Open the UI via its LAN address (e.g. http://<LAN-IP>:<port>) to share it.';
 const SHARE_TOKEN = 'AbCdEfGhIjKlMnOpQrStUv_-0123456789';
 const TOKEN_RE = /^[A-Za-z0-9_-]{22,64}$/;
 const DENIED = "This link has expired or you don't have permission to view it. Contact your admin.";
@@ -74,7 +78,7 @@ interface OwnerMock {
   shareStatus: number;
 }
 
-/** Owner-page /api/* mock (bearer present): detail, remove, share-origin, shares. */
+/** Owner-page /api/* mock (bearer present): detail, remove, shares. Records every call. */
 async function mockOwnerApi(page: Page, state = 'JUDGE_PASSED'): Promise<OwnerMock> {
   const m: OwnerMock = { calls: [], removed: false, shareStatus: 201 };
   await page.route(
@@ -91,7 +95,6 @@ async function mockOwnerApi(page: Page, state = 'JUDGE_PASSED'): Promise<OwnerMo
       }
       if (url.pathname === '/api/projects') return json(route, 200, { projects: [{ id: 'p1', slug: PROJECT, name: PROJECT }] });
       if (url.pathname === '/api/tasks') return json(route, 200, { tasks: m.removed ? [] : [taskJson(state)] });
-      if (url.pathname === '/api/share-origin') return json(route, 200, { origin: LAN });
       if (url.pathname === `/api/tasks/${KEY}`) {
         if (m.removed) return json(route, 404, { error: `Task not found: ${KEY}` });
         return json(route, 200, detailPayload(state));
@@ -228,7 +231,7 @@ test.describe('TASK-076: share link (owner: menu + dialog)', () => {
     await expect(page.locator('#btn-remove')).toBeHidden();
   });
 
-  test('(2) share dialog: 5 TTLs (default 5m), fresh /s/<token> URL on the LAN origin, POST {token, ttl}', async ({ page, context }) => {
+  test('(2) share dialog: 5 TTLs (default 5m), fresh /s/<token> URL on location.origin, POST {token, ttl}, stays open', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     const m = await mockOwnerApi(page);
     await openOwnerPage(page, server);
@@ -241,12 +244,18 @@ test.describe('TASK-076: share link (owner: menu + dialog)', () => {
     await expect(page.getByRole('radio', { name: '5m', exact: true })).toBeChecked();
     await expect(page.getByRole('radio', { name: '5m', exact: true })).toBeFocused();
 
-    // Served from 127.0.0.1 -> the (mocked) LAN origin replaces location.origin.
+    // TASK-077: the link is always location.origin + '/s/'; served from
+    // 127.0.0.1 the localhost warning shows, and no LAN lookup is made.
+    const origin = await page.evaluate(() => location.origin);
+    expect(new URL(origin).hostname).toBe('127.0.0.1');
     const urlBox = page.locator('#share-url');
     await expect(urlBox).toHaveAttribute('readonly', '');
-    await expect(urlBox).toHaveValue(new RegExp(`^${LAN.replace(/[.]/g, '\\.')}/s/`));
-    expect(m.calls.filter((c) => c.path === '/api/share-origin')).toHaveLength(1);
     const first = await urlBox.inputValue();
+    expect(first.startsWith(origin + '/s/')).toBe(true);
+    await expect(page.locator('#share-local-warning')).toBeVisible();
+    await expect(page.locator('#share-local-warning')).toHaveText(LOCAL_WARNING);
+    await expect(page.locator('#share-local-warning')).toHaveAttribute('role', /^(note|status)$/);
+    expect(m.calls.filter((c) => c.path === '/api/share-origin')).toHaveLength(0);
     const u1 = new URL(first);
     const token1 = u1.pathname.replace(/^\/s\//, '');
     expect(u1.pathname).toMatch(/^\/s\/[^/]+$/);
@@ -254,34 +263,82 @@ test.describe('TASK-076: share link (owner: menu + dialog)', () => {
     expect(first).not.toContain(`/t/${KEY}`);
     expect(first).not.toBe(page.url());
 
+    // Before Share: copy is disabled (the link does not work yet), no status.
+    const copy = page.locator('#share-copy');
+    await expect(copy).toBeDisabled();
+    await expect(copy).toHaveAttribute('aria-label', 'Copy link');
+    await expect(copy).toHaveAttribute('title', 'Click Share to activate the link first');
+    await expect(copy.locator('i')).toHaveClass(/\bph-copy\b/);
+    await expect(page.locator('#share-status')).toBeHidden();
+    await expect(page.locator('#share-cancel')).toHaveText('Cancel');
+
     // Changing TTL keeps the token; the link is not active until Share.
     await page.getByText('1h', { exact: true }).click();
     await expect(page.getByRole('radio', { name: '1h', exact: true })).toBeChecked();
     await expect(urlBox).toHaveValue(first);
     expect(m.calls.filter((c) => c.path === `/api/tasks/${KEY}/shares`)).toHaveLength(0);
 
+    // Share: the dialog stays open, shows Active, locks TTL + Share, enables and focuses copy.
     await page.locator('#share-submit').click();
-    await expect(page.locator('#share')).toBeHidden();
     await expect(page.locator('#toast-msg')).toContainText('Share link active until');
+    await expect(page.locator('#share')).toBeVisible();
+    await expect(page.locator('#share-status')).toBeVisible();
+    await expect(page.locator('#share-status')).toContainText(/^Active until .+/);
+    for (const r of await radios.all()) await expect(r).toBeDisabled();
+    await expect(page.locator('#share-submit')).toBeDisabled();
+    await expect(copy).toBeEnabled();
+    await expect(copy).toBeFocused();
+    await expect(page.locator('#share-cancel')).toHaveText('Close');
+    await expect(urlBox).toHaveValue(first);
     let posts = m.calls.filter((c) => c.method === 'POST' && c.path === `/api/tasks/${KEY}/shares`);
     expect(posts).toHaveLength(1);
     expect(posts[0]!.project).toBe(PROJECT);
     expect(posts[0]!.body).toEqual({ token: token1, ttl: 3600 });
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(first);
-    await expect(page.locator('#btn-more')).toBeFocused(); // focus returns after close
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(first); // still auto-copied
 
-    // Re-open: new token, TTL back to 5m; Forever posts ttl null.
+    // Copy button: clipboard gets the URL again, icon flips to a check, toast.
+    await page.evaluate(() => navigator.clipboard.writeText('something else'));
+    await copy.click();
+    await expect(copy.locator('i')).toHaveClass(/\bph-check\b/);
+    await expect(page.locator('#toast-msg')).toHaveText('Link copied.');
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(first);
+    await expect(copy.locator('i')).toHaveClass(/\bph-copy\b/, { timeout: 5000 }); // reverts after ~1.6s
+
+    // Tab stays trapped in the now-active dialog (url, copy, Close).
+    const focusInShare = () => page.evaluate(() => document.getElementById('share')!.contains(document.activeElement));
+    for (let i = 0; i < 4; i++) {
+      await page.keyboard.press('Tab');
+      expect(await focusInShare()).toBe(true);
+    }
+
+    // Close returns focus to the three-dots trigger that opened the dialog.
+    await page.locator('#share-cancel').click();
+    await expect(page.locator('#share')).toBeHidden();
+    await expect(page.locator('#btn-more')).toBeFocused();
+
+    // Re-open: new token, TTL back to 5m and unlocked, copy disabled again; Forever posts ttl null.
     await openShareDialog(page);
     await expect(page.getByRole('radio', { name: '5m', exact: true })).toBeChecked();
+    await expect(page.getByRole('radio', { name: '5m', exact: true })).toBeEnabled();
+    await expect(page.locator('#share-submit')).toBeEnabled();
+    await expect(copy).toBeDisabled();
+    await expect(page.locator('#share-status')).toBeHidden();
+    await expect(page.locator('#share-cancel')).toHaveText('Cancel');
     const second = await urlBox.inputValue();
     expect(second).not.toBe(first);
+    expect(second.startsWith(origin + '/s/')).toBe(true);
     const token2 = new URL(second).pathname.replace(/^\/s\//, '');
     expect(token2).toMatch(TOKEN_RE);
     await page.getByText('Forever', { exact: true }).click();
     await page.locator('#share-submit').click();
     await expect(page.locator('#toast-msg')).toContainText('never expires');
+    await expect(page.locator('#share-status')).toHaveText('Active · never expires');
     posts = m.calls.filter((c) => c.method === 'POST' && c.path === `/api/tasks/${KEY}/shares`);
     expect(posts[1]!.body).toEqual({ token: token2, ttl: null });
+    // Esc closes the active dialog and returns focus to #btn-more.
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#share')).toBeHidden();
+    await expect(page.locator('#btn-more')).toBeFocused();
 
     // Default 5m posts 300; a failed activation shows an error and keeps the dialog.
     m.shareStatus = 409;
@@ -291,10 +348,11 @@ test.describe('TASK-076: share link (owner: menu + dialog)', () => {
     await page.keyboard.press('Enter'); // keyboard activation: the button disables while pending
     await expect(page.locator('#toast-msg')).toContainText('Share failed');
     await expect(page.locator('#share')).toBeVisible();
+    await expect(copy).toBeDisabled(); // not active: nothing to copy
+    await expect(page.locator('#share-status')).toBeHidden();
     // Focus must come back inside the open aria-modal dialog, and Tab stays trapped there.
     await expect(page.locator('#share-submit')).toBeEnabled();
     await expect(page.locator('#share-submit')).toBeFocused();
-    const focusInShare = () => page.evaluate(() => document.getElementById('share')!.contains(document.activeElement));
     await page.keyboard.press('Tab');
     expect(await focusInShare()).toBe(true);
     await page.keyboard.press('Shift+Tab');
@@ -306,6 +364,30 @@ test.describe('TASK-076: share link (owner: menu + dialog)', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('#share')).toBeHidden();
     await expect(page.locator('#btn-more')).toBeFocused();
+    expect(m.calls.filter((c) => c.path === '/api/share-origin')).toHaveLength(0);
+  });
+
+  test('(2b) clipboard refused: error toast and the link is left selected for a manual copy', async ({ page }) => {
+    // Both write paths fail: the async Clipboard API and the execCommand fallback.
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('denied')) } });
+      document.execCommand = () => false;
+    });
+    await mockOwnerApi(page);
+    await openOwnerPage(page, server);
+    await openShareDialog(page);
+    await page.locator('#share-submit').click();
+    await expect(page.locator('#share-status')).toBeVisible();
+    await expect(page.locator('#toast-msg')).not.toContainText('Copied to clipboard'); // auto-copy failed quietly
+    await page.locator('#share-copy').click();
+    await expect(page.locator('#toast-msg')).toContainText('Copy failed');
+    await expect(page.locator('#share-copy i')).toHaveClass(/\bph-copy\b/);
+    await expect(page.locator('#share-url')).toBeFocused();
+    const selected = await page.evaluate(() => {
+      const el = document.getElementById('share-url') as HTMLInputElement;
+      return el.value.slice(el.selectionStart ?? 0, el.selectionEnd ?? 0);
+    });
+    expect(selected).toBe(await page.locator('#share-url').inputValue());
   });
 
   for (const theme of ['light', 'dark'] as const) {
@@ -321,6 +403,11 @@ test.describe('TASK-076: share link (owner: menu + dialog)', () => {
       await expect(page.locator('#share-url')).toHaveValue(/\/s\//);
       results = await new AxeBuilder({ page }).include('#share').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
       expect(results.violations.map((v) => v.id), `dialog/${theme}`).toEqual([]);
+      // TASK-077: the active state (status line, enabled copy, locked TTL) too.
+      await page.locator('#share-submit').click();
+      await expect(page.locator('#share-status')).toBeVisible();
+      results = await new AxeBuilder({ page }).include('#share').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+      expect(results.violations.map((v) => v.id), `dialog-active/${theme}`).toEqual([]);
     });
   }
 });

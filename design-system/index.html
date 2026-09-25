@@ -199,9 +199,8 @@
       <button id="btn-reset" onclick="doReset()" class="hidden flex items-center gap-1.5 rounded-md border border-border bg-panel2 px-3 h-9 text-[13px] text-muted hover:text-text hover:border-borderlt">
         <i class="ph ph-arrow-counter-clockwise text-[15px]"></i> Reset
       </button>
-      <button id="btn-remove" onclick="doRemove()" aria-label="Remove task (guarded)" class="hidden ml-auto grid place-items-center w-9 h-9 rounded-md border border-border bg-panel2 text-muted hover:text-st_reject hover:border-st_reject/40" title="Remove (guarded)">
-        <i class="ph ph-trash text-[15px]"></i>
-      </button>
+      <!-- three-dots menu (TASK-077): Share + Remove, injected by share-dialog.js -->
+      <div data-share-menu class="relative ml-auto"></div>
     </div>
   </div>
 
@@ -267,6 +266,7 @@
 <script src="/shell.js"></script>
 <script src="/md.js"></script>
 <script src="/drawer-sections.js"></script>
+<script src="/share-dialog.js"></script>
 <script>
   /* board.js — Live board wiring. Fetches tasks from /api/tasks and renders cards. */
   (function () {
@@ -474,6 +474,7 @@
       document.getElementById('btn-reject').classList.add('hidden');
       document.getElementById('btn-reset').classList.add('hidden');
       document.getElementById('btn-remove').classList.add('hidden');
+      document.getElementById('menu-share').classList.add('hidden'); // until the task loads
       document.getElementById('drawer-body').innerHTML = '<div class="grid place-items-center py-8 text-muted text-[14px]"><span class="flex items-center gap-2"><i class="ph ph-spinner animate-spin text-[17px]"></i> Loading…</span></div>';
 
       if (!api) return;
@@ -610,6 +611,13 @@
         }
       });
     };
+
+    // --- Three-dots menu + Share dialog (TASK-077), shared with task.html ---
+    window.__shareDialog.mount({
+      task: function () { return selectedTask; },
+      onRemove: function () { window.doRemove(); },
+      toast: function (msg) { showToast('share', msg); },
+    });
 
     function showToast(type, msg) {
       var t = document.getElementById('toast');

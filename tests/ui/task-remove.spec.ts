@@ -93,6 +93,7 @@ async function openDrawer(page: Page, server: DsServer): Promise<void> {
   await card.click();
   await expect(page.locator('#drawer')).not.toHaveClass(/translate-x-full/, { timeout: 5000 });
   await expect(page.locator('#drawer-title')).toHaveText(TITLE);
+  await page.locator('#btn-more').click(); // TASK-077: Remove is inside the three-dots menu
   await expect(page.locator('#btn-remove')).toBeVisible();
   // Marker to prove later updates happen without a full page reload.
   await page.evaluate(() => {
