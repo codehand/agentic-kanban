@@ -196,6 +196,19 @@ test.describe('TASK-076: share link (owner: menu + dialog)', () => {
     await page.waitForTimeout(300);
     expect(m.calls.filter((c) => c.path === `/api/tasks/${KEY}/remove`)).toHaveLength(0);
     await expect(page.locator('#task-detail')).toBeVisible();
+    await expect(menu).toBeHidden();
+    await expect(more).toBeFocused(); // focus back on the trigger, not <body>
+
+    // Same dismiss path driven by the keyboard: Enter, ArrowDown, Enter.
+    page.once('dialog', (d) => void d.dismiss());
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('menuitem', { name: 'Share' })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+    expect(m.calls.filter((c) => c.path === `/api/tasks/${KEY}/remove`)).toHaveLength(0);
+    await expect(menu).toBeHidden();
+    await expect(more).toBeFocused();
 
     // Accept the guard: exactly one POST, back to the board.
     page.once('dialog', (d) => void d.accept());
@@ -274,9 +287,18 @@ test.describe('TASK-076: share link (owner: menu + dialog)', () => {
     m.shareStatus = 409;
     await openShareDialog(page);
     const third = new URL(await urlBox.inputValue()).pathname.replace(/^\/s\//, '');
-    await page.locator('#share-submit').click();
+    await page.locator('#share-submit').focus();
+    await page.keyboard.press('Enter'); // keyboard activation: the button disables while pending
     await expect(page.locator('#toast-msg')).toContainText('Share failed');
     await expect(page.locator('#share')).toBeVisible();
+    // Focus must come back inside the open aria-modal dialog, and Tab stays trapped there.
+    await expect(page.locator('#share-submit')).toBeEnabled();
+    await expect(page.locator('#share-submit')).toBeFocused();
+    const focusInShare = () => page.evaluate(() => document.getElementById('share')!.contains(document.activeElement));
+    await page.keyboard.press('Tab');
+    expect(await focusInShare()).toBe(true);
+    await page.keyboard.press('Shift+Tab');
+    expect(await focusInShare()).toBe(true);
     posts = m.calls.filter((c) => c.method === 'POST' && c.path === `/api/tasks/${KEY}/shares`);
     expect(posts[2]!.body).toEqual({ token: third, ttl: 300 });
 

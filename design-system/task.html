@@ -421,7 +421,8 @@
       if (menuOpen() && !moreBtn.contains(e.target) && !moreMenu.contains(e.target)) closeMenu(false);
     });
     document.getElementById('menu-share').addEventListener('click', function () { closeMenu(false); openShare(); });
-    document.getElementById('btn-remove').addEventListener('click', function () { closeMenu(false); window.doRemove(); });
+    // Refocus the trigger first: a dismissed confirm() must leave focus on #btn-more, not <body>.
+    document.getElementById('btn-remove').addEventListener('click', function () { closeMenu(true); window.doRemove(); });
 
     // --- Share dialog (TASK-076) ---
     // The link token is generated here (CSPRNG, 24 bytes -> 32 base64url chars)
@@ -490,6 +491,7 @@
       api.createShare(current.project, current.key, shareToken, selectedTtl()).then(function (resp) {
         if (!resp || resp.status !== 201) {
           btn.disabled = false;
+          btn.focus(); // disabling dropped focus to <body>; keep it inside the open dialog
           showToast('Share failed: ' + ((resp && resp.body && resp.body.error) || 'link not activated'));
           return;
         }
@@ -500,6 +502,7 @@
         copy.then(function () { showToast(msg + ' Copied to clipboard.'); }, function () { showToast(msg); });
       }).catch(function (err) {
         btn.disabled = false;
+        btn.focus();
         showToast('Share failed: ' + String(err && err.message || err));
       });
     });
